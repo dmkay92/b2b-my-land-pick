@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
-  const supabase = await createServiceClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -11,7 +11,13 @@ export async function POST(request: NextRequest) {
   if (admin?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { userId, status } = await request.json()
-  const { error } = await supabase
+
+  if (!['approved', 'rejected'].includes(status)) {
+    return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+  }
+
+  const serviceClient = await createServiceClient()
+  const { error } = await serviceClient
     .from('profiles').update({ status }).eq('id', userId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

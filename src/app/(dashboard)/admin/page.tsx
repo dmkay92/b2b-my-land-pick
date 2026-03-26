@@ -41,11 +41,12 @@ export default function AdminPage() {
   }, [])
 
   async function handleApprove(userId: string, status: 'approved' | 'rejected') {
-    await fetch('/api/admin/approve', {
+    const res = await fetch('/api/admin/approve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, status }),
     })
+    if (!res.ok) return
     const user = pendingUsers.find(u => u.id === userId)
     setPendingUsers(prev => prev.filter(u => u.id !== userId))
     if (status === 'approved' && user?.role === 'landco') {
@@ -57,11 +58,12 @@ export default function AdminPage() {
     const newCodes = currentCodes.includes(code)
       ? currentCodes.filter(c => c !== code)
       : [...currentCodes, code]
-    await fetch('/api/admin/assign-countries', {
+    const res = await fetch('/api/admin/assign-countries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ landcoId, countryCodes: newCodes }),
     })
+    if (!res.ok) return
     setLandcos(prev => prev.map(l => l.id === landcoId ? { ...l, country_codes: newCodes } : l))
   }
 
@@ -118,11 +120,11 @@ export default function AdminPage() {
                 <p className="font-medium mb-3">{landco.company_name}</p>
                 <div className="flex flex-wrap gap-2">
                   {COUNTRY_OPTIONS.map(country => {
-                    const selected = landco.country_codes.includes(country.code)
+                    const selected = (landco.country_codes ?? []).includes(country.code)
                     return (
                       <button
                         key={country.code}
-                        onClick={() => handleToggleCountry(landco.id, landco.country_codes, country.code)}
+                        onClick={() => handleToggleCountry(landco.id, landco.country_codes ?? [], country.code)}
                         className={`px-3 py-1 rounded-full text-sm border transition-colors ${
                           selected
                             ? 'bg-blue-500 text-white border-blue-500'
