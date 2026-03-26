@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { sendQuoteSubmittedEmail } from '@/lib/email/notifications'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -73,6 +74,27 @@ export async function POST(request: NextRequest) {
     .update({ status: 'in_progress' })
     .eq('id', requestId)
     .eq('status', 'open')
+
+  const { data: requestInfo } = await supabase
+    .from('quote_requests')
+    .select('event_name, agency_id')
+    .eq('id', requestId)
+    .single()
+
+  if (requestInfo) {
+    const { data: agencyInfo } = await supabase
+      .from('profiles').select('email').eq('id', requestInfo.agency_id).single()
+    const { data: landcoInfo } = await supabase
+      .from('profiles').select('company_name').eq('id', user.id).single()
+    if (agencyInfo?.email) {
+      await sendQuoteSubmittedEmail({
+        to: agencyInfo.email,
+        event_name: requestInfo.event_name,
+        landco_name: landcoInfo?.company_name ?? '',
+        request_id: requestId,
+      })
+    }
+  }
 
   return NextResponse.json({ data }, { status: 201 })
 }

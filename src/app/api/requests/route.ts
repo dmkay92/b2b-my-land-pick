@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { validateQuoteRequest } from '@/lib/validators'
+import { sendNewRequestEmail } from '@/lib/email/notifications'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -47,5 +48,23 @@ export async function POST(request: NextRequest) {
   }).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  const { data: landcos } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('role', 'landco')
+    .eq('status', 'approved')
+    .contains('country_codes', [body.destination_country])
+
+  if (landcos && landcos.length > 0) {
+    await sendNewRequestEmail({
+      to: landcos.map((l: { email: string }) => l.email),
+      event_name: body.event_name,
+      destination: `${body.destination_city} (${body.destination_country})`,
+      deadline: body.deadline,
+      request_id: data.id,
+    })
+  }
+
   return NextResponse.json({ data }, { status: 201 })
 }
