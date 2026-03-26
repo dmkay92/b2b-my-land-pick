@@ -14,6 +14,17 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
+
+  const requiredFields = ['event_name', 'destination_country', 'destination_city', 'depart_date', 'return_date', 'deadline'] as const
+  for (const field of requiredFields) {
+    if (!body[field] || typeof body[field] !== 'string') {
+      return NextResponse.json({ errors: [`${field}은(는) 필수입니다.`] }, { status: 400 })
+    }
+  }
+  if (![3, 4, 5].includes(body.hotel_grade)) {
+    return NextResponse.json({ errors: ['호텔 등급은 3, 4, 5 중 하나여야 합니다.'] }, { status: 400 })
+  }
+
   const errors = validateQuoteRequest(body)
   if (errors.length > 0) {
     return NextResponse.json({ errors }, { status: 400 })

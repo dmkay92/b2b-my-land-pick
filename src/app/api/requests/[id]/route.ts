@@ -19,6 +19,16 @@ export async function GET(
 
   if (error || !request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  const { data: profile } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single()
+
+  const isOwner = request.agency_id === user.id
+  const isLandco = profile?.role === 'landco'
+  const isAdmin = profile?.role === 'admin'
+  if (!isOwner && !isLandco && !isAdmin) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const { data: quotes } = await supabase
     .from('quotes')
     .select('*, profiles!quotes_landco_id_fkey(company_name)')

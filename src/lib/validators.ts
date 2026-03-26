@@ -15,8 +15,17 @@ interface QuoteRequestInput {
   notes?: string
 }
 
+function isValidDate(d: string): boolean {
+  return d.length > 0 && !isNaN(new Date(d).getTime())
+}
+
 export function validateQuoteRequest(input: QuoteRequestInput): string[] {
   const errors: string[] = []
+
+  if (!isValidDate(input.depart_date) || !isValidDate(input.return_date) || !isValidDate(input.deadline)) {
+    errors.push('날짜 형식이 올바르지 않습니다.')
+    return errors
+  }
 
   if (new Date(input.return_date) <= new Date(input.depart_date)) {
     errors.push('도착일은 출발일 이후여야 합니다.')
