@@ -11,9 +11,19 @@ export async function GET(request: NextRequest) {
   const requestId = request.nextUrl.searchParams.get('requestId')
   if (!requestId) return NextResponse.json({ error: 'requestId required' }, { status: 400 })
 
+  const { data: profile } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single()
+
   const { data: qr } = await supabase
     .from('quote_requests').select('*').eq('id', requestId).single()
   if (!qr) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const isOwner = qr.agency_id === user.id
+  const isLandco = profile?.role === 'landco'
+  const isAdmin = profile?.role === 'admin'
+  if (!isOwner && !isLandco && !isAdmin) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const workbook = await generateQuoteTemplate({
     event_name: qr.event_name,
@@ -30,7 +40,7 @@ export async function GET(request: NextRequest) {
   const buffer = await workbook.xlsx.writeBuffer()
   const fileName = encodeURIComponent(`견적서_${qr.event_name}.xlsx`)
 
-  return new NextResponse(buffer as ArrayBuffer, {
+  return new NextResponse(buffer, {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename*=UTF-8''${fileName}`,

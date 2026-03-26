@@ -61,10 +61,12 @@ export async function generateQuoteTemplate(opts: TemplateOptions): Promise<Exce
   })
   headerRow.height = 22
 
-  // 일정 행 (Day 1 ~ Day N)
-  const days = Math.ceil(
-    (new Date(opts.return_date).getTime() - new Date(opts.depart_date).getTime()) / (1000 * 60 * 60 * 24)
-  ) + 1
+  // 일정 행 (Day 1 ~ Day N) — UTC 기준 날짜 계산으로 timezone 무관
+  const [dy, dm, dd] = opts.depart_date.split('-').map(Number)
+  const [ry, rm, rd] = opts.return_date.split('-').map(Number)
+  const departMs = Date.UTC(dy, dm - 1, dd)
+  const returnMs = Date.UTC(ry, rm - 1, rd)
+  const days = Math.max(1, Math.ceil((returnMs - departMs) / (1000 * 60 * 60 * 24)) + 1)
 
   for (let d = 1; d <= days; d++) {
     const row = scheduleSheet.addRow([`제${String(d).padStart(2, '0')}일`, '', '', '', '', ''])
@@ -181,7 +183,9 @@ export async function generateQuoteTemplate(opts: TemplateOptions): Promise<Exce
   perPersonRow.getCell(1).value = `1인당 견적가 (총 ${opts.total_people}명 기준)`
   perPersonRow.getCell(1).font = { bold: true }
   perPersonRow.getCell(1).alignment = { horizontal: 'right', vertical: 'middle' }
-  perPersonRow.getCell(7).value = { formula: `G${rowIndex - 1}/${opts.total_people}` }
+  perPersonRow.getCell(7).value = opts.total_people > 0
+    ? { formula: `G${rowIndex - 1}/${opts.total_people}` }
+    : 0
   perPersonRow.getCell(7).numFmt = '#,##0'
   perPersonRow.getCell(7).font = { bold: true, color: { argb: 'FF1B5E9E' } }
   perPersonRow.height = 24
