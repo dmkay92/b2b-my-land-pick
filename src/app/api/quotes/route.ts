@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'file and requestId required' }, { status: 400 })
   }
 
-  if (!file.name.endsWith('.xlsx')) {
+  const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  if (!file.name.endsWith('.xlsx') || (file.type && file.type !== XLSX_MIME)) {
     return NextResponse.json({ error: '.xlsx 파일만 업로드 가능합니다.' }, { status: 400 })
   }
 
@@ -60,7 +61,11 @@ export async function POST(request: NextRequest) {
     file_name: file.name,
   }).select().single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    // DB insert 실패 시 업로드된 파일 정리
+    await supabase.storage.from('quotes').remove([filePath])
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   // quote_requests 상태를 in_progress로 업데이트
   await supabase

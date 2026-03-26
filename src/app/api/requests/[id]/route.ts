@@ -20,13 +20,22 @@ export async function GET(
   if (error || !request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { data: profile } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
+    .from('profiles').select('role, country_codes').eq('id', user.id).single()
 
   const isOwner = request.agency_id === user.id
   const isLandco = profile?.role === 'landco'
   const isAdmin = profile?.role === 'admin'
+
   if (!isOwner && !isLandco && !isAdmin) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // 랜드사는 자신의 담당 국가 요청만 접근 가능
+  if (isLandco) {
+    const assignedCodes = (profile?.country_codes ?? []) as string[]
+    if (!assignedCodes.includes(request.destination_country)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
   }
 
   const { data: quotes } = await supabase

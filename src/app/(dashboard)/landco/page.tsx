@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { formatDate, getStatusLabel } from '@/lib/utils'
 import type { QuoteRequest } from '@/lib/supabase/types'
@@ -6,9 +7,10 @@ import type { QuoteRequest } from '@/lib/supabase/types'
 export default async function LancdoDashboard() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const { data: profile } = await supabase
-    .from('profiles').select('country_codes').eq('id', user!.id).single()
+    .from('profiles').select('country_codes').eq('id', user.id).single()
 
   const countryCodes = (profile?.country_codes ?? []) as string[]
 
