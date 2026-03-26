@@ -16,10 +16,17 @@ interface GroupedQuotes {
   }
 }
 
+interface Selection {
+  landco_id: string
+  selected_quote_id: string
+  finalized_at: string | null
+}
+
 export default function AgencyRequestDetail() {
   const { id } = useParams<{ id: string }>()
   const [request, setRequest] = useState<QuoteRequest | null>(null)
   const [grouped, setGrouped] = useState<GroupedQuotes>({})
+  const [selection, setSelection] = useState<Selection | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -27,7 +34,6 @@ export default function AgencyRequestDetail() {
       const json = await res.json()
       setRequest(json.request)
 
-      // 랜드사별로 그룹핑
       const quotes: QuoteWithLandco[] = json.quotes ?? []
       const groups: GroupedQuotes = {}
       quotes.forEach(q => {
@@ -40,9 +46,40 @@ export default function AgencyRequestDetail() {
         groups[q.landco_id].quotes.push(q)
       })
       setGrouped(groups)
+
+      // 현재 선택 상태 조회
+      const selRes = await fetch(`/api/quotes/selection?requestId=${id}`)
+      if (selRes.ok) {
+        const selJson = await selRes.json()
+        setSelection(selJson.selection ?? null)
+      }
     }
     load()
   }, [id])
+
+  async function handleSelect(landcoId: string, quoteId: string) {
+    if (!confirm('이 랜드사를 선택하시겠습니까?')) return
+    const res = await fetch('/api/quotes/select', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId: id, landcoId, quoteId }),
+    })
+    if (res.ok) {
+      setSelection({ landco_id: landcoId, selected_quote_id: quoteId, finalized_at: null })
+    }
+  }
+
+  async function handleFinalize() {
+    if (!confirm('최종 확정하시겠습니까? 확정 후에는 변경이 어렵습니다.')) return
+    const res = await fetch('/api/quotes/finalize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId: id }),
+    })
+    if (res.ok) {
+      setSelection(prev => prev ? { ...prev, finalized_at: new Date().toISOString() } : null)
+    }
+  }
 
   if (!request) return <div className="p-8 text-gray-400">로딩 중...</div>
 
@@ -70,16 +107,17 @@ export default function AgencyRequestDetail() {
         </div>
       ) : (
         <div className="space-y-4">
-          {Object.entries(grouped).map(([landcoId, { company_name, quotes }]) => (
-            <div key={landcoId} className="bg-white rounded-lg shadow-sm p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold">{company_name}</h3>
-                <span className="text-xs text-gray-400">{quotes.length}개 버전</span>
-              </div>
-              <div className="space-y-2">
-                {quotes
-                  .sort((a, b) => b.version - a.version)
-                  .map(q => (
+          {Object.entries(grouped).map(([landcoId, { company_name, quotes }]) => {
+            const sortedQuotes = [...quotes].sort((a, b) => b.version - a.version)
+            const latestQuote = sortedQuotes[0]
+            return (
+              <div key={landcoId} className="bg-white rounded-lg shadow-sm p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold">{company_name}</h3>
+                  <span className="text-xs text-gray-400">{quotes.length}개 버전</span>
+                </div>
+                <div className="space-y-2">
+                  {sortedQuotes.map(q => (
                     <div key={q.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
                       <div className="flex items-center gap-3">
                         <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-medium">
@@ -102,9 +140,42 @@ export default function AgencyRequestDetail() {
                       </div>
                     </div>
                   ))}
+                </div>
+
+                {/* 선택/확정 버튼 */}
+                <div className="mt-3 pt-3 border-t">
+                  {!selection && (
+                    <button
+                      onClick={() => handleSelect(landcoId, latestQuote.id)}
+                      className="w-full bg-blue-600 text-white py-2 rounded-md text-sm hover:bg-blue-700"
+                    >
+                      이 랜드사 선택
+                    </button>
+                  )}
+                  {selection?.landco_id === landcoId && (
+                    <div className="flex items-center gap-3">
+                      <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
+                        선택됨
+                      </span>
+                      {!selection.finalized_at && (
+                        <button
+                          onClick={handleFinalize}
+                          className="bg-purple-600 text-white px-4 py-1.5 rounded-md text-sm hover:bg-purple-700"
+                        >
+                          최종 확정
+                        </button>
+                      )}
+                      {selection.finalized_at && (
+                        <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
+                          최종 확정 완료
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
