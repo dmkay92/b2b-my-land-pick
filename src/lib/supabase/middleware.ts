@@ -34,6 +34,19 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  if (user && isProtected) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, status')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.status === 'pending') {
+      url.pathname = '/pending'
+      return NextResponse.redirect(url)
+    }
+  }
+
   if (user && isAuthPage) {
     const { data: profile } = await supabase
       .from('profiles')
