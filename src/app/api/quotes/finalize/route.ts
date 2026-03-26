@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
   const { data: selection } = await supabase
     .from('quote_selections').select('*').eq('request_id', requestId).single()
   if (!selection) return NextResponse.json({ error: 'No selection found' }, { status: 400 })
+  if (selection.finalized_at) return NextResponse.json({ error: 'Already finalized' }, { status: 409 })
 
   // 최종 확정 처리
   await supabase.from('quote_selections')

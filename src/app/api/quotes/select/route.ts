@@ -7,6 +7,13 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // agency 역할만 견적 선택 가능
+  const { data: profile } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'agency') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
   const { requestId, landcoId, quoteId } = await request.json()
   if (!requestId || !landcoId || !quoteId) {
     return NextResponse.json({ error: 'requestId, landcoId, quoteId required' }, { status: 400 })
@@ -17,10 +24,35 @@ export async function POST(request: NextRequest) {
     .from('quote_requests').select('agency_id, event_name').eq('id', requestId).single()
   if (qr?.agency_id !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  // quoteId가 해당 requestId + landcoId 소속인지 검증
+  const { data: quote } = await supabase
+    .from('quotes')
+    .select('id')
+    .eq('id', quoteId)
+    .eq('request_id', requestId)
+    .eq('landco_id', landcoId)
+    .single()
+  if (!quote) return NextResponse.json({ error: 'Quote not found' }, { status: 404 })
+
+  // 기존 선택된 quote가 있으면 상태를 submitted로 되돌림
+  const { data: existing } = await supabase
+    .from('quote_selections')
+    .select('selected_quote_id')
+    .eq('request_id', requestId)
+    .maybeSingle()
+  if (existing?.selected_quote_id && existing.selected_quote_id !== quoteId) {
+    await supabase.from('quotes')
+      .update({ status: 'submitted' })
+      .eq('id', existing.selected_quote_id)
+  }
+
   // quote_selections upsert
   const { error: selError } = await supabase
     .from('quote_selections')
-    .upsert({ request_id: requestId, selected_quote_id: quoteId, landco_id: landcoId })
+    .upsert(
+      { request_id: requestId, selected_quote_id: quoteId, landco_id: landcoId },
+      { onConflict: 'request_id' }
+    )
 
   if (selError) return NextResponse.json({ error: selError.message }, { status: 500 })
 
