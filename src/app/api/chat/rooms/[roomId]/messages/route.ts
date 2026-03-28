@@ -54,7 +54,7 @@ export async function POST(
   const { data: message, error } = await supabase
     .from('messages')
     .insert({ room_id: roomId, sender_id: user.id, content: content.trim() })
-    .select()
+    .select('*, sender:profiles!messages_sender_id_fkey(company_name)')
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

@@ -17,9 +17,20 @@ export async function POST(request: NextRequest) {
   }
 
   const serviceClient = await createServiceClient()
+
+  const { data: current } = await serviceClient
+    .from('profiles').select('country_codes').eq('id', landcoId).single()
+
   const { error } = await serviceClient
     .from('profiles').update({ country_codes: countryCodes }).eq('id', landcoId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await serviceClient.from('admin_action_logs').insert({
+    target_user_id: landcoId,
+    action_type: 'country_change',
+    detail: { from: current?.country_codes ?? [], to: countryCodes },
+  })
+
   return NextResponse.json({ success: true })
 }

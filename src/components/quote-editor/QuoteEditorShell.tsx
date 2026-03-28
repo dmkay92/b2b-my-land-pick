@@ -8,8 +8,6 @@ import { QuotePreview } from './QuotePreview'
 
 interface Props {
   requestId: string
-  eventName: string
-  request: QuoteRequest
 }
 
 const defaultPricing: PricingData = {
@@ -24,7 +22,8 @@ const defaultPricing: PricingData = {
 type ActiveTab = 'itinerary' | 'pricing'
 type SaveStatus = 'saved' | 'saving' | 'unsaved'
 
-export function QuoteEditorShell({ requestId, eventName, request }: Props) {
+export function QuoteEditorShell({ requestId }: Props) {
+  const [request, setRequest] = useState<QuoteRequest | null>(null)
   const [activeTab, setActiveTab] = useState<ActiveTab>('itinerary')
   const [itinerary, setItinerary] = useState<ItineraryDay[]>([])
   const [pricing, setPricing] = useState<PricingData>(defaultPricing)
@@ -39,27 +38,30 @@ export function QuoteEditorShell({ requestId, eventName, request }: Props) {
   useEffect(() => { itineraryRef.current = itinerary }, [itinerary])
   useEffect(() => { pricingRef.current = pricing }, [pricing])
 
-  // Load draft on mount
+  // request + draft 로드
   useEffect(() => {
-    async function loadDraft() {
+    async function load() {
       try {
-        const res = await fetch(`/api/quotes/draft?requestId=${requestId}`)
-        if (res.ok) {
-          const json = await res.json()
-          if (json.draft) {
-            if (json.draft.itinerary?.length > 0) {
-              setItinerary(json.draft.itinerary)
-            }
-            if (json.draft.pricing) {
-              setPricing(json.draft.pricing)
-            }
+        const [reqRes, draftRes] = await Promise.all([
+          fetch(`/api/requests/${requestId}`),
+          fetch(`/api/quotes/draft?requestId=${requestId}`),
+        ])
+        if (reqRes.ok) {
+          const { request: req } = await reqRes.json()
+          setRequest(req)
+        }
+        if (draftRes.ok) {
+          const { draft } = await draftRes.json()
+          if (draft) {
+            if (draft.itinerary?.length > 0) setItinerary(draft.itinerary)
+            if (draft.pricing) setPricing(draft.pricing)
           }
         }
       } catch {
-        // 드래프트 로드 실패 시 무시
+        // 로드 실패 시 무시
       }
     }
-    loadDraft()
+    load()
   }, [requestId])
 
   const saveDraft = useCallback(async () => {
@@ -122,6 +124,14 @@ export function QuoteEditorShell({ requestId, eventName, request }: Props) {
       ? 'text-amber-500'
       : 'text-green-600'
 
+  if (!request) {
+    return (
+      <div className="flex items-center justify-center min-h-screen text-gray-400 text-sm">
+        로딩 중...
+      </div>
+    )
+  }
+
   return (
     <>
       {showPreview && (
@@ -140,7 +150,7 @@ export function QuoteEditorShell({ requestId, eventName, request }: Props) {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-lg font-bold text-gray-900">
-                {eventName} 견적서 작성
+                {request.event_name} 견적서 작성
               </h1>
             </div>
             <span className={`text-xs font-medium ${saveStatusColor}`}>
@@ -199,6 +209,7 @@ export function QuoteEditorShell({ requestId, eventName, request }: Props) {
               onChange={handlePricingChange}
             />
           )}
+
         </div>
       </div>
     </>

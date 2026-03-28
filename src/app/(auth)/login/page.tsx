@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { Logo } from '@/components/Logo'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -26,27 +27,14 @@ export default function LoginPage() {
       return
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, status')
-      .eq('id', data.user.id)
-      .single()
-
-    if (profile?.status === 'pending') {
-      router.push('/pending')
-    } else if (profile?.role === 'admin') {
-      router.push('/admin')
-    } else if (profile?.role === 'agency') {
-      router.push('/agency')
-    } else {
-      router.push('/landco')
-    }
+    router.push('/dashboard')
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <Logo />
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-2">인센티브투어 견적 플랫폼</h1>
+        <h1 className="text-2xl font-bold text-center mb-2">마이리얼랜드</h1>
         <p className="text-center text-gray-500 mb-6 text-sm">로그인</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -78,10 +66,13 @@ export default function LoginPage() {
             {loading ? '로그인 중...' : '로그인'}
           </button>
         </form>
-        <p className="mt-4 text-center text-sm text-gray-600">
-          계정이 없으신가요?{' '}
-          <Link href="/signup" className="text-blue-600 hover:underline">회원가입</Link>
-        </p>
+        <div className="mt-4 flex justify-between text-sm text-gray-600">
+          <Link href="/forgot-password" className="text-blue-600 hover:underline">비밀번호 찾기</Link>
+          <span>
+            계정이 없으신가요?{' '}
+            <Link href="/signup" className="text-blue-600 hover:underline">회원가입</Link>
+          </span>
+        </div>
       </div>
     </div>
   )

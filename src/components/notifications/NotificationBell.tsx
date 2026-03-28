@@ -87,33 +87,58 @@ export function NotificationBell({ userId }: { userId: string }) {
     <div className="relative" ref={panelRef}>
       <button
         onClick={handleOpen}
-        className="relative p-1 text-gray-600 hover:text-gray-900"
+        className={`relative flex items-center justify-center w-9 h-9 rounded-md border transition-colors duration-150 ${
+          open
+            ? 'text-blue-600 bg-blue-50 border-blue-200'
+            : 'text-gray-500 border-transparent hover:text-gray-800 hover:bg-gray-100 hover:border-gray-200'
+        }`}
         aria-label="알림"
       >
-        <span className="text-xl">🔔</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
         {unread > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-0.5">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1 w-72 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
-          <div className="px-3 py-2 border-b text-sm font-semibold text-gray-700">알림</div>
-          <div className="max-h-64 overflow-y-auto">
+        <div className="absolute right-0 mt-2 w-76 bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden" style={{ width: '300px' }}>
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-800">알림</span>
+            {unread === 0 && notifications.length > 0 && (
+              <span className="text-xs text-gray-400">모두 읽음</span>
+            )}
+          </div>
+          <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
             {notifications.length === 0 && (
-              <p className="text-xs text-gray-400 text-center p-4">알림이 없습니다</p>
+              <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-2 opacity-40">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                <p className="text-xs">알림이 없습니다</p>
+              </div>
             )}
             {notifications.map((n) => (
               <div
                 key={n.id}
-                className={`px-3 py-2 border-b last:border-b-0 text-sm ${n.read_at ? 'text-gray-500' : 'text-gray-800 font-medium bg-blue-50'}`}
+                className={`px-4 py-3 text-sm transition-colors ${
+                  n.read_at ? 'text-gray-500 bg-white' : 'text-gray-800 font-medium bg-blue-50'
+                }`}
               >
-                <p>{TYPE_LABEL[n.type] ?? n.type}</p>
-                {n.payload.event_name && (
-                  <p className="text-xs text-gray-500 mt-0.5">{n.payload.event_name}</p>
-                )}
+                <div className="flex items-start gap-2.5">
+                  <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${n.read_at ? 'bg-transparent' : 'bg-blue-500'}`} />
+                  <div>
+                    <p>{TYPE_LABEL[n.type] ?? n.type}</p>
+                    {n.payload.event_name && (
+                      <p className="text-xs text-gray-400 mt-0.5">{n.payload.event_name}</p>
+                    )}
+                  </div>
+                </div>
               </div>
             ))}
           </div>

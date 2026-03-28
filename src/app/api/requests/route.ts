@@ -22,7 +22,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ errors: [`${field}은(는) 필수입니다.`] }, { status: 400 })
     }
   }
-  if (![3, 4, 5].includes(body.hotel_grade)) {
+  const quoteType = body.quote_type === 'land' ? 'land' : 'hotel_land'
+  if (quoteType === 'hotel_land' && ![3, 4, 5].includes(body.hotel_grade)) {
     return NextResponse.json({ errors: ['호텔 등급은 3, 4, 5 중 하나여야 합니다.'] }, { status: 400 })
   }
 
@@ -42,7 +43,8 @@ export async function POST(request: NextRequest) {
     children: body.children,
     infants: body.infants,
     leaders: body.leaders,
-    hotel_grade: body.hotel_grade,
+    quote_type: quoteType,
+    hotel_grade: quoteType === 'land' ? null : body.hotel_grade,
     deadline: body.deadline,
     notes: body.notes ?? null,
   }).select().single()

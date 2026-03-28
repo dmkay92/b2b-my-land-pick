@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import type { UserRole } from '@/lib/supabase/types'
+import { Logo } from '@/components/Logo'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -38,6 +39,7 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <Logo />
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h1 className="text-2xl font-bold text-center mb-6">회원가입</h1>
         <form onSubmit={handleSubmit} className="space-y-4">

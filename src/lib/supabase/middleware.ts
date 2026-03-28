@@ -54,12 +54,14 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    if (profile?.status === 'pending') {
+    if (!profile) return supabaseResponse
+
+    if (profile.status === 'pending') {
       url.pathname = '/pending'
       return NextResponse.redirect(url)
     }
-    const dest = profile?.role === 'admin' ? '/admin'
-      : profile?.role === 'agency' ? '/agency' : '/landco'
+    const dest = profile.role === 'admin' ? '/admin'
+      : profile.role === 'agency' ? '/agency' : '/landco'
     url.pathname = dest
     return NextResponse.redirect(url)
   }

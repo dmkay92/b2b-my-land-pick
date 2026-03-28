@@ -1,18 +1,23 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
-import { formatDate, calculateTotalPeople, hotelGradeLabel } from '@/lib/utils'
+import { useParams, useRouter } from 'next/navigation'
+import { formatDate, calculateTotalPeople, hotelGradeLabel, getCountryName } from '@/lib/utils'
 import type { QuoteRequest, Quote } from '@/lib/supabase/types'
+import { useChat } from '@/lib/chat/ChatContext'
+import { ExcelPreviewModal } from '@/components/ExcelPreviewModal'
 
 interface QuoteWithLandco extends Quote {
   profiles: { company_name: string }
+  pricing?: { total: number | null; per_person: number | null }
 }
+
+type QuoteWithPricing = Quote & { pricing?: { total: number | null; per_person: number | null } }
 
 interface GroupedQuotes {
   [landcoId: string]: {
     company_name: string
-    quotes: Quote[]
+    quotes: QuoteWithPricing[]
   }
 }
 
@@ -24,9 +29,23 @@ interface Selection {
 
 export default function AgencyRequestDetail() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const [request, setRequest] = useState<QuoteRequest | null>(null)
   const [grouped, setGrouped] = useState<GroupedQuotes>({})
   const [selection, setSelection] = useState<Selection | null>(null)
+  const { openOrCreateRoom } = useChat()
+  const [preview, setPreview] = useState<{ url: string; name: string } | null>(null)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [showCopyModal, setShowCopyModal] = useState(false)
+  const [canceling, setCanceling] = useState(false)
+
+  async function handleCancel() {
+    setCanceling(true)
+    await fetch(`/api/requests/${id}/cancel`, { method: 'POST' })
+    setCanceling(false)
+    setShowCancelModal(false)
+    router.push('/agency')
+  }
 
   useEffect(() => {
     async function load() {
@@ -57,27 +76,15 @@ export default function AgencyRequestDetail() {
     load()
   }, [id])
 
-  async function handleSelect(landcoId: string, quoteId: string) {
-    if (!confirm('이 랜드사를 선택하시겠습니까?')) return
-    const res = await fetch('/api/quotes/select', {
+  async function handleConfirm(landcoId: string, quoteId: string) {
+    if (!confirm('이 견적서로 최종 확정하시겠습니까? 확정 후에는 변경이 어렵습니다.')) return
+    const res = await fetch('/api/quotes/confirm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requestId: id, landcoId, quoteId }),
     })
     if (res.ok) {
-      setSelection({ landco_id: landcoId, selected_quote_id: quoteId, finalized_at: null })
-    }
-  }
-
-  async function handleFinalize() {
-    if (!confirm('최종 확정하시겠습니까? 확정 후에는 변경이 어렵습니다.')) return
-    const res = await fetch('/api/quotes/finalize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestId: id }),
-    })
-    if (res.ok) {
-      setSelection(prev => prev ? { ...prev, finalized_at: new Date().toISOString() } : null)
+      setSelection({ landco_id: landcoId, selected_quote_id: quoteId, finalized_at: new Date().toISOString() })
     }
   }
 
@@ -87,14 +94,128 @@ export default function AgencyRequestDetail() {
   const landcoCount = Object.keys(grouped).length
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-1">{request.event_name}</h1>
-      <p className="text-gray-500 text-sm mb-1">
-        {request.destination_city} ({request.destination_country}) ·
-        {formatDate(request.depart_date)} ~ {formatDate(request.return_date)} ·
-        총 {total}명 · {hotelGradeLabel(request.hotel_grade)}
-      </p>
-      <p className="text-gray-400 text-xs mb-6">견적 마감: {formatDate(request.deadline)}</p>
+    <>
+      {showCopyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80">
+            <h3 className="text-base font-bold text-gray-900 mb-2">견적을 복사하시겠습니까?</h3>
+            <p className="text-sm text-gray-500 mb-6">해당 견적의 내용을 복사해 새 견적 요청 작성 페이지로 이동합니다.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowCopyModal(false)}
+                className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => { setShowCopyModal(false); router.push(`/agency/requests/new?copy=${id}`) }}
+                className="flex-1 bg-[#009CF0] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#0088D9]"
+              >
+                복사하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-80">
+            <h3 className="text-base font-bold text-gray-900 mb-2">견적 요청을 취소하시겠습니까?</h3>
+            <p className="text-sm text-gray-500 mb-6">취소된 견적은 되돌릴 수 없습니다.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+              >
+                돌아가기
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={canceling}
+                className="flex-1 bg-red-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-600 disabled:opacity-50"
+              >
+                {canceling ? '처리 중...' : '취소 확인'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {preview && (
+        <ExcelPreviewModal
+          fileUrl={preview.url}
+          fileName={preview.name}
+          onClose={() => setPreview(null)}
+        />
+      )}
+      <div className="p-8 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">{request.event_name}</h1>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowCopyModal(true)}
+            className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium bg-white hover:bg-gray-50"
+          >
+            견적 복사
+          </button>
+          {request.status !== 'finalized' && request.status !== 'closed' && (
+            <>
+              <button
+                onClick={() => router.push(`/agency/requests/${id}/edit`)}
+                className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium bg-white hover:bg-gray-50"
+              >
+                ✏️ 수정
+              </button>
+              <button
+                onClick={() => setShowCancelModal(true)}
+                className="border border-red-300 text-red-500 px-4 py-2 rounded-lg text-sm font-medium bg-white hover:bg-red-50"
+              >
+                견적 취소
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 견적 조건 카드 */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-4">견적 조건</h2>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">목적지</p>
+            <p className="text-sm font-medium text-gray-800">{getCountryName(request.destination_country)} {request.destination_city}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">출발일</p>
+            <p className="text-sm font-medium text-gray-800">{formatDate(request.depart_date)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">귀국일</p>
+            <p className="text-sm font-medium text-gray-800">{formatDate(request.return_date)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">총 인원</p>
+            <p className="text-sm font-medium text-gray-800">{total}명
+              <span className="text-xs text-gray-400 font-normal ml-1">
+                (성인 {request.adults} · 아동 {request.children} · 유아 {request.infants} · 인솔 {request.leaders})
+              </span>
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">호텔 등급</p>
+            <p className="text-sm font-medium text-gray-800">{hotelGradeLabel(request.hotel_grade)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">견적 마감</p>
+            <p className="text-sm font-medium text-red-500">{formatDate(request.deadline)}</p>
+          </div>
+        </div>
+        {request.notes && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <p className="text-xs text-gray-400 mb-1">요청사항</p>
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{request.notes}</p>
+          </div>
+        )}
+      </div>
 
       <h2 className="text-lg font-semibold mb-4">
         랜드사 견적서
@@ -114,64 +235,74 @@ export default function AgencyRequestDetail() {
               <div key={landcoId} className="bg-white rounded-lg shadow-sm p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold">{company_name}</h3>
-                  <span className="text-xs text-gray-400">{quotes.length}개 버전</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openOrCreateRoom(id, landcoId)}
+                      className="text-xs text-blue-600 border border-blue-300 px-2.5 py-1 rounded-full hover:bg-blue-50"
+                    >
+                      💬 랜드사와 채팅하기
+                    </button>
+                    <span className="text-xs text-gray-400">{quotes.length}개 버전</span>
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  {sortedQuotes.map(q => (
-                    <div key={q.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
+                  {(sortedQuotes as QuoteWithPricing[]).map(q => (
+                    <div key={q.id} className="py-2 border-b last:border-0">
                       <div className="flex items-center gap-3">
-                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-medium">
+                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-medium shrink-0">
                           v{q.version}
                         </span>
-                        <span className="text-sm text-gray-600">{q.file_name}</span>
+                        <span className="text-sm text-gray-600 truncate min-w-0 flex-1">{q.file_name}</span>
+                        <div className="flex items-center gap-2 shrink-0 ml-auto">
+                          <span className="text-xs text-gray-400 whitespace-nowrap">
+                            {new Date(q.submitted_at).toLocaleString('ko-KR')}
+                          </span>
+                          <button
+                            onClick={() => setPreview({ url: q.file_url, name: q.file_name })}
+                            className="border border-gray-300 text-gray-600 rounded-lg px-3 py-1 text-xs font-medium bg-white hover:bg-gray-50 whitespace-nowrap"
+                          >
+                            미리보기
+                          </button>
+                          <a
+                            href={q.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-[#009CF0] text-white rounded-lg px-3 py-1 text-xs font-medium hover:bg-[#0088D9] whitespace-nowrap"
+                          >
+                            ↓ 다운로드
+                          </a>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-gray-400">
-                          {new Date(q.submitted_at).toLocaleString('ko-KR')}
-                        </span>
-                        <a
-                          href={q.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-500 text-sm hover:underline"
-                        >
-                          다운로드
-                        </a>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <div className="flex gap-4 ml-1">
+                          {q.pricing?.total != null && (
+                            <span className="text-xs text-gray-500">
+                              총 합계 <span className="font-semibold text-gray-800">{q.pricing.total.toLocaleString('ko-KR')}원</span>
+                            </span>
+                          )}
+                          {q.pricing?.per_person != null && (
+                            <span className="text-xs text-gray-500">
+                              1인당 <span className="font-semibold text-blue-600">{Math.ceil(q.pricing.per_person).toLocaleString('ko-KR')}원</span>
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          {selection?.selected_quote_id === q.id && selection.finalized_at ? (
+                            <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-medium">
+                              최종 확정됨
+                            </span>
+                          ) : !selection?.finalized_at && (
+                            <button
+                              onClick={() => handleConfirm(landcoId, q.id)}
+                              className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700"
+                            >
+                              최종 확정
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
-                </div>
-
-                {/* 선택/확정 버튼 */}
-                <div className="mt-3 pt-3 border-t">
-                  {!selection && (
-                    <button
-                      onClick={() => handleSelect(landcoId, latestQuote.id)}
-                      className="w-full bg-blue-600 text-white py-2 rounded-md text-sm hover:bg-blue-700"
-                    >
-                      이 랜드사 선택
-                    </button>
-                  )}
-                  {selection?.landco_id === landcoId && (
-                    <div className="flex items-center gap-3">
-                      <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
-                        선택됨
-                      </span>
-                      {!selection.finalized_at && (
-                        <button
-                          onClick={handleFinalize}
-                          className="bg-purple-600 text-white px-4 py-1.5 rounded-md text-sm hover:bg-purple-700"
-                        >
-                          최종 확정
-                        </button>
-                      )}
-                      {selection.finalized_at && (
-                        <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-medium">
-                          최종 확정 완료
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             )
@@ -179,5 +310,6 @@ export default function AgencyRequestDetail() {
         </div>
       )}
     </div>
+    </>
   )
 }

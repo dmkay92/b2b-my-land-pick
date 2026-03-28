@@ -19,17 +19,9 @@ export default async function QuoteEditorPage({ params }: { params: Promise<{ id
     redirect('/login')
   }
 
-  const { data: request } = await supabase
-    .from('quote_requests')
-    .select('*')
-    .eq('id', id)
-    .single()
-
-  if (!request) redirect('/landco')
-
   return (
     <div className="min-h-screen bg-gray-50">
-      <QuoteEditorShell request={request} />
+      <QuoteEditorShell requestId={id} />
     </div>
   )
 }

@@ -1,5 +1,5 @@
 -- Extensions
-create extension if not exists "uuid-ossp";
+create extension if not exists "pgcrypto";
 
 -- Profiles (여행사, 랜드사, 관리자)
 create table public.profiles (
@@ -15,7 +15,7 @@ create table public.profiles (
 
 -- Quote requests
 create table public.quote_requests (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   agency_id uuid references public.profiles not null,
   event_name text not null,
   destination_country text not null,
@@ -36,7 +36,7 @@ create table public.quote_requests (
 
 -- Quotes (버전 관리)
 create table public.quotes (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   request_id uuid references public.quote_requests on delete cascade not null,
   landco_id uuid references public.profiles not null,
   version int not null default 1,
@@ -58,7 +58,7 @@ create table public.quote_selections (
 
 -- Chat rooms (견적 × 랜드사별 1:1)
 create table public.chat_rooms (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   request_id uuid references public.quote_requests on delete cascade not null,
   agency_id uuid references public.profiles not null,
   landco_id uuid references public.profiles not null,
@@ -68,7 +68,7 @@ create table public.chat_rooms (
 
 -- Messages
 create table public.messages (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   room_id uuid references public.chat_rooms on delete cascade not null,
   sender_id uuid references public.profiles not null,
   content text not null,
@@ -77,7 +77,7 @@ create table public.messages (
 
 -- Notifications
 create table public.notifications (
-  id uuid default uuid_generate_v4() primary key,
+  id uuid default gen_random_uuid() primary key,
   user_id uuid references public.profiles not null,
   type text not null,
   payload jsonb not null default '{}',
