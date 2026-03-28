@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthorizedLandco } from '@/lib/supabase/auth-helpers'
 import { generateFilledQuoteTemplate } from '@/lib/excel/template'
 import { calculateTotalPeople } from '@/lib/utils'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 })
-
-  const { data: profile } = await supabase
-    .from('profiles').select('role, status').eq('id', user.id).single()
-  if (profile?.role !== 'landco' || profile?.status !== 'approved') {
-    return NextResponse.json({ error: '접근 권한이 없습니다.' }, { status: 403 })
-  }
+  const { user, error } = await getAuthorizedLandco(supabase)
+  if (error) return error
 
   const { requestId } = await request.json() as { requestId: string }
   if (!requestId) return NextResponse.json({ error: 'requestId가 필요합니다.' }, { status: 400 })
@@ -31,7 +26,7 @@ export async function POST(request: NextRequest) {
     .from('quote_drafts')
     .select('itinerary, pricing')
     .eq('request_id', requestId)
-    .eq('landco_id', user.id)
+    .eq('landco_id', user!.id)
     .single()
 
   if (draftError || !draft) return NextResponse.json({ error: '저장된 임시 견적서가 없습니다.' }, { status: 404 })
@@ -61,7 +56,7 @@ export async function POST(request: NextRequest) {
 
   const buffer = await workbook.xlsx.writeBuffer()
   const timestamp = Date.now()
-  const filePath = `drafts/${requestId}/${user.id}/preview_${timestamp}.xlsx`
+  const filePath = `drafts/${requestId}/${user!.id}/preview_${timestamp}.xlsx`
   const fileName = `견적서_미리보기_${qr.event_name}_${timestamp}.xlsx`
 
   // 4. Supabase Storage 업로드
@@ -83,5 +78,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'URL 생성에 실패했습니다.' }, { status: 500 })
   }
 
-  return NextResponse.json({ url: urlData.signedUrl, fileName })
+  return NextResponse.json({ url: urlData.signedUrl, filePath, fileName })
 }

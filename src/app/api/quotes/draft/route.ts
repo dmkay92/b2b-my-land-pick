@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getAuthorizedLandco } from '@/lib/supabase/auth-helpers'
 import type { ItineraryDay, PricingData } from '@/lib/supabase/types'
 
 async function getAuthorizedUser() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { supabase, user: null, error: NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 }) }
-
-  const { data: profile } = await supabase
-    .from('profiles').select('role, status').eq('id', user.id).single()
-  if (profile?.role !== 'landco' || profile?.status !== 'approved') {
-    return { supabase, user: null, error: NextResponse.json({ error: '접근 권한이 없습니다.' }, { status: 403 }) }
-  }
-
-  return { supabase, user, error: null }
+  const { user, error } = await getAuthorizedLandco(supabase)
+  return { supabase, user, error }
 }
 
 // GET ?requestId=<uuid>
