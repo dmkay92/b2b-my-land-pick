@@ -401,11 +401,6 @@ export function LandcoDashboardClient({
                                 {req.quote_type === 'land' ? '랜드' : '호텔+랜드'}
                               </span>
                               {subPhaseColor && (
-                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                                  확정
-                                </span>
-                              )}
-                              {subPhaseColor && (
                                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${subPhaseColor.badge}`}>
                                   {SUB_PHASE_LABELS[phase as 'pre' | 'mid']}
                                 </span>
