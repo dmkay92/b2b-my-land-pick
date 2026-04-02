@@ -2,30 +2,86 @@
 
 import { useRef, useEffect, useState } from 'react'
 import { useChat } from '@/lib/chat/ChatContext'
+import { createClient } from '@/lib/supabase/client'
 
 type FilterMode = 'request' | 'landco'
 
-type RequestPhase = 'pre' | 'mid'
+type RequestPhase = 'pre' | 'mid' | 'end' | 'payment_pending'
 
 function getRequestPhase(req: { status: string; depart_date: string; return_date: string } | undefined): RequestPhase | null {
   if (!req) return null
   const today = new Date().toISOString().slice(0, 10)
+  if (req.status === 'payment_pending') return 'payment_pending'
   if (req.status === 'finalized') {
     if (today < req.depart_date) return 'pre'
     if (today <= req.return_date) return 'mid'
+    return 'end'
   }
   return null
 }
 
 const PHASE_TAG: Record<RequestPhase, { label: string; style: React.CSSProperties }> = {
+  payment_pending: { label: '입금대기', style: { backgroundColor: '#fef3c7', color: '#b45309' } },
   pre: { label: '여행전', style: { backgroundColor: '#ede9fe', color: '#6d28d9' } },
   mid: { label: '여행중', style: { backgroundColor: '#fef3c7', color: '#b45309' } },
+  end: { label: '여행완료', style: { backgroundColor: '#d1fae5', color: '#065f46' } },
+}
+
+function FileBubble({ isMine, fileName, onDownload }: { isMine: boolean; fileName: string; onDownload: () => void }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <button
+      onClick={onDownload}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        maxWidth: '72%',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '10px 14px',
+        borderRadius: isMine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+        backgroundColor: isMine
+          ? (hovered ? '#1d4ed8' : '#2563eb')
+          : (hovered ? '#f0f9ff' : '#ffffff'),
+        color: isMine ? '#ffffff' : '#1f2937',
+        fontSize: '13px',
+        boxShadow: hovered
+          ? '0 4px 12px rgba(0,0,0,0.15)'
+          : '0 1px 2px rgba(0,0,0,0.1)',
+        cursor: 'pointer',
+        border: isMine ? 'none' : `1px solid ${hovered ? '#bfdbfe' : '#e5e7eb'}`,
+        transition: 'background-color 0.15s, box-shadow 0.15s, border-color 0.15s',
+      }}
+    >
+      {/* 파일 아이콘 */}
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, opacity: hovered ? 1 : 0.7, transition: 'opacity 0.15s' }}>
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <polyline points="14,2 14,8 20,8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px', flex: 1, textAlign: 'left' }}>
+        {fileName}
+      </span>
+      {/* hover 시 다운로드 아이콘 */}
+      <svg
+        width="14" height="14" viewBox="0 0 24 24" fill="none"
+        style={{ flexShrink: 0, opacity: hovered ? 1 : 0, transition: 'opacity 0.15s', color: isMine ? '#bfdbfe' : '#3b82f6' }}
+      >
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </button>
+  )
 }
 
 function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => void }) {
   const { messages, sendMessage, activeRoomId, rooms, currentUserId } = useChat()
   const [input, setInput] = useState('')
+  const [isDragging, setIsDragging] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [pendingFile, setPendingFile] = useState<{ url: string; name: string } | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const dragCounter = useRef(0)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -41,7 +97,6 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
     ? `${otherName} · ${activeRoom.request?.event_name ?? '견적'}`
     : '채팅'
 
-  // 상대방이 마지막으로 읽은 시각
   const otherLastReadAt = activeRoom
     ? (currentUserId === activeRoom.agency_id
         ? activeRoom.landco_last_read_at
@@ -50,9 +105,10 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
 
   const handleSend = async () => {
     const trimmed = input.trim()
-    if (!trimmed) return
+    if (!trimmed && !pendingFile) return
     setInput('')
-    await sendMessage(trimmed)
+    setPendingFile(null)
+    await sendMessage(trimmed, pendingFile ?? undefined)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -62,10 +118,78 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
     }
   }
 
+  async function handleDownload(url: string, fileName: string) {
+    try {
+      const res = await fetch(url)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = fileName
+      a.click()
+      URL.revokeObjectURL(blobUrl)
+    } catch {
+      window.open(url, '_blank')
+    }
+  }
+
+  async function uploadFile(file: File) {
+    setUploading(true)
+    try {
+      const supabase = createClient()
+      // 파일명 특수문자 제거 (공백 → _, 한글·영문·숫자·점·하이픈만 허용)
+      const safeName = file.name.replace(/[^a-zA-Z0-9가-힣._-]/g, '_')
+      const path = `chat/${activeRoomId}/${Date.now()}_${safeName}`
+      const { error } = await supabase.storage.from('quotes').upload(path, file, { contentType: file.type || 'application/octet-stream' })
+      if (error) {
+        alert(`파일 업로드에 실패했습니다.\n${error.message}`)
+        return
+      }
+      const { data: urlData } = await supabase.storage.from('quotes').createSignedUrl(path, 60 * 60 * 24 * 365)
+      setPendingFile({ url: urlData?.signedUrl ?? path, name: file.name })
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current++
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) setIsDragging(true)
+  }
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current--
+    if (dragCounter.current === 0) setIsDragging(false)
+  }
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault() }
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    dragCounter.current = 0
+    const file = e.dataTransfer.files?.[0]
+    if (file) uploadFile(file)
+  }
+
   if (!activeRoomId) return null
 
   return (
-    <div className="flex flex-col h-full">
+    <div
+      className="flex flex-col h-full relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* 드래그 오버레이 */}
+      {isDragging && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-blue-50/90 border-2 border-dashed border-blue-400 rounded-xl pointer-events-none">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" className="text-blue-400 mb-2"><path d="M12 4v12m0-12L8 8m4-4l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+          <p className="text-sm font-semibold text-blue-600">파일을 여기에 놓으세요</p>
+        </div>
+      )}
+
       <div className="flex items-center gap-2 px-3 py-3 bg-blue-600 text-white rounded-t-xl flex-shrink-0">
         <button onClick={onBack} className="text-white hover:text-blue-200 text-lg leading-none flex-shrink-0 px-1">‹</button>
         <p className="text-sm font-semibold truncate flex-1">{roomLabel}</p>
@@ -85,19 +209,27 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
           const isLastInGroup = !next || next.sender_id !== msg.sender_id || nextMinuteKey !== minuteKey
           return (
             <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMine ? 'flex-end' : 'flex-start' }}>
-              <div style={{
-                maxWidth: '72%',
-                padding: '8px 12px',
-                borderRadius: isMine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                backgroundColor: isMine ? '#2563eb' : '#ffffff',
-                color: isMine ? '#ffffff' : '#1f2937',
-                fontSize: '14px',
-                lineHeight: '1.4',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                wordBreak: 'break-word',
-              }}>
-                {msg.content}
-              </div>
+              {msg.file_url ? (
+                <FileBubble
+                  isMine={isMine}
+                  fileName={msg.file_name ?? '파일'}
+                  onDownload={() => handleDownload(msg.file_url!, msg.file_name ?? '파일')}
+                />
+              ) : (
+                <div style={{
+                  maxWidth: '72%',
+                  padding: '8px 12px',
+                  borderRadius: isMine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                  backgroundColor: isMine ? '#2563eb' : '#ffffff',
+                  color: isMine ? '#ffffff' : '#1f2937',
+                  fontSize: '14px',
+                  lineHeight: '1.4',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                  wordBreak: 'break-word',
+                }}>
+                  {msg.content}
+                </div>
+              )}
               {isLastInGroup && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', flexDirection: isMine ? 'row-reverse' : 'row', paddingLeft: '4px', paddingRight: '4px' }}>
                   {isMine && unread && (
@@ -112,7 +244,53 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
         <div ref={bottomRef} />
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', padding: '12px', borderTop: '1px solid #e5e7eb', backgroundColor: 'white', borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px', flexShrink: 0 }}>
+      <div style={{ borderTop: '1px solid #e5e7eb', backgroundColor: 'white', borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px', flexShrink: 0 }}>
+        {/* 업로드 대기 파일 미리보기 */}
+        {(uploading || pendingFile) && (
+          <div style={{ padding: '8px 12px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '5px 10px', flex: 1, minWidth: 0 }}>
+              {uploading ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#3b82f6' }} className="animate-spin"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeDashoffset="12" strokeLinecap="round"/></svg>
+                  <span style={{ fontSize: '12px', color: '#3b82f6' }}>업로드 중...</span>
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#3b82f6' }}><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <span style={{ fontSize: '12px', color: '#1d4ed8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pendingFile?.name}</span>
+                </>
+              )}
+            </div>
+            {pendingFile && !uploading && (
+              <button
+                onClick={() => { setPendingFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                style={{ flexShrink: 0, color: '#9ca3af', cursor: 'pointer', display: 'flex', padding: '2px' }}
+                onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                onMouseLeave={e => (e.currentTarget.style.color = '#9ca3af')}
+                title="취소"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+              </button>
+            )}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: '6px', padding: '10px 12px', alignItems: 'center' }}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadFile(f) }}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || !!pendingFile}
+          title="파일 첨부"
+          style={{ padding: '6px', borderRadius: '9999px', color: '#9ca3af', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f3f4f6')}
+          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
         <input
           autoFocus
           value={input}
@@ -127,6 +305,7 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
         >
           전송
         </button>
+        </div>
       </div>
     </div>
   )
@@ -269,10 +448,38 @@ export function FloatingChat() {
   const [showList, setShowList] = useState(false)
   const [panelVisible, setPanelVisible] = useState(false)
   const [filterMode, setFilterMode] = useState<FilterMode>('request')
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (isOpen) setPanelVisible(true)
   }, [isOpen])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && panelVisible) setPanelVisible(false)
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [panelVisible])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!panelVisible) return
+      if (containerRef.current?.contains(e.target as Node)) return
+      // 인터랙티브 요소(버튼, 링크, 카드 등) 클릭 시 닫지 않음
+      let el = e.target as Element | null
+      while (el && el !== document.documentElement) {
+        const tag = el.tagName
+        if (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
+        const cursor = window.getComputedStyle(el).cursor
+        if (cursor === 'pointer' || cursor === 'text') return
+        el = el.parentElement
+      }
+      setPanelVisible(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [panelVisible])
 
   const handleToggle = async () => {
     if (panelVisible) {
@@ -298,7 +505,7 @@ export function FloatingChat() {
   const panelOpen = panelVisible && (isOpen || showList)
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+    <div ref={containerRef} className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
       {panelOpen && (
         <div style={{ width: '420px', height: '680px', boxShadow: '0 20px 60px rgba(0,0,0,0.15)', borderRadius: '12px', border: '1px solid #e5e7eb', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {isOpen ? <ChatWindow onBack={handleBack} onClose={handleClose} /> : <ChatRoomList filterMode={filterMode} setFilterMode={setFilterMode} onClose={handleClose} />}
