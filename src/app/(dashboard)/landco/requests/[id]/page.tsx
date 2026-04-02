@@ -44,7 +44,7 @@ export default function LandcoRequestDetail() {
           .sort((a, b) => b.version - a.version)
         setMyQuotes(myOnly)
 
-        if (json.request?.status === 'finalized') {
+        if (json.request?.status === 'finalized' || json.request?.status === 'payment_pending') {
           const selRes = await fetch(`/api/quotes/selection?requestId=${id}`)
           if (selRes.ok) {
             const selJson = await selRes.json()
