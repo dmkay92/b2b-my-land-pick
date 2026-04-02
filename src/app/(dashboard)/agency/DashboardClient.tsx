@@ -24,7 +24,7 @@ export type PhasedRequest = QuoteRequest & {
 }
 
 const SUB_PHASE_LABELS: Record<'pre' | 'mid' | 'end', string> = {
-  pre: '여행전',
+  pre: '출발전',
   mid: '여행중',
   end: '여행완료',
 }
@@ -37,29 +37,29 @@ const SUB_PHASE_COLORS: Record<'pre' | 'mid' | 'end', { border: string; badge: s
 
 const KPI_CARDS: { phase: TravelPhase; label: string; subtext: string; color?: string }[] = [
   { phase: 'all',       label: '전체',          subtext: '모든 요청' },
-  { phase: 'ing',             label: '진행 중인 견적',  subtext: '랜드사 견적 대기 중', color: '#2563eb' },
-  { phase: 'payment_pending', label: '입금대기',        subtext: '랜드사 입금 확인 중', color: '#d97706' },
-  { phase: 'confirmed',       label: '확정된 견적',    subtext: '여행 전 · 여행 중',   color: '#7c3aed' },
+  { phase: 'ing',             label: '견적 수집 중',  subtext: '랜드사 견적 대기 중', color: '#2563eb' },
+  { phase: 'payment_pending', label: '입금 대기 중',  subtext: '랜드사 입금 확인 중', color: '#d97706' },
+  { phase: 'confirmed',       label: '여행 확정',     subtext: '출발전 · 여행중',     color: '#7c3aed' },
   { phase: 'end',       label: '여행 완료',      subtext: '일정 종료',           color: '#059669' },
-  { phase: 'cancelled', label: '취소한 견적',    subtext: '선택 없이 마감',      color: '#9ca3af' },
+  { phase: 'cancelled', label: '취소',           subtext: '선택 없이 마감',      color: '#9ca3af' },
 ]
 
 const SECTIONS = [
   {
     key: 'ing' as const,
-    label: '진행 중인 견적',
+    label: '견적 수집 중',
     dotColor: 'bg-blue-500',
     filter: (r: PhasedRequest) => r.phase === 'ing',
   },
   {
     key: 'payment_pending' as const,
-    label: '입금대기',
+    label: '입금 대기 중',
     dotColor: 'bg-amber-500',
     filter: (r: PhasedRequest) => r.phase === 'payment_pending',
   },
   {
     key: 'confirmed' as const,
-    label: '확정된 견적',
+    label: '여행 확정',
     dotColor: 'bg-purple-500',
     filter: (r: PhasedRequest) => r.phase === 'pre' || r.phase === 'mid',
   },
@@ -71,7 +71,7 @@ const SECTIONS = [
   },
   {
     key: 'cancelled' as const,
-    label: '취소한 견적',
+    label: '취소',
     dotColor: 'bg-gray-400',
     filter: (r: PhasedRequest) => r.phase === 'cancelled',
   },
@@ -369,7 +369,7 @@ export function AgencyDashboardClient({
 
           const SUB_FILTERS: { key: 'all' | 'pre' | 'mid' | 'end'; label: string }[] = [
             { key: 'all', label: '전체' },
-            { key: 'pre', label: '여행전' },
+            { key: 'pre', label: '출발전' },
             { key: 'mid', label: '여행중' },
           ]
 
@@ -434,11 +434,6 @@ export function AgencyDashboardClient({
                               </span>
                               {phase === 'payment_pending' && (
                                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">입금대기</span>
-                              )}
-                              {subPhaseColor && (phase === 'pre' || phase === 'mid') && (
-                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
-                                  확정
-                                </span>
                               )}
                               {subPhaseColor && (
                                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${subPhaseColor.badge}`}>

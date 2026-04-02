@@ -22,7 +22,7 @@ function getRequestPhase(req: { status: string; depart_date: string; return_date
 
 const PHASE_TAG: Record<RequestPhase, { label: string; style: React.CSSProperties }> = {
   payment_pending: { label: '입금대기', style: { backgroundColor: '#fef3c7', color: '#b45309' } },
-  pre: { label: '여행전', style: { backgroundColor: '#ede9fe', color: '#6d28d9' } },
+  pre: { label: '출발전', style: { backgroundColor: '#ede9fe', color: '#6d28d9' } },
   mid: { label: '여행중', style: { backgroundColor: '#fef3c7', color: '#b45309' } },
   end: { label: '여행완료', style: { backgroundColor: '#d1fae5', color: '#065f46' } },
 }

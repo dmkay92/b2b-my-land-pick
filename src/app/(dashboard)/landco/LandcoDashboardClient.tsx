@@ -21,7 +21,7 @@ export type PhasedLandcoRequest = QuoteRequest & {
 }
 
 const SUB_PHASE_LABELS: Record<'pre' | 'mid', string> = {
-  pre: '여행전',
+  pre: '출발전',
   mid: '여행중',
 }
 
@@ -32,30 +32,30 @@ const SUB_PHASE_COLORS: Record<'pre' | 'mid', { border: string; badge: string }>
 
 const KPI_CARDS: { phase: LandcoPhase; label: string; subtext: string; color?: string }[] = [
   { phase: 'all',       label: '전체',          subtext: '모든 요청' },
-  { phase: 'ing',             label: '진행 중인 견적',  subtext: '견적 수집 중',      color: '#2563eb' },
-  { phase: 'payment_pending', label: '입금대기',        subtext: '입금 확인 중',      color: '#d97706' },
-  { phase: 'confirmed',       label: '확정된 견적',    subtext: '여행 전 · 여행 중',  color: '#7c3aed' },
-  { phase: 'end',       label: '여행 완료',      subtext: '일정 종료',          color: '#059669' },
-  { phase: 'abandoned', label: '포기한 견적',    subtext: '참여 포기',          color: '#dc2626' },
-  { phase: 'lost',      label: '미선택',         subtext: '다른 랜드사 선택됨', color: '#9ca3af' },
+  { phase: 'ing',             label: '견적 수집 중',  subtext: '견적 수집 중',       color: '#2563eb' },
+  { phase: 'payment_pending', label: '입금 대기 중',  subtext: '입금 확인 중',       color: '#d97706' },
+  { phase: 'confirmed',       label: '여행 확정',     subtext: '출발전 · 여행중',    color: '#7c3aed' },
+  { phase: 'end',       label: '여행 완료',      subtext: '일정 종료',           color: '#059669' },
+  { phase: 'abandoned', label: '포기한 견적',    subtext: '참여 포기',           color: '#dc2626' },
+  { phase: 'lost',      label: '미선택',         subtext: '다른 랜드사 선택됨',  color: '#9ca3af' },
 ]
 
 const SECTIONS = [
   {
     key: 'ing' as const,
-    label: '진행 중인 견적',
+    label: '견적 수집 중',
     dotColor: 'bg-blue-500',
     filter: (r: PhasedLandcoRequest) => r.phase === 'ing',
   },
   {
     key: 'payment_pending' as const,
-    label: '입금대기',
+    label: '입금 대기 중',
     dotColor: 'bg-amber-500',
     filter: (r: PhasedLandcoRequest) => r.phase === 'payment_pending',
   },
   {
     key: 'confirmed' as const,
-    label: '확정된 견적',
+    label: '여행 확정',
     dotColor: 'bg-purple-500',
     filter: (r: PhasedLandcoRequest) => r.phase === 'pre' || r.phase === 'mid',
   },
@@ -91,7 +91,7 @@ function getBorderColor(req: PhasedLandcoRequest): string {
 
 const SUB_FILTERS: { key: 'all' | 'pre' | 'mid'; label: string }[] = [
   { key: 'all', label: '전체' },
-  { key: 'pre', label: '여행전' },
+  { key: 'pre', label: '출발전' },
   { key: 'mid', label: '여행중' },
 ]
 
