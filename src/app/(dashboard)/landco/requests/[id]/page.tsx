@@ -3,11 +3,12 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { formatDate, calculateTotalPeople, hotelGradeLabel, getCountryName } from '@/lib/utils'
+import { formatDate, formatDateWithDay, calculateTotalPeople, hotelGradeLabel, getCountryName } from '@/lib/utils'
 import type { QuoteRequest, Quote } from '@/lib/supabase/types'
 
 type QuoteWithPricing = Quote & { pricing?: { total: number | null; per_person: number | null } }
 import { ExcelPreviewModal } from '@/components/ExcelPreviewModal'
+import { BackButton } from '@/components/BackButton'
 
 export default function LandcoRequestDetail() {
   const { id } = useParams<{ id: string }>()
@@ -18,9 +19,16 @@ export default function LandcoRequestDetail() {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [preview, setPreview] = useState<{ url: string; name: string } | null>(null)
+  const [preview, setPreview] = useState<{ url: string; name: string; previewHtml?: Record<string, string> } | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [selectionResult, setSelectionResult] = useState<'selected' | 'lost' | null>(null)
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
   const [hasDraft, setHasDraft] = useState(false)
+  const [showNewQuoteWarning, setShowNewQuoteWarning] = useState(false)
+  const [isAbandoned, setIsAbandoned] = useState(false)
+  const [paymentMemo, setPaymentMemo] = useState('')
+  const [paymentConfirming, setPaymentConfirming] = useState(false)
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -42,6 +50,7 @@ export default function LandcoRequestDetail() {
             const selJson = await selRes.json()
             if (selJson.selection?.landco_id === user.id) {
               setSelectionResult('selected')
+              setSelectedQuoteId(selJson.selection.selected_quote_id)
             } else {
               setSelectionResult('lost')
             }
@@ -49,6 +58,14 @@ export default function LandcoRequestDetail() {
             setSelectionResult('lost')
           }
         }
+
+        const { data: abandonmentData } = await supabase
+          .from('quote_abandonments')
+          .select('id')
+          .eq('request_id', id)
+          .eq('landco_id', user.id)
+          .maybeSingle()
+        setIsAbandoned(!!abandonmentData)
       }
     }
     async function loadDraft() {
@@ -120,9 +137,29 @@ export default function LandcoRequestDetail() {
     window.location.href = `/api/excel/template?requestId=${id}`
   }
 
+  async function handlePaymentConfirm() {
+    setPaymentConfirming(true)
+    const res = await fetch('/api/quotes/payment-confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId: id, memo: paymentMemo || undefined }),
+    })
+    if (res.ok) {
+      setPaymentConfirmed(true)
+      setRequest(prev => prev ? { ...prev, status: 'finalized' } : prev)
+      setSelectionResult('selected')
+    }
+    setPaymentConfirming(false)
+  }
+
   if (!request) return <div className="p-8 text-gray-400">로딩 중...</div>
 
+  const isUploadDisabled = request.status === 'finalized' || request.status === 'payment_pending' || isAbandoned
+
   const total = calculateTotalPeople(request)
+  const nights = Math.round((new Date(request.return_date).getTime() - new Date(request.depart_date).getTime()) / 86400000)
+  const todayKST = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const deadlineDays = Math.ceil((new Date(request.deadline).getTime() - new Date(todayKST).getTime()) / 86400000)
 
   return (
     <>
@@ -130,10 +167,12 @@ export default function LandcoRequestDetail() {
         <ExcelPreviewModal
           fileUrl={preview.url}
           fileName={preview.name}
+          previewHtml={preview.previewHtml}
           onClose={() => setPreview(null)}
         />
       )}
     <div className="p-8 max-w-3xl mx-auto">
+      <BackButton href="/landco" />
       <h1 className="text-2xl font-bold mb-4">{request.event_name}</h1>
 
       {/* 선택 결과 배너 */}
@@ -156,52 +195,159 @@ export default function LandcoRequestDetail() {
         </div>
       )}
 
-      {/* 견적 조건 카드 */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-4">견적 조건</h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">목적지</p>
-            <p className="text-sm font-medium text-gray-800">{getCountryName(request.destination_country)} {request.destination_city}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">출발일</p>
-            <p className="text-sm font-medium text-gray-800">{formatDate(request.depart_date)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">귀국일</p>
-            <p className="text-sm font-medium text-gray-800">{formatDate(request.return_date)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">총 인원</p>
-            <p className="text-sm font-medium text-gray-800">{total}명
-              <span className="text-xs text-gray-400 font-normal ml-1">
-                (성인 {request.adults} · 아동 {request.children} · 유아 {request.infants} · 인솔 {request.leaders})
-              </span>
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">호텔 등급</p>
-            <p className="text-sm font-medium text-gray-800">{hotelGradeLabel(request.hotel_grade)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-400 mb-0.5">견적 마감</p>
-            <p className="text-sm font-medium text-red-500">{formatDate(request.deadline)}</p>
+      {/* 입금 확인 섹션 — 랜드사만 표시, payment_pending + 선택됨 */}
+      {request.status === 'payment_pending' && selectionResult === 'selected' && !paymentConfirmed && (
+        <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-amber-200">
+          <h2 className="font-semibold text-lg mb-1">입금 확인</h2>
+          <p className="text-sm text-gray-500 mb-4">입금이 확인되면 아래 버튼을 눌러 최종 확정 처리해주세요.</p>
+          <textarea
+            value={paymentMemo}
+            onChange={e => setPaymentMemo(e.target.value)}
+            placeholder="메모 입력 (선택사항, 내부 기록용)"
+            rows={3}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-amber-400 mb-3"
+          />
+          <div className="flex justify-end">
+            <button
+              onClick={handlePaymentConfirm}
+              disabled={paymentConfirming}
+              className="bg-amber-500 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50 transition-colors"
+            >
+              {paymentConfirming ? '처리 중...' : '✓ 입금확인 완료'}
+            </button>
           </div>
         </div>
+      )}
+
+      {paymentConfirmed && (
+        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-6">
+          <span className="text-2xl">✅</span>
+          <div>
+            <p className="text-sm font-semibold text-amber-700">입금 확인이 완료되었습니다.</p>
+            <p className="text-xs text-amber-600 mt-0.5">최종 확정 처리가 완료되었습니다.</p>
+          </div>
+        </div>
+      )}
+
+      {/* 견적 조건 카드 */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 overflow-hidden">
+        {/* 헤더: 목적지 + 마감 */}
+        <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-bold text-gray-900">{getCountryName(request.destination_country)}</span>
+            <span className="text-gray-300">·</span>
+            <span className="text-base font-semibold text-gray-700">{request.destination_city}</span>
+            {request.quote_type === 'land' ? (
+              <span className="ml-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">랜드</span>
+            ) : (
+              <span className="ml-1 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">호텔+랜드</span>
+            )}
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-400">견적 마감</p>
+            <p className="text-sm font-semibold text-red-500">
+              {formatDate(request.deadline)}
+              {deadlineDays >= 0
+                ? <span className="ml-1.5 text-xs font-medium bg-red-50 text-red-400 px-1.5 py-0.5 rounded-full">D-{deadlineDays}</span>
+                : <span className="ml-1.5 text-xs font-medium bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">마감됨</span>
+              }
+            </p>
+          </div>
+        </div>
+
+        {/* 여행 기간 */}
+        <div className="px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-gray-400 mb-0.5">출발</p>
+              <p className="text-sm font-semibold text-gray-900">{formatDateWithDay(request.depart_date)}</p>
+            </div>
+            <div className="flex flex-col items-center shrink-0">
+              <span className="text-xs font-semibold text-[#009CF0] bg-blue-50 px-2.5 py-1 rounded-full">{nights}박 {nights + 1}일</span>
+              <span className="text-gray-300 text-xs mt-1">──→</span>
+            </div>
+            <div className="flex-1 min-w-0 text-right">
+              <p className="text-xs text-gray-400 mb-0.5">귀국</p>
+              <p className="text-sm font-semibold text-gray-900">{formatDateWithDay(request.return_date)}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* 인원 + 호텔 */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-start gap-8">
+          <div>
+            <p className="text-xs text-gray-400 mb-1">인원</p>
+            <p className="text-lg font-bold text-gray-900">{total}<span className="text-sm font-normal text-gray-500 ml-0.5">명</span></p>
+            <p className="text-xs text-gray-400 mt-0.5">성인 {request.adults} · 아동 {request.children} · 유아 {request.infants} · 인솔 {request.leaders}</p>
+          </div>
+          {request.hotel_grade && (
+            <div>
+              <p className="text-xs text-gray-400 mb-1">호텔</p>
+              <p className="text-lg font-bold text-gray-900">{hotelGradeLabel(request.hotel_grade)}</p>
+              <p className="text-xs text-amber-400 mt-0.5">{'★'.repeat(request.hotel_grade)}</p>
+            </div>
+          )}
+        </div>
+
+        {/* 옵션 행 */}
+        <div className="px-6 py-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">쇼핑 옵션</span>
+            {request.shopping_option === true
+              ? <span className="text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-100">쇼핑{request.shopping_count != null ? ` ${request.shopping_count}회 이상` : ''}</span>
+              : request.shopping_option === false
+                ? <span className="text-xs px-3 py-1 rounded-full bg-gray-50 text-gray-400 font-medium border border-gray-200">노쇼핑</span>
+                : <span className="text-xs px-3 py-1 rounded-full bg-gray-50 text-gray-300 font-medium border border-gray-100">미지정</span>
+            }
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">팁 옵션</span>
+            {request.tip_option === true
+              ? <span className="text-xs px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-100">포함</span>
+              : request.tip_option === false
+                ? <span className="text-xs px-3 py-1 rounded-full bg-gray-50 text-gray-400 font-medium border border-gray-200">미포함</span>
+                : <span className="text-xs px-3 py-1 rounded-full bg-gray-50 text-gray-300 font-medium border border-gray-100">미지정</span>
+            }
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-400">현지 옵션</span>
+            {request.local_option === true
+              ? <span className="text-xs px-3 py-1 rounded-full bg-purple-50 text-purple-700 font-medium border border-purple-100">가능</span>
+              : request.local_option === false
+                ? <span className="text-xs px-3 py-1 rounded-full bg-gray-50 text-gray-400 font-medium border border-gray-200">불가</span>
+                : <span className="text-xs px-3 py-1 rounded-full bg-gray-50 text-gray-300 font-medium border border-gray-100">미지정</span>
+            }
+          </div>
+        </div>
+
+        {/* 요청사항 */}
         {request.notes && (
-          <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="px-6 py-4 border-t border-gray-100">
             <p className="text-xs text-gray-400 mb-1">요청사항</p>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{request.notes}</p>
+          </div>
+        )}
+        {/* 첨부파일 */}
+        {(request as QuoteRequest & { attachment_url?: string; attachment_name?: string }).attachment_url && (
+          <div className="px-6 py-4 border-t border-gray-100">
+            <p className="text-xs text-gray-400 mb-1">첨부파일</p>
+            <a
+              href={(request as QuoteRequest & { attachment_url?: string }).attachment_url!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-[#009CF0] hover:underline"
+            >
+              ↓ {(request as QuoteRequest & { attachment_name?: string }).attachment_name ?? '파일 다운로드'}
+            </a>
           </div>
         )}
       </div>
 
       {/* 견적서 제출 */}
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+      <div className={`bg-white rounded-lg shadow-sm p-6 mb-6 ${isUploadDisabled ? 'opacity-60' : ''}`}>
         <h2 className="font-semibold text-lg mb-4">견적서 제출</h2>
 
-        {hasDraft && (
+        {!isUploadDisabled && hasDraft && (
           <div className="flex items-center justify-between mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
             <span className="text-sm text-amber-700">💾 임시저장된 작업이 있습니다</span>
             <a
@@ -217,23 +363,39 @@ export default function LandcoRequestDetail() {
 
         {/* 드래그앤드롭 업로드 영역 */}
         <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => !uploading && fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors mb-4 ${
-            isDragging
-              ? 'border-blue-400 bg-blue-50'
-              : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+          onDragOver={!isUploadDisabled ? handleDragOver : undefined}
+          onDragLeave={!isUploadDisabled ? handleDragLeave : undefined}
+          onDrop={!isUploadDisabled ? handleDrop : undefined}
+          onClick={() => !uploading && !isUploadDisabled && fileInputRef.current?.click()}
+          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors mb-4 ${
+            isUploadDisabled
+              ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+              : isDragging
+                ? 'border-blue-400 bg-blue-50 cursor-pointer'
+                : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50 cursor-pointer'
           } ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
         >
-          <div className="text-3xl mb-2">📂</div>
-          {uploading ? (
-            <p className="text-sm text-blue-600 font-medium">업로드 중...</p>
+          {isUploadDisabled ? (
+            <>
+              <div className="text-3xl mb-2">🔒</div>
+              <p className="text-sm text-gray-400 font-medium">추가 견적 제출이 불가합니다</p>
+              <p className="text-xs text-gray-300 mt-1">
+                {isAbandoned ? '포기한 견적 요청입니다' : '이미 확정된 견적 요청입니다'}
+              </p>
+            </>
+          ) : uploading ? (
+            <>
+              <div className="text-3xl mb-2">📂</div>
+              <p className="text-sm text-blue-600 font-medium">업로드 중...</p>
+            </>
           ) : isDragging ? (
-            <p className="text-sm text-blue-600 font-medium">여기에 놓으세요</p>
+            <>
+              <div className="text-3xl mb-2">📂</div>
+              <p className="text-sm text-blue-600 font-medium">여기에 놓으세요</p>
+            </>
           ) : (
             <>
+              <div className="text-3xl mb-2">📂</div>
               <p className="text-sm text-gray-600 font-medium">파일을 드래그하거나 클릭하여 업로드</p>
               <p className="text-xs text-gray-400 mt-1">.xlsx 파일만 허용됩니다</p>
             </>
@@ -244,26 +406,55 @@ export default function LandcoRequestDetail() {
             accept=".xlsx"
             onChange={handleUpload}
             className="hidden"
+            disabled={isUploadDisabled}
           />
         </div>
 
-        <div className="flex items-center justify-between">
+        {!isUploadDisabled && showNewQuoteWarning && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+              <h3 className="text-base font-bold text-gray-900 mb-1">임시저장 데이터가 있습니다</h3>
+              <p className="text-sm text-gray-500 mt-2">새 견적서를 작성하면 기존 임시저장 데이터가 삭제됩니다.</p>
+              <div className="flex justify-end gap-2 mt-5">
+                <button
+                  onClick={() => setShowNewQuoteWarning(false)}
+                  className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => { setShowNewQuoteWarning(false); window.open(`/landco/requests/${id}/quote/new?reset=1`, '_blank') }}
+                  className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                  새로 작성하기
+                </button>
+                <button
+                  onClick={() => { setShowNewQuoteWarning(false); window.open(`/landco/requests/${id}/quote/new`, '_blank') }}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  이어서 작성하기
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="flex items-center justify-end">
           <button
-            onClick={handleDownloadTemplate}
-            className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 text-sm font-medium bg-white"
+            onClick={() => {
+              if (hasDraft) { setShowNewQuoteWarning(true) }
+              else { window.open(`/landco/requests/${id}/quote/new`, '_blank') }
+            }}
+            disabled={isUploadDisabled}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isUploadDisabled
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+            }`}
           >
-            ↓ 템플릿 다운로드 (.xlsx)
+            ✏️ 견적서 작성 ↗
           </button>
-          <a
-            href={`/landco/requests/${id}/quote/new`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-          >
-            ✏️ 웹에서 직접 작성 ↗
-          </a>
         </div>
-        {uploadError && <p className="text-red-500 text-sm mt-3">{uploadError}</p>}
+        {!isUploadDisabled && uploadError && <p className="text-red-500 text-sm mt-3">{uploadError}</p>}
       </div>
 
       {/* 제출 이력 */}
@@ -278,15 +469,32 @@ export default function LandcoRequestDetail() {
             {myQuotes.map(q => (
               <div key={q.id} className="py-2 border-b last:border-0">
                 <div className="flex items-center gap-3">
-                  <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-medium shrink-0">
+                  <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${
+                    selectedQuoteId === q.id
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'bg-blue-100 text-blue-700'
+                  }`}>
                     v{q.version}
                   </span>
                   <span className="text-sm text-gray-600 truncate min-w-0 flex-1">{q.file_name}</span>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-gray-400 whitespace-nowrap">{new Date(q.submitted_at).toLocaleString('ko-KR')}</span>
                     <button
-                      onClick={() => setPreview({ url: q.file_url, name: q.file_name })}
-                      className="border border-gray-300 text-gray-600 rounded-lg px-3 py-1 text-xs font-medium bg-white hover:bg-gray-50 whitespace-nowrap"
+                      onClick={async () => {
+                        setPreviewLoading(true)
+                        setPreview({ url: q.file_url, name: q.file_name })
+                        try {
+                          const res = await fetch(`/api/quotes/${q.id}/preview`)
+                          if (res.ok) {
+                            const json = await res.json()
+                            setPreview({ url: q.file_url, name: q.file_name, previewHtml: json.previewHtml })
+                          }
+                        } finally {
+                          setPreviewLoading(false)
+                        }
+                      }}
+                      disabled={previewLoading}
+                      className="border border-gray-300 text-gray-600 rounded-lg px-3 py-1 text-xs font-medium bg-white hover:bg-gray-50 whitespace-nowrap disabled:opacity-50"
                     >
                       미리보기
                     </button>
@@ -300,8 +508,8 @@ export default function LandcoRequestDetail() {
                     </a>
                   </div>
                 </div>
-                {(q.pricing?.total != null || q.pricing?.per_person != null) && (
-                  <div className="flex gap-4 mt-1.5 ml-1">
+                <div className="flex items-center justify-between mt-1.5">
+                  <div className="flex gap-4 ml-1">
                     {q.pricing?.total != null && (
                       <span className="text-xs text-gray-500">
                         총 합계 <span className="font-semibold text-gray-800">{q.pricing.total.toLocaleString('ko-KR')}원</span>
@@ -313,7 +521,12 @@ export default function LandcoRequestDetail() {
                       </span>
                     )}
                   </div>
-                )}
+                  {selectedQuoteId === q.id && (
+                    <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-medium">
+                      최종 확정됨
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
