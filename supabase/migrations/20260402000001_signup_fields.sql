@@ -16,6 +16,7 @@ VALUES ('signup-documents', 'signup-documents', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage RLS: 본인 폴더에만 업로드 가능
+DROP POLICY IF EXISTS "Users upload own signup docs" ON storage.objects;
 CREATE POLICY "Users upload own signup docs"
   ON storage.objects FOR INSERT
   WITH CHECK (
@@ -25,6 +26,7 @@ CREATE POLICY "Users upload own signup docs"
   );
 
 -- Storage RLS: 본인 파일 읽기 + admin 전체 읽기
+DROP POLICY IF EXISTS "Users read own signup docs" ON storage.objects;
 CREATE POLICY "Users read own signup docs"
   ON storage.objects FOR SELECT
   USING (
