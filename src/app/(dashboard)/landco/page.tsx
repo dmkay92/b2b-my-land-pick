@@ -1,3 +1,4 @@
+// src/app/(dashboard)/landco/page.tsx
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
@@ -45,14 +46,12 @@ export default async function LandcoDashboard() {
 
   const today = new Date().toISOString().slice(0, 10)
 
-  // 1. 내가 제출한 견적의 고유 request_id 목록 + 최신 제출 시간
   const { data: myQuotesRaw } = await admin
     .from('quotes')
     .select('request_id, submitted_at')
     .eq('landco_id', user.id)
     .order('submitted_at', { ascending: false })
 
-  // request_id별 최신 submitted_at 맵
   const latestSubmittedAt = new Map<string, string>()
   for (const q of (myQuotesRaw ?? []) as { request_id: string; submitted_at: string }[]) {
     if (!latestSubmittedAt.has(q.request_id)) {
@@ -62,7 +61,6 @@ export default async function LandcoDashboard() {
 
   const submittedRequestIds = new Set(latestSubmittedAt.keys())
 
-  // 2. 내 견적이 선택된 request_id 목록
   const { data: mySelectionsRaw } = await admin
     .from('quote_selections')
     .select('request_id')
@@ -72,7 +70,6 @@ export default async function LandcoDashboard() {
     (mySelectionsRaw ?? []).map((s: { request_id: string }) => s.request_id)
   )
 
-  // 3. 내가 포기한 request_id 목록
   const { data: myAbandonmentsRaw } = await admin
     .from('quote_abandonments')
     .select('request_id')
@@ -82,7 +79,6 @@ export default async function LandcoDashboard() {
     (myAbandonmentsRaw ?? []).map((a: { request_id: string }) => a.request_id)
   )
 
-  // 4. 진행중인 요청: 담당 국가의 open/in_progress 요청 전체
   const { data: openRaw } = await supabase
     .from('quote_requests')
     .select('*')
@@ -92,18 +88,17 @@ export default async function LandcoDashboard() {
 
   const openRequestIds = new Set((openRaw ?? []).map((r: { id: string }) => r.id))
 
-  // 5. 내가 참여한 확정 요청: 제출한 견적 중 open이 아닌 것을 admin으로 직접 조회
   const submittedNotOpen = [...submittedRequestIds].filter(id => !openRequestIds.has(id))
 
-  const { data: finalizedRaw } = submittedNotOpen.length > 0
+  // payment_pending과 finalized 모두 조회
+  const { data: nonOpenRaw } = submittedNotOpen.length > 0
     ? await admin
         .from('quote_requests')
         .select('*')
         .in('id', submittedNotOpen)
-        .eq('status', 'finalized')
+        .in('status', ['payment_pending', 'finalized'])
     : { data: [] }
 
-  // 진행중 요청 목록 (포기한 요청 포함 분류)
   const openRequests: PhasedLandcoRequest[] = (openRaw ?? []).map(r => {
     const req = r as unknown as QuoteRequest
     if (abandonedRequestIds.has(req.id)) {
@@ -112,19 +107,20 @@ export default async function LandcoDashboard() {
     return { ...req, phase: 'ing' as const, dday: null, submitted: submittedRequestIds.has(req.id) }
   })
 
-  // 확정된 요청 - 선택됨 / 미선택 분류
-  const finalizedRequests: PhasedLandcoRequest[] = (finalizedRaw ?? []).map(r => {
+  const nonOpenRequests: PhasedLandcoRequest[] = (nonOpenRaw ?? []).map(r => {
     const req = r as unknown as QuoteRequest
-    if (selectedRequestIds.has(req.id)) {
-      const phase = getPhase(req, today)
-      const dday = getDday(req, phase, today)
-      return { ...req, phase, dday, submitted: true }
-    } else {
+    if (!selectedRequestIds.has(req.id)) {
       return { ...req, phase: 'lost' as const, dday: null, submitted: true }
     }
+    if (req.status === 'payment_pending') {
+      return { ...req, phase: 'payment_pending' as const, dday: null, submitted: true }
+    }
+    const phase = getPhase(req, today)
+    const dday = getDday(req, phase, today)
+    return { ...req, phase, dday, submitted: true }
   })
 
-  const requests: PhasedLandcoRequest[] = [...openRequests, ...finalizedRequests]
+  const requests: PhasedLandcoRequest[] = [...openRequests, ...nonOpenRequests]
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
 
   return <LandcoDashboardClient requests={requests} />
