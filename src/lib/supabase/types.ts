@@ -13,6 +13,16 @@ export interface Profile {
   country_codes: string[]
   created_at: string
   approved_at: string | null
+  // 회원가입 wizard 신규 필드
+  business_registration_number: string | null
+  representative_name: string | null
+  phone_landline: string | null
+  phone_mobile: string | null
+  bank_name: string | null
+  bank_account: string | null
+  bank_holder: string | null
+  document_biz_url: string | null
+  document_bank_url: string | null
 }
 
 export interface QuoteRequest {
@@ -146,4 +156,40 @@ export interface Notification {
   payload: Record<string, unknown>
   read_at: string | null
   created_at: string
+}
+
+export interface SignupOcrResult {
+  business_registration_number: string
+  company_name: string
+  representative_name: string
+}
+
+export interface BankOcrResult {
+  bank_name: string
+  bank_account: string
+  bank_holder: string
+}
+
+export interface SignupDraft {
+  role: UserRole | null
+  step: number
+  ocr: {
+    biz: SignupOcrResult | null
+    bank: BankOcrResult | null
+  }
+  basicInfo: {
+    business_registration_number: string
+    company_name: string
+    representative_name: string
+    email: string
+    password: string
+    phone_mobile: string
+    phone_landline: string
+  } | null
+  bankInfo: {
+    bank_name: string
+    bank_account: string
+    bank_holder: string
+  } | null
+  countries: string[]
 }
