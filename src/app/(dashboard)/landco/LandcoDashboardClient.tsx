@@ -120,6 +120,12 @@ export function LandcoDashboardClient({
     { key: 'next-month', label: '다음 달' },
   ]
 
+  const REQUEST_PRESETS = [
+    { key: 'all', label: '전체' },
+    { key: 'this-month', label: '이번 달' },
+    { key: 'last-month', label: '지난 달' },
+  ]
+
   function toKSTStr(d: Date): string {
     const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
     return kst.toISOString().slice(0, 10)
@@ -135,6 +141,10 @@ export function LandcoDashboardClient({
     if (key === 'next-month') return {
       start: toKSTStr(new Date(now.getFullYear(), now.getMonth() + 1, 1)),
       end: toKSTStr(new Date(now.getFullYear(), now.getMonth() + 2, 0)),
+    }
+    if (key === 'last-month') return {
+      start: toKSTStr(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+      end: toKSTStr(new Date(now.getFullYear(), now.getMonth(), 0)),
     }
     if (key === 'this-quarter') {
       const q = Math.floor(now.getMonth() / 3)
@@ -293,7 +303,7 @@ export function LandcoDashboardClient({
           },
           {
             label: '요청일',
-            presets: PERIOD_PRESETS,
+            presets: REQUEST_PRESETS,
             activePreset: activeRequestPreset,
             onPreset: applyRequestPreset,
             start: requestStart,
