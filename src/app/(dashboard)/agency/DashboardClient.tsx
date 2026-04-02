@@ -4,9 +4,10 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatDate, calculateTotalPeople, getCountryName } from '@/lib/utils'
+import { DateRangePicker } from '@/components/DateRangePicker'
 import type { QuoteRequest } from '@/lib/supabase/types'
 
-export type TravelPhase = 'all' | 'ing' | 'confirmed' | 'end' | 'cancelled'
+export type TravelPhase = 'all' | 'ing' | 'payment_pending' | 'confirmed' | 'end' | 'cancelled'
 
 export type SelectedInfo = {
   landcoName: string
@@ -16,7 +17,8 @@ export type SelectedInfo = {
 
 export type PhasedRequest = QuoteRequest & {
   quoteCount: number
-  phase: 'ing' | 'pre' | 'mid' | 'end' | 'cancelled'
+  landcoCount: number
+  phase: 'ing' | 'payment_pending' | 'pre' | 'mid' | 'end' | 'cancelled'
   dday: number | null
   selectedInfo?: SelectedInfo
 }
@@ -29,14 +31,15 @@ const SUB_PHASE_LABELS: Record<'pre' | 'mid' | 'end', string> = {
 
 const SUB_PHASE_COLORS: Record<'pre' | 'mid' | 'end', { border: string; badge: string }> = {
   pre: { border: '#7c3aed', badge: 'bg-purple-100 text-purple-700' },
-  mid: { border: '#f59e0b', badge: 'bg-amber-100 text-amber-700' },
+  mid: { border: '#7c3aed', badge: 'bg-purple-100 text-purple-700' },
   end: { border: '#059669', badge: 'bg-green-100 text-green-700' },
 }
 
 const KPI_CARDS: { phase: TravelPhase; label: string; subtext: string; color?: string }[] = [
   { phase: 'all',       label: '전체',          subtext: '모든 요청' },
-  { phase: 'ing',       label: '진행 중인 견적',  subtext: '랜드사 견적 대기 중', color: '#2563eb' },
-  { phase: 'confirmed', label: '확정된 견적',    subtext: '여행 전 · 여행 중',   color: '#7c3aed' },
+  { phase: 'ing',             label: '진행 중인 견적',  subtext: '랜드사 견적 대기 중', color: '#2563eb' },
+  { phase: 'payment_pending', label: '입금대기',        subtext: '랜드사 입금 확인 중', color: '#d97706' },
+  { phase: 'confirmed',       label: '확정된 견적',    subtext: '여행 전 · 여행 중',   color: '#7c3aed' },
   { phase: 'end',       label: '여행 완료',      subtext: '일정 종료',           color: '#059669' },
   { phase: 'cancelled', label: '취소한 견적',    subtext: '선택 없이 마감',      color: '#9ca3af' },
 ]
@@ -47,6 +50,12 @@ const SECTIONS = [
     label: '진행 중인 견적',
     dotColor: 'bg-blue-500',
     filter: (r: PhasedRequest) => r.phase === 'ing',
+  },
+  {
+    key: 'payment_pending' as const,
+    label: '입금대기',
+    dotColor: 'bg-amber-500',
+    filter: (r: PhasedRequest) => r.phase === 'payment_pending',
   },
   {
     key: 'confirmed' as const,
@@ -70,8 +79,9 @@ const SECTIONS = [
 
 function getBorderColor(req: PhasedRequest): string {
   if (req.phase === 'ing') return '#2563eb'
+  if (req.phase === 'payment_pending') return '#d97706'
   if (req.phase === 'pre') return '#7c3aed'
-  if (req.phase === 'mid') return '#f59e0b'
+  if (req.phase === 'mid') return '#7c3aed'
   if (req.phase === 'end') return '#059669'
   return '#9ca3af'
 }
@@ -82,13 +92,80 @@ export function AgencyDashboardClient({
   requests: PhasedRequest[]
   counts?: Record<TravelPhase, number>
 }) {
-  type FilterPhase = 'ing' | 'confirmed' | 'end' | 'cancelled'
-  const ALL_FILTER_PHASES: FilterPhase[] = ['ing', 'confirmed', 'end', 'cancelled']
+  type FilterPhase = 'ing' | 'payment_pending' | 'confirmed' | 'end' | 'cancelled'
+  const ALL_FILTER_PHASES: FilterPhase[] = ['ing', 'payment_pending', 'confirmed', 'end', 'cancelled']
 
   const router = useRouter()
   const [activePhases, setActivePhases] = useState<Set<FilterPhase>>(new Set(ALL_FILTER_PHASES))
   const [confirmedSubFilter, setConfirmedSubFilter] = useState<'all' | 'pre' | 'mid' | 'end'>('all')
   const [hoveredPhase, setHoveredPhase] = useState<TravelPhase | null>(null)
+  const [periodStart, setPeriodStart] = useState('')
+  const [periodEnd, setPeriodEnd] = useState('')
+  const [activePreset, setActivePreset] = useState('all')
+  const [requestStart, setRequestStart] = useState('')
+  const [requestEnd, setRequestEnd] = useState('')
+  const [activeRequestPreset, setActiveRequestPreset] = useState('all')
+
+  const PERIOD_PRESETS = [
+    { key: 'all', label: '전체' },
+    { key: 'this-month', label: '이번 달' },
+    { key: 'next-month', label: '다음 달' },
+  ]
+
+  function toKSTStr(d: Date): string {
+    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+    return kst.toISOString().slice(0, 10)
+  }
+
+  function calcPresetRange(key: string): { start: string; end: string } | null {
+    const now = new Date()
+    if (key === 'all') return null
+    if (key === 'this-month') return {
+      start: toKSTStr(new Date(now.getFullYear(), now.getMonth(), 1)),
+      end: toKSTStr(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+    }
+    if (key === 'next-month') return {
+      start: toKSTStr(new Date(now.getFullYear(), now.getMonth() + 1, 1)),
+      end: toKSTStr(new Date(now.getFullYear(), now.getMonth() + 2, 0)),
+    }
+    if (key === 'this-quarter') {
+      const q = Math.floor(now.getMonth() / 3)
+      return {
+        start: toKSTStr(new Date(now.getFullYear(), q * 3, 1)),
+        end: toKSTStr(new Date(now.getFullYear(), q * 3 + 3, 0)),
+      }
+    }
+    return null
+  }
+
+  function applyPreset(key: string) {
+    setActivePreset(key)
+    const range = calcPresetRange(key)
+    setPeriodStart(range?.start ?? ''); setPeriodEnd(range?.end ?? '')
+  }
+
+  function applyRequestPreset(key: string) {
+    setActiveRequestPreset(key)
+    const range = calcPresetRange(key)
+    setRequestStart(range?.start ?? ''); setRequestEnd(range?.end ?? '')
+  }
+
+  const periodFilteredRequests = (!periodStart && !periodEnd)
+    ? requests
+    : requests.filter(r => {
+        if (periodStart && r.depart_date < periodStart) return false
+        if (periodEnd && r.depart_date > periodEnd) return false
+        return true
+      })
+
+  const fullyFilteredRequests = (!requestStart && !requestEnd)
+    ? periodFilteredRequests
+    : periodFilteredRequests.filter(r => {
+        const createdDate = toKSTStr(new Date(r.created_at))
+        if (requestStart && createdDate < requestStart) return false
+        if (requestEnd && createdDate > requestEnd) return false
+        return true
+      })
 
   const isAllSelected = activePhases.size === ALL_FILTER_PHASES.length
 
@@ -114,16 +191,19 @@ export function AgencyDashboardClient({
   }
 
   const counts: Record<TravelPhase, number> = {
-    all: requests.length,
-    ing: requests.filter(r => r.phase === 'ing').length,
-    confirmed: requests.filter(r => r.phase === 'pre' || r.phase === 'mid').length,
-    end: requests.filter(r => r.phase === 'end').length,
-    cancelled: requests.filter(r => r.phase === 'cancelled').length,
+    all: fullyFilteredRequests.length,
+    ing: fullyFilteredRequests.filter(r => r.phase === 'ing').length,
+    payment_pending: fullyFilteredRequests.filter(r => r.phase === 'payment_pending').length,
+    confirmed: fullyFilteredRequests.filter(r => r.phase === 'pre' || r.phase === 'mid').length,
+    end: fullyFilteredRequests.filter(r => r.phase === 'end').length,
+    cancelled: fullyFilteredRequests.filter(r => r.phase === 'cancelled').length,
   }
 
-  const filteredRequests = requests.filter(r => {
+  const filteredRequests = fullyFilteredRequests.filter(r => {
     const key: FilterPhase =
-      r.phase === 'pre' || r.phase === 'mid' ? 'confirmed' : r.phase
+      r.phase === 'pre' || r.phase === 'mid' ? 'confirmed' :
+      r.phase === 'payment_pending' ? 'payment_pending' :
+      r.phase
     return activePhases.has(key)
   })
 
@@ -131,7 +211,7 @@ export function AgencyDashboardClient({
     <div className="p-8 max-w-5xl mx-auto">
       {/* 견적 복사 확인 모달 */}
       {copyTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setCopyTarget(null)}>
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80">
             <h3 className="text-base font-bold text-gray-900 mb-2">견적을 복사하시겠습니까?</h3>
             <p className="text-sm text-gray-500 mb-6">해당 견적의 내용을 복사해 새 견적 요청 작성 페이지로 이동합니다.</p>
@@ -143,6 +223,7 @@ export function AgencyDashboardClient({
                 취소
               </button>
               <button
+                autoFocus
                 onClick={() => { setCopyTarget(null); router.push(`/agency/requests/new?copy=${copyTarget}`) }}
                 className="flex-1 bg-[#009CF0] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#0088D9]"
               >
@@ -155,7 +236,7 @@ export function AgencyDashboardClient({
 
       {/* 견적 취소 확인 모달 */}
       {cancelTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setCancelTarget(null)}>
           <div className="bg-white rounded-2xl shadow-xl p-6 w-80">
             <h3 className="text-base font-bold text-gray-900 mb-2">견적 요청을 취소하시겠습니까?</h3>
             <p className="text-sm text-gray-500 mb-6">취소한 견적은 되돌릴 수 없습니다.</p>
@@ -167,6 +248,7 @@ export function AgencyDashboardClient({
                 돌아가기
               </button>
               <button
+                autoFocus
                 onClick={handleCancel}
                 disabled={canceling}
                 className="flex-1 bg-red-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-red-600 disabled:opacity-50"
@@ -177,8 +259,19 @@ export function AgencyDashboardClient({
           </div>
         </div>
       )}
+      {/* 목록 헤더 */}
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-lg font-bold text-gray-900">내 견적 요청</h1>
+        <Link
+          href="/agency/requests/new"
+          className="bg-[#009CF0] text-white px-4 py-2 rounded-lg hover:bg-[#0088D9] text-sm font-medium"
+        >
+          + 새 견적 요청
+        </Link>
+      </div>
+
       {/* KPI 카드 */}
-      <div className="grid grid-cols-5 gap-3 mb-8">
+      <div className="grid grid-cols-6 gap-3 mb-8">
         {KPI_CARDS.map(({ phase, label, subtext, color }) => {
           const isActive = phase === 'all' ? isAllSelected : activePhases.has(phase as FilterPhase)
           const isHovered = hoveredPhase === phase
@@ -206,15 +299,63 @@ export function AgencyDashboardClient({
         })}
       </div>
 
-      {/* 목록 헤더 */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-lg font-bold text-gray-900">내 견적 요청</h1>
-        <Link
-          href="/agency/requests/new"
-          className="bg-[#009CF0] text-white px-4 py-2 rounded-lg hover:bg-[#0088D9] text-sm font-medium"
-        >
-          + 새 견적 요청
-        </Link>
+      {/* 기간 필터 */}
+      <div className="mb-6 bg-white rounded-xl shadow-sm overflow-visible">
+        {[
+          {
+            label: '출발일',
+            presets: PERIOD_PRESETS,
+            activePreset,
+            onPreset: applyPreset,
+            start: periodStart,
+            end: periodEnd,
+            onRange: (s: string, e: string) => { setPeriodStart(s); setPeriodEnd(e); setActivePreset('custom') },
+            onReset: () => applyPreset('all'),
+          },
+          {
+            label: '요청일',
+            presets: PERIOD_PRESETS,
+            activePreset: activeRequestPreset,
+            onPreset: applyRequestPreset,
+            start: requestStart,
+            end: requestEnd,
+            onRange: (s: string, e: string) => { setRequestStart(s); setRequestEnd(e); setActiveRequestPreset('custom') },
+            onReset: () => applyRequestPreset('all'),
+          },
+        ].map((row, i) => (
+          <div key={row.label} className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-gray-100' : ''}`}>
+            <span className="text-[11px] text-gray-400 font-semibold shrink-0" style={{ width: '2.5rem' }}>{row.label}</span>
+            <div className="w-px h-4 bg-gray-200 shrink-0" />
+            <div className="flex items-center gap-2">
+              {row.presets.map(p => (
+                <button
+                  key={p.key}
+                  onClick={() => row.onPreset(p.key)}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors shrink-0 ${
+                    row.activePreset === p.key
+                      ? 'bg-gray-900 text-white'
+                      : 'border border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-800'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className="w-px h-4 bg-gray-200 shrink-0" />
+            <div className="flex-1 max-w-sm">
+              <DateRangePicker
+                startDate={row.start}
+                endDate={row.end}
+                compact
+                triggerClassName="w-full flex items-center gap-2 border border-gray-200 bg-white hover:border-gray-300 transition-colors rounded-lg px-3 py-1.5"
+                onChange={row.onRange}
+              />
+            </div>
+            {(row.start || row.end) && (
+              <button onClick={row.onReset} className="text-[11px] text-gray-400 hover:text-gray-600 shrink-0">초기화</button>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* 3개 섹션 */}
@@ -239,25 +380,25 @@ export function AgencyDashboardClient({
                 <span className={`w-2 h-2 rounded-full ${section.dotColor} flex-shrink-0`} />
                 <h2 className="text-sm font-bold text-gray-700">{section.label}</h2>
                 <span className="text-sm text-gray-400">({baseSectionRequests.length}건)</span>
-                {section.key === 'confirmed' && (
-                  <div className="flex items-center gap-1 ml-1">
-                    {SUB_FILTERS.map(f => (
-                      <button
-                        key={f.key}
-                        onClick={() => setConfirmedSubFilter(f.key)}
-                        className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
-                          confirmedSubFilter === f.key
-                            ? 'bg-purple-100 text-purple-700 font-semibold'
-                            : 'text-gray-400 hover:bg-purple-100 hover:text-purple-700'
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
                 <div className="flex-1 h-px bg-gray-100 ml-1" />
               </div>
+              {section.key === 'confirmed' && (
+                <div className="flex items-center gap-1 mb-3">
+                  {SUB_FILTERS.map(f => (
+                    <button
+                      key={f.key}
+                      onClick={() => setConfirmedSubFilter(f.key)}
+                      className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
+                        confirmedSubFilter === f.key
+                          ? 'bg-purple-100 text-purple-700 font-semibold'
+                          : 'text-gray-400 hover:bg-purple-100 hover:text-purple-700'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {sectionRequests.length === 0 ? (
                 <p className="text-xs text-gray-400 pl-4 py-2">해당 요청이 없습니다.</p>
@@ -265,7 +406,7 @@ export function AgencyDashboardClient({
                 <div className="space-y-2.5">
                   {sectionRequests.map(req => {
                     const { phase, dday } = req
-                    const isDone = phase === 'end'
+                    const isDone = false
                     const isCancelled = phase === 'cancelled'
                     const isFinalized = req.status === 'finalized'
                     const borderColor = getBorderColor(req)
@@ -291,6 +432,14 @@ export function AgencyDashboardClient({
                               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isDone ? 'bg-gray-100 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
                                 {req.quote_type === 'land' ? '랜드' : '호텔+랜드'}
                               </span>
+                              {phase === 'payment_pending' && (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">입금대기</span>
+                              )}
+                              {subPhaseColor && (phase === 'pre' || phase === 'mid') && (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                                  확정
+                                </span>
+                              )}
                               {subPhaseColor && (
                                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${subPhaseColor.badge}`}>
                                   {SUB_PHASE_LABELS[phase as 'pre' | 'mid' | 'end']}
@@ -300,6 +449,9 @@ export function AgencyDashboardClient({
                             <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isDone ? 'bg-gray-100 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
                                 받은 견적 {req.quoteCount}개
+                              </span>
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isDone ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-500'}`}>
+                                참여 랜드사 {req.landcoCount}개
                               </span>
                               <span className="text-[10px] text-gray-400 whitespace-nowrap">
                                 요청일 {new Date(req.created_at).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' })}
@@ -333,7 +485,7 @@ export function AgencyDashboardClient({
                               >
                                 견적 복사
                               </button>
-                              {phase === 'ing' && (
+                              {(phase === 'ing' || phase === 'payment_pending') && (
                                 <button
                                   onClick={e => { e.preventDefault(); e.stopPropagation(); setCancelTarget(req.id) }}
                                   className="text-[11px] text-red-400 hover:text-red-600 font-medium px-2 py-0.5 rounded hover:bg-red-50 transition-colors"
