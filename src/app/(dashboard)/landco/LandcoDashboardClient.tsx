@@ -418,7 +418,7 @@ export function LandcoDashboardClient({
                               {phase === 'ing' && (
                                 submitted
                                   ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">견적 제출완료</span>
-                                  : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-600">미제출</span>
+                                  : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">미제출</span>
                               )}
                               {phase === 'payment_pending' && (
                                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">입금대기</span>
