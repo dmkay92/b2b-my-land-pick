@@ -29,6 +29,7 @@ export default function LandcoRequestDetail() {
   const [paymentMemo, setPaymentMemo] = useState('')
   const [paymentConfirming, setPaymentConfirming] = useState(false)
   const [paymentConfirmed, setPaymentConfirmed] = useState(false)
+  const [savedMemo, setSavedMemo] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -51,6 +52,7 @@ export default function LandcoRequestDetail() {
             if (selJson.selection?.landco_id === user.id) {
               setSelectionResult('selected')
               setSelectedQuoteId(selJson.selection.selected_quote_id)
+              if (selJson.selection?.payment_memo) setSavedMemo(selJson.selection.payment_memo)
             } else {
               setSelectionResult('lost')
             }
@@ -226,6 +228,14 @@ export default function LandcoRequestDetail() {
             <p className="text-sm font-semibold text-amber-700">입금 확인이 완료되었습니다.</p>
             <p className="text-xs text-amber-600 mt-0.5">최종 확정 처리가 완료되었습니다.</p>
           </div>
+        </div>
+      )}
+
+      {/* 입금 메모 — finalized 상태에서 메모가 있을 때 */}
+      {request.status === 'finalized' && selectionResult === 'selected' && savedMemo && (
+        <div className="bg-white rounded-lg shadow-sm p-5 mb-6 border border-gray-100">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">입금 메모</p>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap">{savedMemo}</p>
         </div>
       )}
 
