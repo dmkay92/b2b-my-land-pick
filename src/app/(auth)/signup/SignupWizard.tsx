@@ -107,7 +107,7 @@ export function SignupWizard() {
     }
 
     // 3. profiles upsert (trigger가 기본 필드 생성, 여기서 추가 정보 업데이트)
-    await supabase.from('profiles').update({
+    const { error: profileError } = await supabase.from('profiles').update({
       business_registration_number: draft.basicInfo.business_registration_number,
       representative_name: draft.basicInfo.representative_name,
       phone_mobile: draft.basicInfo.phone_mobile,
@@ -119,6 +119,10 @@ export function SignupWizard() {
       document_bank_url: bankUrl,
       ...(draft.role === 'landco' ? { country_codes: countries } : {}),
     }).eq('id', userId)
+    if (profileError) {
+      console.error('Profile update error:', profileError.message)
+      // 프로필 업데이트 실패해도 계속 진행 (admin이 수동으로 수정 가능)
+    }
 
     // 4. sessionStorage 정리
     try { sessionStorage.removeItem(DRAFT_KEY) } catch {}
@@ -199,8 +203,21 @@ export function SignupWizard() {
           }}
           onBack={() => updateDraft({ step: 4 })}
         />
-        {submitError && <p className="mt-3 text-sm text-red-500">{submitError}</p>}
         {submitting && <p className="mt-3 text-sm text-gray-400 text-center">가입 처리 중...</p>}
+        {submitError && (
+          <div className="mt-3 text-center">
+            <p className="text-sm text-red-500">{submitError}</p>
+            <button
+              onClick={() => {
+                submitCalledRef.current = false
+                setSubmitError(null)
+              }}
+              className="mt-2 text-sm text-blue-500 hover:underline"
+            >
+              다시 시도
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -212,8 +229,12 @@ export function SignupWizard() {
     }
     return (
       <div className="flex flex-col items-center gap-3 py-8">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-        <p className="text-sm text-gray-500">가입 처리 중...</p>
+        {!submitError && (
+          <>
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+            <p className="text-sm text-gray-500">가입 처리 중...</p>
+          </>
+        )}
         {submitError && (
           <div className="text-center">
             <p className="text-sm text-red-500">{submitError}</p>
