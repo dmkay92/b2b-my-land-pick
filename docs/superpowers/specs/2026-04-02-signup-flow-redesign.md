@@ -63,9 +63,9 @@ assigned_countries            JSONB       -- 랜드사만, [{name: string}]
 - 각각 드래그앤드롭 영역 (클릭으로도 파일 선택 가능)
 - 지원 형식: PDF, JPG, PNG
 - 두 파일 모두 업로드 완료 시 "AI가 서류를 읽고 있어요..." 로딩 상태 표시
-- `/api/signup/ocr` 호출 (두 파일 병렬 처리)
+- `/api/signup/ocr` 호출 (두 파일 병렬 처리, `multipart/form-data`로 파일 전송)
 - OCR 완료 후 자동으로 Step 3으로 이동
-- 파일은 즉시 Supabase Storage에 업로드 (OCR용 임시 URL 생성)
+- **파일 객체는 클라이언트 메모리에 유지** — Storage 업로드는 최종 제출 시 (userId 획득 후) 수행
 - 상단 메시지: *"서류를 올리면 나머지는 자동으로 채워드릴게요"*
 
 **OCR 추출 필드:**
@@ -105,9 +105,10 @@ assigned_countries            JSONB       -- 랜드사만, [{name: string}]
 ### 최종 제출
 
 1. `supabase.auth.signUp({ email, password, options: { data: { role, company_name } } })`
-2. `profiles` 테이블에 모든 수집 정보 upsert
-3. Supabase Storage 파일 경로 저장
-4. `/pending`으로 redirect
+2. 사업자등록증 → Storage `{userId}/biz-registration.{ext}` 업로드
+3. 통장사본 → Storage `{userId}/bank-statement.{ext}` 업로드
+4. `profiles` 테이블에 모든 수집 정보 upsert (Storage 경로 포함)
+5. `/pending`으로 redirect
 
 ---
 
@@ -124,7 +125,7 @@ assigned_countries            JSONB       -- 랜드사만, [{name: string}]
 - key: `signup_draft`
 - 저장 시점: 각 단계 "다음" 클릭 시
 - 복원 시점: 컴포넌트 마운트 시 (`useEffect`)
-- 저장 내용: `{ role, step, ocr: { biz, bank }, basicInfo, bankInfo, countries }`
+- 저장 내용: `{ role, step, ocr: { biz, bank }, basicInfo, bankInfo, countries }` — **파일 자체는 저장하지 않음** (File 객체는 직렬화 불가), 파일 손실 시 Step 2부터 재업로드
 - 가입 완료 또는 페이지 벗어날 때 삭제
 
 ---
