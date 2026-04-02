@@ -1,3 +1,8 @@
+-- Add payment_pending to quote_requests status CHECK constraint
+ALTER TABLE quote_requests DROP CONSTRAINT IF EXISTS quote_requests_status_check;
+ALTER TABLE quote_requests ADD CONSTRAINT quote_requests_status_check
+  CHECK (status IN ('open', 'in_progress', 'closed', 'payment_pending', 'finalized'));
+
 -- Add payment_memo column to quote_selections
 ALTER TABLE quote_selections ADD COLUMN IF NOT EXISTS payment_memo TEXT;
 
