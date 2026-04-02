@@ -1,7 +1,7 @@
 export type UserRole = 'agency' | 'landco' | 'admin'
 export type UserStatus = 'pending' | 'approved' | 'rejected'
 export type HotelGrade = 3 | 4 | 5
-export type QuoteRequestStatus = 'open' | 'in_progress' | 'closed' | 'finalized'
+export type QuoteRequestStatus = 'open' | 'in_progress' | 'closed' | 'payment_pending' | 'finalized'
 export type QuoteStatus = 'submitted' | 'selected' | 'finalized' | 'rejected'
 
 export interface Profile {
@@ -29,6 +29,10 @@ export interface QuoteRequest {
   leaders: number
   quote_type: 'hotel_land' | 'land'
   hotel_grade: HotelGrade | null
+  shopping_option: boolean | null
+  shopping_count: number | null
+  tip_option: boolean | null
+  local_option: boolean | null
   deadline: string
   notes: string | null
   status: QuoteRequestStatus
@@ -52,6 +56,7 @@ export interface QuoteSelection {
   landco_id: string
   selected_at: string
   finalized_at: string | null
+  payment_memo: string | null
 }
 
 export interface ChatRoom {
@@ -97,6 +102,11 @@ export interface ItineraryDay {
     stars?: 3 | 4 | 5
     name?: string
   }
+  meals?: {
+    조식?: { active: boolean; note: string }
+    중식?: { active: boolean; note: string }
+    석식?: { active: boolean; note: string }
+  }
 }
 
 export interface PricingRow {
@@ -105,6 +115,7 @@ export interface PricingRow {
   price: number
   count: number
   quantity: number
+  currency?: string
 }
 
 export interface PricingData {
@@ -114,6 +125,8 @@ export interface PricingData {
   입장료: PricingRow[]
   가이드비용: PricingRow[]
   기타: PricingRow[]
+  currencies?: Partial<Record<string, string>>
+  exchangeRates?: Partial<Record<string, number>>
 }
 
 export interface QuoteDraft {
