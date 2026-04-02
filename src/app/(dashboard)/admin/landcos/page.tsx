@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, AdminActionLog } from '@/lib/supabase/types'
+import { BackButton } from '@/components/BackButton'
 import { getCountryName } from '@/lib/utils'
 
 type Status = 'approved' | 'rejected' | 'pending'
@@ -136,6 +137,7 @@ export default function LandcosPage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
+      <BackButton href="/admin" />
       <h1 className="text-2xl font-bold mb-6">랜드사 리스트 <span className="text-gray-400 font-normal text-lg">({landcos.length})</span></h1>
       {landcos.length === 0 ? (
         <p className="text-gray-400">등록된 랜드사가 없습니다.</p>
@@ -195,7 +197,7 @@ export default function LandcosPage() {
 
       {/* 상태 변경 확인 팝업 */}
       {pendingStatus && selected && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setPendingStatus(null)}>
           <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xs">
             <h3 className="text-base font-bold mb-2">상태 변경 확인</h3>
             <p className="text-sm text-gray-500 mb-6">
@@ -204,7 +206,7 @@ export default function LandcosPage() {
             </p>
             <div className="flex gap-2">
               <button onClick={() => setPendingStatus(null)} className="flex-1 py-2 rounded-lg text-sm text-gray-500 border border-gray-200 hover:bg-gray-50">취소</button>
-              <button onClick={confirmStatusChange} disabled={saving} className="flex-1 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+              <button autoFocus onClick={confirmStatusChange} disabled={saving} className="flex-1 py-2 rounded-lg text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
                 {saving ? '저장 중...' : '확인'}
               </button>
             </div>
@@ -292,6 +294,41 @@ export default function LandcosPage() {
                 </button>
               ))}
             </div>
+
+            {/* 서류 다운로드 */}
+            {(selected.document_biz_url || selected.document_bank_url) && (
+              <div className="mb-5">
+                <p className="text-sm font-medium text-gray-700 mb-2">서류 다운로드</p>
+                <div className="flex gap-2">
+                  {selected.document_biz_url && (
+                    <button
+                      onClick={async () => {
+                        const { data } = await supabase.storage
+                          .from('signup-documents')
+                          .createSignedUrl(selected.document_biz_url!, 3600)
+                        if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+                      }}
+                      className="flex-1 rounded-lg border border-gray-200 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                    >
+                      📄 사업자등록증
+                    </button>
+                  )}
+                  {selected.document_bank_url && (
+                    <button
+                      onClick={async () => {
+                        const { data } = await supabase.storage
+                          .from('signup-documents')
+                          .createSignedUrl(selected.document_bank_url!, 3600)
+                        if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+                      }}
+                      className="flex-1 rounded-lg border border-gray-200 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                    >
+                      🏦 통장사본
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* 액션 로그 */}
             <p className="text-sm font-medium text-gray-700 mb-2">액션 로그</p>
