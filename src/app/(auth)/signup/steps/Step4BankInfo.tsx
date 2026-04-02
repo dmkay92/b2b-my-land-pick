@@ -96,7 +96,8 @@ export function Step4BankInfo({ ocr, initial, onNext, onBack }: Props) {
         </button>
         <button
           type="submit"
-          className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          disabled={!values.bank_name || !values.bank_account || !values.bank_holder}
+          className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40 transition-colors"
         >
           다음
         </button>
