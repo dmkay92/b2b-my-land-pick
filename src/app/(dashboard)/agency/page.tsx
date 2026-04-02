@@ -1,3 +1,4 @@
+// src/app/(dashboard)/agency/page.tsx
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { AgencyDashboardClient } from './DashboardClient'
@@ -9,6 +10,7 @@ type InternalPhase = PhasedRequest['phase']
 
 function getPhase(req: QuoteRequest, today: string): InternalPhase {
   if (req.status === 'closed') return 'cancelled'
+  if (req.status === 'payment_pending') return 'payment_pending'
   if (req.status !== 'finalized') return 'ing'
   const d = req.depart_date.slice(0, 10)
   const r = req.return_date.slice(0, 10)
@@ -43,7 +45,6 @@ export default async function AgencyDashboard() {
 
   const requestIds = (raw ?? []).map(r => r.id)
 
-  // RLS 우회: admin client로 각 견적의 landco_id 조회
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -54,12 +55,13 @@ export default async function AgencyDashboard() {
         .order('submitted_at', { ascending: false })
     : { data: [] }
 
-  // request_id → 고유 랜드사 Set + 최신 제출일 맵
   const landcoSetMap: Record<string, Set<string>> = {}
+  const quoteRowCountMap: Record<string, number> = {}
   const latestSubmittedAt: Record<string, string> = {}
   for (const row of (quoteRows ?? []) as { request_id: string; landco_id: string; submitted_at: string }[]) {
     if (!landcoSetMap[row.request_id]) landcoSetMap[row.request_id] = new Set()
     landcoSetMap[row.request_id].add(row.landco_id)
+    quoteRowCountMap[row.request_id] = (quoteRowCountMap[row.request_id] ?? 0) + 1
     if (!latestSubmittedAt[row.request_id]) {
       latestSubmittedAt[row.request_id] = row.submitted_at
     }
@@ -67,18 +69,21 @@ export default async function AgencyDashboard() {
 
   const today = new Date().toISOString().slice(0, 10)
 
-  // 확정된 요청(pre/mid/end)의 선택 견적 정보 조회
   const allRequests = (raw ?? []).map(r => r as unknown as QuoteRequest)
-  const finalizedIds = allRequests
-    .filter(r => getPhase(r, today) !== 'ing' && getPhase(r, today) !== 'cancelled')
+  // payment_pending과 finalized 모두 selectedInfo 조회 대상
+  const nonIngIds = allRequests
+    .filter(r => {
+      const p = getPhase(r, today)
+      return p !== 'ing' && p !== 'cancelled'
+    })
     .map(r => r.id)
 
   const selectedInfoMap: Record<string, SelectedInfo> = {}
-  if (finalizedIds.length > 0) {
+  if (nonIngIds.length > 0) {
     const { data: selections } = await admin
       .from('quote_selections')
       .select('request_id, selected_quote_id, landco_id')
-      .in('request_id', finalizedIds)
+      .in('request_id', nonIngIds)
 
     if (selections && selections.length > 0) {
       const selectedQuoteIds = selections.map((s: { selected_quote_id: string }) => s.selected_quote_id)
@@ -94,7 +99,7 @@ export default async function AgencyDashboard() {
       const selectionMap = Object.fromEntries(selections.map((s: { request_id: string; selected_quote_id: string; landco_id: string }) => [s.request_id, s]))
 
       await Promise.all(
-        finalizedIds.map(async reqId => {
+        nonIngIds.map(async reqId => {
           const sel = selectionMap[reqId]
           if (!sel) return
           const fileUrl = quoteFileMap[sel.selected_quote_id]
@@ -109,9 +114,10 @@ export default async function AgencyDashboard() {
   const requests: PhasedRequest[] = allRequests.map(req => {
     const phase = getPhase(req, today)
     const dday = getDday(req, phase, today)
-    const quoteCount = landcoSetMap[req.id]?.size ?? 0
+    const quoteCount = quoteRowCountMap[req.id] ?? 0
+    const landcoCount = landcoSetMap[req.id]?.size ?? 0
     const selectedInfo = selectedInfoMap[req.id]
-    return { ...req, phase, dday, quoteCount, ...(selectedInfo ? { selectedInfo } : {}) }
+    return { ...req, phase, dday, quoteCount, landcoCount, ...(selectedInfo ? { selectedInfo } : {}) }
   }).sort((a, b) => {
     const ta = latestSubmittedAt[a.id] ?? a.created_at
     const tb = latestSubmittedAt[b.id] ?? b.created_at
@@ -121,6 +127,7 @@ export default async function AgencyDashboard() {
   const counts: Record<TravelPhase, number> = {
     all: requests.length,
     ing: requests.filter(r => r.phase === 'ing').length,
+    payment_pending: requests.filter(r => r.phase === 'payment_pending').length,
     confirmed: requests.filter(r => r.phase === 'pre' || r.phase === 'mid').length,
     end: requests.filter(r => r.phase === 'end').length,
     cancelled: requests.filter(r => r.phase === 'cancelled').length,
