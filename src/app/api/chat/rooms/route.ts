@@ -38,21 +38,21 @@ export async function GET(request: NextRequest) {
 
   // 각 방의 최신 메시지 정보 조회
   const roomIds = (rooms ?? []).map((r: { id: string }) => r.id)
-  let lastMsgMap: Record<string, { created_at: string; sender_id: string; content: string }> = {}
+  let lastMsgMap: Record<string, { created_at: string; sender_id: string; content: string | null; file_name: string | null }> = {}
   if (roomIds.length > 0) {
     const { data: lastMsgs } = await adminClient
       .from('messages')
-      .select('room_id, created_at, sender_id, content')
+      .select('room_id, created_at, sender_id, content, file_name')
       .in('room_id', roomIds)
       .order('created_at', { ascending: false })
-    for (const msg of (lastMsgs ?? []) as { room_id: string; created_at: string; sender_id: string; content: string }[]) {
+    for (const msg of (lastMsgs ?? []) as { room_id: string; created_at: string; sender_id: string; content: string | null; file_name: string | null }[]) {
       if (!lastMsgMap[msg.room_id]) lastMsgMap[msg.room_id] = msg
     }
   }
 
   // 확정된 견적의 선택 랜드사 조회
   const finalizedRooms = (rooms ?? []) as { id: string; request_id: string; landco_id: string; request?: { status: string } }[]
-  const finalizedRequestIds = [...new Set(finalizedRooms.filter(r => r.request?.status === 'finalized').map(r => r.request_id))]
+  const finalizedRequestIds = [...new Set(finalizedRooms.filter(r => r.request?.status === 'finalized' || r.request?.status === 'payment_pending').map(r => r.request_id))]
   const selectedSet = new Set<string>() // "request_id:landco_id"
   if (finalizedRequestIds.length > 0) {
     const { data: selections } = await adminClient
@@ -68,7 +68,9 @@ export async function GET(request: NextRequest) {
     ...r,
     last_msg_at: lastMsgMap[r.id]?.created_at ?? null,
     last_msg_sender_id: lastMsgMap[r.id]?.sender_id ?? null,
-    last_msg_content: lastMsgMap[r.id]?.content ?? null,
+    last_msg_content: lastMsgMap[r.id]
+      ? (lastMsgMap[r.id].file_name ? `📎 ${lastMsgMap[r.id].file_name}` : lastMsgMap[r.id].content)
+      : null,
     is_selected: selectedSet.has(`${r.request_id}:${r.landco_id}`),
   }))
 
