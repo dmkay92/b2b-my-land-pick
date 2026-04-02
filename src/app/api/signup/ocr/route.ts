@@ -31,9 +31,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'type must be biz or bank' }, { status: 400 })
   }
 
+  const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+  const mimeType = file.type || 'image/jpeg'
+  if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+    return NextResponse.json(
+      { error: '지원하지 않는 파일 형식입니다. JPG, PNG, PDF만 업로드 가능합니다.' },
+      { status: 400 }
+    )
+  }
+
+  const MAX_SIZE = 5 * 1024 * 1024 // 5MB
+  if (file.size > MAX_SIZE) {
+    return NextResponse.json(
+      { error: '파일 크기는 5MB 이하여야 합니다.' },
+      { status: 400 }
+    )
+  }
+
   const arrayBuffer = await file.arrayBuffer()
   const base64 = Buffer.from(arrayBuffer).toString('base64')
-  const mimeType = (file.type || 'image/jpeg') as string
 
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
