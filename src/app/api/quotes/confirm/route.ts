@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { sendQuoteSelectedEmail, sendFinalizedEmail } from '@/lib/email/notifications'
+import { sendQuoteSelectedEmail } from '@/lib/email/notifications'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -13,42 +13,44 @@ export async function POST(request: NextRequest) {
   }
 
   const { data: qr } = await supabase
-    .from('quote_requests').select('agency_id, event_name').eq('id', requestId).single()
+    .from('quote_requests').select('agency_id, event_name, status').eq('id', requestId).single()
   if (qr?.agency_id !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // 이미 확정된 경우 차단
-  const { data: existing } = await supabase
-    .from('quote_selections').select('finalized_at').eq('request_id', requestId).single()
-  if (existing?.finalized_at) return NextResponse.json({ error: 'Already finalized' }, { status: 409 })
+  // 이미 입금대기 또는 확정된 경우 차단
+  if (qr?.status === 'payment_pending' || qr?.status === 'finalized') {
+    return NextResponse.json({ error: 'Already confirmed' }, { status: 409 })
+  }
 
-  const now = new Date().toISOString()
-
-  // 선택 + 즉시 확정 (upsert)
+  // 선택 기록 저장 (finalized_at은 null — 랜드사 입금확인 후 설정)
   await supabase.from('quote_selections').upsert({
     request_id: requestId,
     selected_quote_id: quoteId,
     landco_id: landcoId,
-    finalized_at: now,
+    finalized_at: null,
   }, { onConflict: 'request_id' })
 
-  // 선택된 견적서 상태 업데이트
-  await supabase.from('quotes').update({ status: 'finalized' }).eq('id', quoteId)
+  // 선택된 견적서 상태: selected
+  await supabase.from('quotes').update({ status: 'selected' }).eq('id', quoteId)
 
-  // 요청 상태 finalized로 업데이트
-  await supabase.from('quote_requests').update({ status: 'finalized' }).eq('id', requestId)
+  // 요청 상태: payment_pending
+  await supabase.from('quote_requests').update({ status: 'payment_pending' }).eq('id', requestId)
 
-  // 랜드사 알림
+  // 랜드사 알림 (선택됨)
   await supabase.from('notifications').insert({
     user_id: landcoId,
-    type: 'quote_finalized',
+    type: 'quote_selected',
     payload: { request_id: requestId, event_name: qr?.event_name },
   })
 
   const { data: landco } = await supabase
     .from('profiles').select('email, company_name').eq('id', landcoId).single()
   if (landco) {
-    await sendQuoteSelectedEmail({ to: landco.email, company_name: landco.company_name, event_name: qr?.event_name ?? '', request_id: requestId })
-    await sendFinalizedEmail({ to: landco.email, company_name: landco.company_name, event_name: qr?.event_name ?? '' })
+    await sendQuoteSelectedEmail({
+      to: landco.email,
+      company_name: landco.company_name,
+      event_name: qr?.event_name ?? '',
+      request_id: requestId,
+    })
   }
 
   return NextResponse.json({ success: true })
