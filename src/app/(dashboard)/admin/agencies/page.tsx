@@ -234,7 +234,7 @@ export default function AgenciesPage() {
           <div ref={modalRef} className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto outline-none" onClick={e => e.stopPropagation()} tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && setSelected(null)}>
             <div className="px-6 pt-6 pb-4 border-b border-gray-100">
               <h3 className="text-base font-bold text-gray-900">{selected.company_name}</h3>
-              <p className="text-xs text-gray-400 mt-0.5">여행사 · 가입일 {new Date(selected.created_at).toLocaleDateString('ko-KR')}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{'A' + String(selected.seq_id ?? '?').padStart(5, '0')} · 여행사 · 가입일 {new Date(selected.created_at).toLocaleDateString('ko-KR')}</p>
             </div>
 
             <div className="px-6 py-4 space-y-5">
