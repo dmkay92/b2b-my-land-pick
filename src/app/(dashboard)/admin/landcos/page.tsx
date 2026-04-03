@@ -272,7 +272,7 @@ export default function LandcosPage() {
           <div ref={modalRef} className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto outline-none" onClick={e => e.stopPropagation()} tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && setSelected(null)}>
             <div className="px-6 pt-6 pb-4 border-b border-gray-100">
               <h3 className="text-base font-bold text-gray-900">{selected.company_name}</h3>
-              <p className="text-xs text-gray-400 mt-0.5">{'L' + String(selected.seq_id ?? '?').padStart(5, '0')} · 랜드사 · 가입일 {new Date(selected.created_at).toLocaleDateString('ko-KR')}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{'L' + String(selected.seq_id ?? '?').padStart(5, '0')} · 랜드사</p>
             </div>
 
             <div className="px-6 py-4 space-y-5">
@@ -305,6 +305,7 @@ export default function LandcosPage() {
                   </div>
                   <InfoRow label="유선" value={selected.phone_landline} />
                   <InfoRow label="휴대폰" value={selected.phone_mobile} />
+                  <InfoRow label="가입일" value={new Date(selected.created_at).toLocaleDateString('ko-KR')} />
                   <InfoRow label="최초승인일" value={selected.approved_at ? new Date(selected.approved_at).toLocaleDateString('ko-KR') : null} />
                   {logs.length > 0 && <InfoRow label="최종수정일" value={formatLogDate(logs[0].created_at)} />}
                 </dl>
