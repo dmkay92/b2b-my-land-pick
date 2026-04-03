@@ -24,10 +24,25 @@ export default function AdminPage() {
   const [detailModal, setDetailModal] = useState<{ user: Profile } | null>(null)
   const [selectedCodes, setSelectedCodes] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [signedUrls, setSignedUrls] = useState<{ biz: string | null; bank: string | null }>({ biz: null, bank: null })
 
-  function openDetailModal(user: Profile) {
+  async function openDetailModal(user: Profile) {
     setSelectedCodes([])
+    setSignedUrls({ biz: null, bank: null })
     setDetailModal({ user })
+
+    const [bizResult, bankResult] = await Promise.all([
+      user.document_biz_url
+        ? supabase.storage.from('signup-documents').createSignedUrl(user.document_biz_url, 60 * 10)
+        : Promise.resolve({ data: null }),
+      user.document_bank_url
+        ? supabase.storage.from('signup-documents').createSignedUrl(user.document_bank_url, 60 * 10)
+        : Promise.resolve({ data: null }),
+    ])
+    setSignedUrls({
+      biz: bizResult.data?.signedUrl ?? null,
+      bank: bankResult.data?.signedUrl ?? null,
+    })
   }
 
   useEffect(() => {
@@ -223,27 +238,31 @@ export default function AdminPage() {
               <section>
                 <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">첨부 서류</h4>
                 <div className="flex gap-2">
-                  {detailModal.user.document_biz_url ? (
+                  {signedUrls.biz ? (
                     <a
-                      href={detailModal.user.document_biz_url}
+                      href={signedUrls.biz}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-1 text-center text-xs text-blue-600 border border-blue-200 rounded-lg py-2 hover:bg-blue-50 transition-colors"
                     >
                       사업자등록증 ↗
                     </a>
+                  ) : detailModal.user.document_biz_url ? (
+                    <span className="flex-1 text-center text-xs text-gray-400 border border-gray-100 rounded-lg py-2">로딩 중...</span>
                   ) : (
                     <span className="flex-1 text-center text-xs text-gray-300 border border-gray-100 rounded-lg py-2">사업자등록증 없음</span>
                   )}
-                  {detailModal.user.document_bank_url ? (
+                  {signedUrls.bank ? (
                     <a
-                      href={detailModal.user.document_bank_url}
+                      href={signedUrls.bank}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-1 text-center text-xs text-blue-600 border border-blue-200 rounded-lg py-2 hover:bg-blue-50 transition-colors"
                     >
                       통장 사본 ↗
                     </a>
+                  ) : detailModal.user.document_bank_url ? (
+                    <span className="flex-1 text-center text-xs text-gray-400 border border-gray-100 rounded-lg py-2">로딩 중...</span>
                   ) : (
                     <span className="flex-1 text-center text-xs text-gray-300 border border-gray-100 rounded-lg py-2">통장 사본 없음</span>
                   )}

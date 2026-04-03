@@ -94,7 +94,7 @@ export function SignupWizard() {
         .from('signup-documents')
         .upload(`${userId}/biz-registration.${ext}`, bizFileRef.current, { upsert: true })
       if (bizData?.path) {
-        bizUrl = supabase.storage.from('signup-documents').getPublicUrl(bizData.path).data.publicUrl
+        bizUrl = bizData.path
       }
     }
 
@@ -104,7 +104,7 @@ export function SignupWizard() {
         .from('signup-documents')
         .upload(`${userId}/bank-statement.${ext}`, bankFileRef.current, { upsert: true })
       if (bankData?.path) {
-        bankUrl = supabase.storage.from('signup-documents').getPublicUrl(bankData.path).data.publicUrl
+        bankUrl = bankData.path
       }
     }
 
