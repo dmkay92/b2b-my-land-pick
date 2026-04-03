@@ -31,3 +31,56 @@ describe('getStatusLabel', () => {
     expect(getStatusLabel('unknown_status')).toBe('unknown_status')
   })
 })
+
+import { formatPhoneByCountry } from '@/lib/phoneFormat'
+
+describe('formatPhoneByCountry', () => {
+  it('한국 +82 모바일 포맷', () => {
+    expect(formatPhoneByCountry('+82', '01012345678')).toBe('010-1234-5678')
+  })
+  it('한국 +82 앞자리만 있을 때', () => {
+    expect(formatPhoneByCountry('+82', '010123')).toBe('010-123')
+  })
+  it('미국 +1 포맷', () => {
+    expect(formatPhoneByCountry('+1', '2125551234')).toBe('(212) 555-1234')
+  })
+  it('미국 +1 입력 중간', () => {
+    expect(formatPhoneByCountry('+1', '21255')).toBe('(212) 55')
+  })
+  it('싱가포르 +65 포맷', () => {
+    expect(formatPhoneByCountry('+65', '91234567')).toBe('9123-4567')
+  })
+  it('홍콩 +852 포맷', () => {
+    expect(formatPhoneByCountry('+852', '91234567')).toBe('9123-4567')
+  })
+  it('일본 +81 포맷', () => {
+    expect(formatPhoneByCountry('+81', '09012345678')).toBe('090-1234-5678')
+  })
+  it('중국 +86 포맷', () => {
+    expect(formatPhoneByCountry('+86', '13812345678')).toBe('138-1234-5678')
+  })
+  it('태국 +66 포맷', () => {
+    expect(formatPhoneByCountry('+66', '0812345678')).toBe('081-234-5678')
+  })
+  it('베트남 +84 포맷', () => {
+    expect(formatPhoneByCountry('+84', '0912345678')).toBe('091-234-5678')
+  })
+  it('인도네시아 +62 포맷', () => {
+    expect(formatPhoneByCountry('+62', '08123456789')).toBe('0812-3456-789')
+  })
+  it('말레이시아 +60 포맷', () => {
+    expect(formatPhoneByCountry('+60', '0123456789')).toBe('012-345-6789')
+  })
+  it('필리핀 +63 포맷', () => {
+    expect(formatPhoneByCountry('+63', '09171234567')).toBe('0917-123-4567')
+  })
+  it('대만 +886 포맷', () => {
+    expect(formatPhoneByCountry('+886', '0912345678')).toBe('091-234-5678')
+  })
+  it('지원하지 않는 국가는 숫자만', () => {
+    expect(formatPhoneByCountry('+49', '01701234567')).toBe('01701234567')
+  })
+  it('빈 문자열 반환', () => {
+    expect(formatPhoneByCountry('+82', '')).toBe('')
+  })
+})
