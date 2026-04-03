@@ -48,10 +48,46 @@ function formatLogDate(iso: string): string {
     ' ' + d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
 }
 
+type SortKey = 'company_name' | 'email' | 'status' | 'created_at' | 'approved_at'
+
+function sortProfiles(list: Profile[], key: SortKey, dir: 'asc' | 'desc'): Profile[] {
+  return [...list].sort((a, b) => {
+    const av = a[key] ?? ''
+    const bv = b[key] ?? ''
+    const cmp = String(av).localeCompare(String(bv), 'ko', { numeric: true })
+    return dir === 'asc' ? cmp : -cmp
+  })
+}
+
+function SortTh({ label, sortKey, current, dir, onSort }: {
+  label: string
+  sortKey: SortKey
+  current: SortKey
+  dir: 'asc' | 'desc'
+  onSort: (k: SortKey) => void
+}) {
+  const active = current === sortKey
+  return (
+    <th className="text-left px-5 py-3 text-gray-500 font-medium">
+      <button
+        onClick={() => onSort(sortKey)}
+        className="flex items-center gap-1 hover:text-gray-800 transition-colors"
+      >
+        {label}
+        <span className={`text-xs ${active ? 'text-blue-500' : 'text-gray-300'}`}>
+          {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
+        </span>
+      </button>
+    </th>
+  )
+}
+
 export default function LandcosPage() {
   const supabase = createClient()
   const [landcos, setLandcos] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
+  const [sortKey, setSortKey] = useState<SortKey>('created_at')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [selected, setSelected] = useState<Profile | null>(null)
   const [editStatus, setEditStatus] = useState<Status>('approved')
   const [editEmail, setEditEmail] = useState('')
@@ -62,12 +98,19 @@ export default function LandcosPage() {
   const [logs, setLogs] = useState<AdminActionLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
 
+  function handleSort(key: SortKey) {
+    if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const sorted = sortProfiles(landcos, sortKey, sortDir)
+
   useEffect(() => {
     supabase
       .from('profiles')
       .select('*')
       .eq('role', 'landco')
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .then(({ data }) => {
         setLandcos(data ?? [])
         setLoading(false)
@@ -147,16 +190,16 @@ export default function LandcosPage() {
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 <th className="text-left px-5 py-3 text-gray-500 font-medium">랜드사 ID</th>
-                <th className="text-left px-5 py-3 text-gray-500 font-medium">회사명</th>
-                <th className="text-left px-5 py-3 text-gray-500 font-medium">이메일</th>
-                <th className="text-left px-5 py-3 text-gray-500 font-medium">상태</th>
+                <SortTh label="회사명" sortKey="company_name" current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="이메일" sortKey="email" current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="상태" sortKey="status" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <th className="text-left px-5 py-3 text-gray-500 font-medium">담당 국가</th>
-                <th className="text-left px-5 py-3 text-gray-500 font-medium">가입일</th>
-                <th className="text-left px-5 py-3 text-gray-500 font-medium">최초승인일</th>
+                <SortTh label="가입일" sortKey="created_at" current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="최초승인일" sortKey="approved_at" current={sortKey} dir={sortDir} onSort={handleSort} />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {landcos.map((landco, i) => (
+              {sorted.map((landco, i) => (
                 <tr
                   key={landco.id}
                   onClick={() => openModal(landco)}
