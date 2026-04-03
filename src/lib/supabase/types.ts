@@ -13,6 +13,7 @@ export interface Profile {
   country_codes: string[]
   created_at: string
   approved_at: string | null
+  seq_id: number | null
   // 회원가입 wizard 신규 필드
   business_registration_number: string | null
   representative_name: string | null

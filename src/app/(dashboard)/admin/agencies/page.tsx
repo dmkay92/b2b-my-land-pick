@@ -35,7 +35,7 @@ function formatLogDate(iso: string): string {
     ' ' + d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
 }
 
-type SortKey = 'company_name' | 'email' | 'status' | 'created_at' | 'approved_at' | 'business_registration_number' | 'representative_name'
+type SortKey = 'seq_id' | 'company_name' | 'email' | 'status' | 'created_at' | 'approved_at' | 'business_registration_number' | 'representative_name'
 
 function sortProfiles(list: Profile[], key: SortKey, dir: 'asc' | 'desc'): Profile[] {
   return [...list].sort((a, b) => {
@@ -73,7 +73,7 @@ export default function AgenciesPage() {
   const supabase = createClient()
   const [agencies, setAgencies] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
-  const [sortKey, setSortKey] = useState<SortKey>('created_at')
+  const [sortKey, setSortKey] = useState<SortKey>('seq_id')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [selected, setSelected] = useState<Profile | null>(null)
   const [editStatus, setEditStatus] = useState<Status>('approved')
@@ -90,13 +90,6 @@ export default function AgenciesPage() {
   }
 
   const sorted = sortProfiles(agencies, sortKey, sortDir)
-
-  // 가입일 기준 고정 ID (정렬과 무관하게 A00001은 항상 최초 가입사)
-  const stableIdMap = new Map(
-    [...agencies]
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-      .map((a, i) => [a.id, i + 1])
-  )
 
   useEffect(() => {
     supabase
@@ -171,7 +164,7 @@ export default function AgenciesPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                <SortTh label="여행사 ID" sortKey="created_at" current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="여행사 ID" sortKey="seq_id" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="회사명" sortKey="company_name" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="사업자등록번호" sortKey="business_registration_number" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="대표자명" sortKey="representative_name" current={sortKey} dir={sortDir} onSort={handleSort} />
@@ -188,7 +181,7 @@ export default function AgenciesPage() {
                   onClick={() => openModal(agency)}
                   className="hover:bg-gray-50 transition-colors cursor-pointer"
                 >
-                  <td className="px-5 py-3 font-mono text-xs text-gray-500">{'A' + String(stableIdMap.get(agency.id) ?? i + 1).padStart(5, '0')}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-gray-500">{'A' + String(agency.seq_id ?? i + 1).padStart(5, '0')}</td>
                   <td className="px-5 py-3 font-medium text-gray-800 whitespace-nowrap">{agency.company_name}</td>
                   <td className="px-5 py-3 text-gray-500 font-mono text-xs">{agency.business_registration_number ?? '-'}</td>
                   <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{agency.representative_name ?? '-'}</td>

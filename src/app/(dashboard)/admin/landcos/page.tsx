@@ -48,7 +48,7 @@ function formatLogDate(iso: string): string {
     ' ' + d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
 }
 
-type SortKey = 'company_name' | 'email' | 'status' | 'created_at' | 'approved_at' | 'business_registration_number' | 'representative_name'
+type SortKey = 'seq_id' | 'company_name' | 'email' | 'status' | 'created_at' | 'approved_at' | 'business_registration_number' | 'representative_name'
 
 function sortProfiles(list: Profile[], key: SortKey, dir: 'asc' | 'desc'): Profile[] {
   return [...list].sort((a, b) => {
@@ -86,7 +86,7 @@ export default function LandcosPage() {
   const supabase = createClient()
   const [landcos, setLandcos] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
-  const [sortKey, setSortKey] = useState<SortKey>('created_at')
+  const [sortKey, setSortKey] = useState<SortKey>('seq_id')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [selected, setSelected] = useState<Profile | null>(null)
   const [editStatus, setEditStatus] = useState<Status>('approved')
@@ -104,13 +104,6 @@ export default function LandcosPage() {
   }
 
   const sorted = sortProfiles(landcos, sortKey, sortDir)
-
-  // 가입일 기준 고정 ID (정렬과 무관하게 L00001은 항상 최초 가입사)
-  const stableIdMap = new Map(
-    [...landcos]
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-      .map((l, i) => [l.id, i + 1])
-  )
 
   useEffect(() => {
     supabase
@@ -196,7 +189,7 @@ export default function LandcosPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                <SortTh label="랜드사 ID" sortKey="created_at" current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="랜드사 ID" sortKey="seq_id" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="회사명" sortKey="company_name" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="사업자등록번호" sortKey="business_registration_number" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="대표자명" sortKey="representative_name" current={sortKey} dir={sortDir} onSort={handleSort} />
@@ -214,7 +207,7 @@ export default function LandcosPage() {
                   onClick={() => openModal(landco)}
                   className="hover:bg-gray-50 transition-colors cursor-pointer"
                 >
-                  <td className="px-5 py-3 font-mono text-xs text-gray-500">{'L' + String(stableIdMap.get(landco.id) ?? i + 1).padStart(5, '0')}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-gray-500">{'L' + String(landco.seq_id ?? i + 1).padStart(5, '0')}</td>
                   <td className="px-5 py-3 font-medium text-gray-800 whitespace-nowrap">{landco.company_name}</td>
                   <td className="px-5 py-3 text-gray-500 font-mono text-xs">{landco.business_registration_number ?? '-'}</td>
                   <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{landco.representative_name ?? '-'}</td>
