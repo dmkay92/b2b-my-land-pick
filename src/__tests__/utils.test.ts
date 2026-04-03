@@ -41,6 +41,9 @@ describe('formatPhoneByCountry', () => {
   it('한국 +82 앞자리만 있을 때', () => {
     expect(formatPhoneByCountry('+82', '010123')).toBe('010-123')
   })
+  it('한국 +82 02 지역번호 포맷', () => {
+    expect(formatPhoneByCountry('+82', '0212345678')).toBe('02-1234-5678')
+  })
   it('미국 +1 포맷', () => {
     expect(formatPhoneByCountry('+1', '2125551234')).toBe('(212) 555-1234')
   })
