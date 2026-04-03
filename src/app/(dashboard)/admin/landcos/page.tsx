@@ -189,7 +189,7 @@ export default function LandcosPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                <th className="text-left px-5 py-3 text-gray-500 font-medium">랜드사 ID</th>
+                <SortTh label="랜드사 ID" sortKey="created_at" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="회사명" sortKey="company_name" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="이메일" sortKey="email" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="상태" sortKey="status" current={sortKey} dir={sortDir} onSort={handleSort} />
