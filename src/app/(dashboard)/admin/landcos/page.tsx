@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile, AdminActionLog } from '@/lib/supabase/types'
 import { BackButton } from '@/components/BackButton'
@@ -97,6 +97,11 @@ export default function LandcosPage() {
   const [pendingStatus, setPendingStatus] = useState<Status | null>(null)
   const [logs, setLogs] = useState<AdminActionLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
+  const modalRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (selected) modalRef.current?.focus()
+  }, [selected])
 
   function handleSort(key: SortKey) {
     if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -263,8 +268,8 @@ export default function LandcosPage() {
 
       {/* 상세 팝업 */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSelected(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSelected(null)} onKeyDown={(e) => e.key === 'Escape' && setSelected(null)}>
+          <div ref={modalRef} className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto outline-none" onClick={e => e.stopPropagation()} tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && setSelected(null)}>
             <div className="px-6 pt-6 pb-4 border-b border-gray-100">
               <h3 className="text-base font-bold text-gray-900">{selected.company_name}</h3>
               <p className="text-xs text-gray-400 mt-0.5">랜드사 · 가입일 {new Date(selected.created_at).toLocaleDateString('ko-KR')}</p>
