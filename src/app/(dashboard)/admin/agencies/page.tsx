@@ -91,6 +91,13 @@ export default function AgenciesPage() {
 
   const sorted = sortProfiles(agencies, sortKey, sortDir)
 
+  // 가입일 기준 고정 ID (정렬과 무관하게 A00001은 항상 최초 가입사)
+  const stableIdMap = new Map(
+    [...agencies]
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .map((a, i) => [a.id, i + 1])
+  )
+
   useEffect(() => {
     supabase
       .from('profiles')
@@ -181,7 +188,7 @@ export default function AgenciesPage() {
                   onClick={() => openModal(agency)}
                   className="hover:bg-gray-50 transition-colors cursor-pointer"
                 >
-                  <td className="px-5 py-3 font-mono text-xs text-gray-500">{'A' + String(i + 1).padStart(5, '0')}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-gray-500">{'A' + String(stableIdMap.get(agency.id) ?? i + 1).padStart(5, '0')}</td>
                   <td className="px-5 py-3 font-medium text-gray-800 whitespace-nowrap">{agency.company_name}</td>
                   <td className="px-5 py-3 text-gray-500 font-mono text-xs">{agency.business_registration_number ?? '-'}</td>
                   <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{agency.representative_name ?? '-'}</td>

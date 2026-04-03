@@ -105,6 +105,13 @@ export default function LandcosPage() {
 
   const sorted = sortProfiles(landcos, sortKey, sortDir)
 
+  // 가입일 기준 고정 ID (정렬과 무관하게 L00001은 항상 최초 가입사)
+  const stableIdMap = new Map(
+    [...landcos]
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .map((l, i) => [l.id, i + 1])
+  )
+
   useEffect(() => {
     supabase
       .from('profiles')
@@ -207,7 +214,7 @@ export default function LandcosPage() {
                   onClick={() => openModal(landco)}
                   className="hover:bg-gray-50 transition-colors cursor-pointer"
                 >
-                  <td className="px-5 py-3 font-mono text-xs text-gray-500">{'L' + String(i + 1).padStart(5, '0')}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-gray-500">{'L' + String(stableIdMap.get(landco.id) ?? i + 1).padStart(5, '0')}</td>
                   <td className="px-5 py-3 font-medium text-gray-800 whitespace-nowrap">{landco.company_name}</td>
                   <td className="px-5 py-3 text-gray-500 font-mono text-xs">{landco.business_registration_number ?? '-'}</td>
                   <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{landco.representative_name ?? '-'}</td>
