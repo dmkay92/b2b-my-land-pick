@@ -12,16 +12,7 @@ import { Step5Countries } from './steps/Step5Countries'
 
 const DRAFT_KEY = 'signup_draft'
 
-function getInitialDraft(): SignupDraft {
-  if (typeof window === 'undefined') {
-    return { role: null, step: 1, ocr: { biz: null, bank: null }, basicInfo: null, bankInfo: null, countries: [] }
-  }
-  try {
-    const raw = sessionStorage.getItem(DRAFT_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {}
-  return { role: null, step: 1, ocr: { biz: null, bank: null }, basicInfo: null, bankInfo: null, countries: [] }
-}
+const EMPTY_DRAFT: SignupDraft = { role: null, step: 1, ocr: { biz: null, bank: null }, basicInfo: null, bankInfo: null, countries: [] }
 
 function ProgressBar({ step, role }: { step: number; role: UserRole | null }) {
   const total = role === 'landco' ? 5 : 4
@@ -40,12 +31,19 @@ function ProgressBar({ step, role }: { step: number; role: UserRole | null }) {
 
 export function SignupWizard() {
   const router = useRouter()
-  const [draft, setDraft] = useState<SignupDraft>(getInitialDraft)
+  const [draft, setDraft] = useState<SignupDraft>(EMPTY_DRAFT)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const bizFileRef = useRef<File | null>(null)
   const bankFileRef = useRef<File | null>(null)
   const submitCalledRef = useRef(false)
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY)
+      if (raw) setDraft(JSON.parse(raw))
+    } catch {}
+  }, [])
 
   function updateDraft(patch: Partial<SignupDraft>) {
     setDraft(prev => {
@@ -86,7 +84,7 @@ export function SignupWizard() {
 
     const userId = data.user.id
 
-    // 2. Storage 파일 업로드
+    // 2. Storage 파일 업로드 (공개 URL로 저장)
     let bizUrl: string | null = null
     let bankUrl: string | null = null
 
@@ -95,7 +93,9 @@ export function SignupWizard() {
       const { data: bizData } = await supabase.storage
         .from('signup-documents')
         .upload(`${userId}/biz-registration.${ext}`, bizFileRef.current, { upsert: true })
-      bizUrl = bizData?.path ?? null
+      if (bizData?.path) {
+        bizUrl = supabase.storage.from('signup-documents').getPublicUrl(bizData.path).data.publicUrl
+      }
     }
 
     if (bankFileRef.current) {
@@ -103,25 +103,32 @@ export function SignupWizard() {
       const { data: bankData } = await supabase.storage
         .from('signup-documents')
         .upload(`${userId}/bank-statement.${ext}`, bankFileRef.current, { upsert: true })
-      bankUrl = bankData?.path ?? null
+      if (bankData?.path) {
+        bankUrl = supabase.storage.from('signup-documents').getPublicUrl(bankData.path).data.publicUrl
+      }
     }
 
-    // 3. profiles upsert (trigger가 기본 필드 생성, 여기서 추가 정보 업데이트)
-    const { error: profileError } = await supabase.from('profiles').update({
-      business_registration_number: draft.basicInfo.business_registration_number,
-      representative_name: draft.basicInfo.representative_name,
-      phone_mobile: draft.basicInfo.phone_mobile,
-      phone_landline: draft.basicInfo.phone_landline || null,
-      bank_name: draft.bankInfo.bank_name,
-      bank_account: draft.bankInfo.bank_account,
-      bank_holder: draft.bankInfo.bank_holder,
-      document_biz_url: bizUrl,
-      document_bank_url: bankUrl,
-      ...(draft.role === 'landco' ? { country_codes: countries } : {}),
-    }).eq('id', userId)
-    if (profileError) {
-      console.error('Profile update error:', profileError.message)
-      // 프로필 업데이트 실패해도 계속 진행 (admin이 수동으로 수정 가능)
+    // 3. 서버사이드 API로 프로필 업데이트 (service role - RLS 우회, 타이밍 안정)
+    const profileRes = await fetch('/api/signup/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        business_registration_number: draft.basicInfo.business_registration_number,
+        representative_name: draft.basicInfo.representative_name,
+        phone_mobile: draft.basicInfo.phone_mobile,
+        phone_landline: draft.basicInfo.phone_landline || null,
+        bank_name: draft.bankInfo.bank_name,
+        bank_account: draft.bankInfo.bank_account,
+        bank_holder: draft.bankInfo.bank_holder,
+        document_biz_url: bizUrl,
+        document_bank_url: bankUrl,
+        ...(draft.role === 'landco' ? { country_codes: countries } : {}),
+      }),
+    })
+    if (!profileRes.ok) {
+      const { error } = await profileRes.json()
+      console.error('Profile update error:', error)
     }
 
     // 4. sessionStorage 정리
