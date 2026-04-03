@@ -234,7 +234,10 @@ export default function AgenciesPage() {
           <div ref={modalRef} className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto outline-none" onClick={e => e.stopPropagation()} tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && setSelected(null)}>
             <div className="px-6 pt-6 pb-4 border-b border-gray-100">
               <h3 className="text-base font-bold text-gray-900">{selected.company_name}</h3>
-              <p className="text-xs text-gray-400 mt-0.5">{'A' + String(selected.seq_id ?? '?').padStart(5, '0')} · 여행사</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="font-mono text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{'A' + String(selected.seq_id ?? '?').padStart(5, '0')}</span>
+                <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">여행사</span>
+              </div>
             </div>
 
             <div className="px-6 py-4 space-y-5">
