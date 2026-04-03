@@ -20,7 +20,7 @@ export function Step5Countries({ initial, onNext, onBack }: Props) {
   const [selected, setSelected] = useState<string[]>(initial.length > 0 ? initial : [''])
   const [query, setQuery] = useState<string[]>(initial.map(code => code ? getCountryName(code) : ''))
   const [openIdx, setOpenIdx] = useState<number | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
