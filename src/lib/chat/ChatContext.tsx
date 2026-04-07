@@ -8,7 +8,9 @@ interface Message {
   id: string
   room_id: string
   sender_id: string
-  content: string
+  content: string | null
+  file_url: string | null
+  file_name: string | null
   created_at: string
   sender?: { company_name: string }
 }
@@ -35,7 +37,7 @@ interface ChatContextValue {
   openRoom: (roomId: string) => void
   closeRoom: () => void
   messages: Message[]
-  sendMessage: (content: string) => Promise<void>
+  sendMessage: (content: string, fileData?: { url: string; name: string }) => Promise<void>
   isOpen: boolean
   unreadCount: number
   roomUnreadCounts: Record<string, number>
@@ -204,7 +206,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           // rooms의 last_msg_at 갱신
           const updatedRooms = roomsRef.current.map(r =>
             r.id === roomId
-              ? { ...r, last_msg_at: raw.created_at, last_msg_sender_id: raw.sender_id, last_msg_content: raw.content }
+              ? { ...r, last_msg_at: raw.created_at, last_msg_sender_id: raw.sender_id, last_msg_content: raw.file_name ? `📎 ${raw.file_name}` : raw.content }
               : r
           )
           roomsRef.current = updatedRooms
@@ -233,7 +235,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           if (!inMyRoom) return
           const updatedRooms = roomsRef.current.map(r =>
             r.id === raw.room_id
-              ? { ...r, last_msg_at: raw.created_at, last_msg_sender_id: raw.sender_id, last_msg_content: raw.content }
+              ? { ...r, last_msg_at: raw.created_at, last_msg_sender_id: raw.sender_id, last_msg_content: raw.file_name ? `📎 ${raw.file_name}` : raw.content }
               : r
           )
           roomsRef.current = updatedRooms
@@ -284,20 +286,24 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase])
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, fileData?: { url: string; name: string }) => {
     if (!activeRoomId) return
     const res = await fetch(`/api/chat/rooms/${activeRoomId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({
+        content: content || null,
+        file_url: fileData?.url ?? null,
+        file_name: fileData?.name ?? null,
+      }),
     })
     if (res.ok) {
       const { message } = await res.json()
       setMessages(prev => prev.find(m => m.id === message.id) ? prev : [...prev, message])
-      // 내가 보낸 메시지도 last_msg 갱신 (자신이 보낸 것이므로 unread 0)
+      const lastContent = message.file_name ? `📎 ${message.file_name}` : message.content
       const updatedRooms = roomsRef.current.map(r =>
         r.id === activeRoomId
-          ? { ...r, last_msg_at: message.created_at, last_msg_sender_id: message.sender_id, last_msg_content: message.content }
+          ? { ...r, last_msg_at: message.created_at, last_msg_sender_id: message.sender_id, last_msg_content: lastContent }
           : r
       )
       roomsRef.current = updatedRooms

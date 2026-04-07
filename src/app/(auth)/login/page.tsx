@@ -34,7 +34,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Logo />
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-2">마이리얼랜드</h1>
+        <h1 className="text-2xl font-bold text-center mb-2">마이랜드픽</h1>
         <p className="text-center text-gray-500 mb-6 text-sm">로그인</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

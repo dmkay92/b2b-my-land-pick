@@ -24,6 +24,7 @@ export default function AdminPage() {
   const [detailModal, setDetailModal] = useState<{ user: Profile } | null>(null)
   const [selectedCodes, setSelectedCodes] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [signedUrls, setSignedUrls] = useState<{ biz: string | null; bank: string | null }>({ biz: null, bank: null })
 
   async function openDetailModal(user: Profile) {
@@ -61,12 +62,19 @@ export default function AdminPage() {
   }, [])
 
   async function handleApprove(userId: string, status: 'approved' | 'rejected') {
+    setSaving(true)
+    setSaveError(null)
     const res = await fetch('/api/admin/approve', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, status }),
     })
-    if (!res.ok) return
+    setSaving(false)
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}))
+      setSaveError(json.error ?? '처리 중 오류가 발생했습니다.')
+      return
+    }
     const user = pendingUsers.find(u => u.id === userId)
     setPendingUsers(prev => prev.filter(u => u.id !== userId))
     if (status === 'approved' && user?.role === 'agency') setAgencyCount(c => c + 1)
@@ -76,6 +84,7 @@ export default function AdminPage() {
   async function handleApproveWithCountries() {
     if (!detailModal) return
     setSaving(true)
+    setSaveError(null)
     const { user } = detailModal
     const [approveRes, countryRes] = await Promise.all([
       fetch('/api/admin/approve', {
@@ -90,7 +99,10 @@ export default function AdminPage() {
       }),
     ])
     setSaving(false)
-    if (!approveRes.ok || !countryRes.ok) return
+    if (!approveRes.ok || !countryRes.ok) {
+      setSaveError('처리 중 오류가 발생했습니다. 다시 시도해주세요.')
+      return
+    }
     setPendingUsers(prev => prev.filter(u => u.id !== user.id))
     setLandcoCount(c => c + 1)
     setDetailModal(null)
@@ -299,6 +311,12 @@ export default function AdminPage() {
               )}
             </div>
 
+            {/* 에러 메시지 */}
+            {saveError && (
+              <div className="mx-6 mb-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+                {saveError}
+              </div>
+            )}
             {/* 하단 버튼 */}
             <div className="flex gap-2 px-6 pb-6 pt-2">
               <button
@@ -306,7 +324,7 @@ export default function AdminPage() {
                 disabled={saving}
                 className="flex-1 px-4 py-2.5 rounded-xl text-sm text-red-600 border border-red-200 hover:bg-red-50 transition-colors disabled:opacity-50"
               >
-                거절
+                {saving ? '처리 중...' : '거절'}
               </button>
               {detailModal.user.role === 'landco' ? (
                 <button

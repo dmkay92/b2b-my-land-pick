@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
 
 export default function PendingPage() {
@@ -10,27 +10,38 @@ export default function PendingPage() {
   const router = useRouter()
   const [companyName, setCompanyName] = useState<string | null>(null)
   const [role, setRole] = useState<string | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    async function checkStatus() {
+      const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      supabase
+
+      const { data } = await supabase
         .from('profiles')
-        .select('company_name, role')
+        .select('company_name, role, status')
         .eq('id', user.id)
         .single()
-        .then(({ data }) => {
-          if (data) {
-            setCompanyName(data.company_name)
-            setRole(data.role)
-          }
-        })
-    })
+
+      if (!data) return
+      setCompanyName(data.company_name)
+      setRole(data.role)
+
+      if (data.status === 'approved') {
+        if (intervalRef.current) clearInterval(intervalRef.current)
+        const dest = data.role === 'admin' ? '/admin' : data.role === 'agency' ? '/agency' : '/landco'
+        router.replace(dest)
+      }
+    }
+
+    checkStatus()
+    intervalRef.current = setInterval(checkStatus, 5000)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [])
 
   async function handleLogout() {
     await supabase.auth.signOut()
-    router.push('/login')
+    window.location.href = '/login'
   }
 
   const roleLabel = role === 'agency' ? '여행사' : role === 'landco' ? '랜드사' : ''
@@ -48,7 +59,7 @@ export default function PendingPage() {
       {/* 헤더 */}
       <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100">
         <div className="flex items-center gap-2">
-          <span className="text-gray-900 font-bold text-lg">마이랜드견적</span>
+          <span className="text-gray-900 font-bold text-lg">마이랜드픽</span>
           <span className="text-gray-400 text-xs">by</span>
           <Image src="/myrealtrip-logo.png" alt="Myrealtrip" width={80} height={20} style={{ objectFit: 'contain' }} />
         </div>
@@ -114,6 +125,13 @@ export default function PendingPage() {
               {supportEmail}
             </a>
           </p>
+
+          <button
+            onClick={handleLogout}
+            className="mt-4 w-full rounded-xl border border-gray-200 py-3 text-sm text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            홈으로 가기
+          </button>
         </div>
       </div>
     </div>

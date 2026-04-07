@@ -95,14 +95,23 @@ const SUB_FILTERS: { key: 'all' | 'pre' | 'mid'; label: string }[] = [
   { key: 'mid', label: '여행중' },
 ]
 
+const ING_SUB_FILTERS: { key: 'all' | 'unsubmitted' | 'submitted'; label: string }[] = [
+  { key: 'all', label: '전체' },
+  { key: 'unsubmitted', label: '미제출' },
+  { key: 'submitted', label: '견적 제출완료' },
+]
+
 export function LandcoDashboardClient({
   requests,
+  isRejected = false,
 }: {
   requests: PhasedLandcoRequest[]
+  isRejected?: boolean
 }) {
   const router = useRouter()
   const [activePhases, setActivePhases] = useState<Set<FilterPhase>>(new Set(ALL_FILTER_PHASES))
   const [confirmedSubFilter, setConfirmedSubFilter] = useState<'all' | 'pre' | 'mid'>('all')
+  const [ingSubFilter, setIngSubFilter] = useState<'all' | 'unsubmitted' | 'submitted'>('all')
   const [hoveredPhase, setHoveredPhase] = useState<LandcoPhase | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [abandonTarget, setAbandonTarget] = useState<string | null>(null)
@@ -254,6 +263,16 @@ export function LandcoDashboardClient({
         </div>
       )}
 
+      {/* 계정 정지 배너 */}
+      {isRejected && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-5 py-4 mb-6">
+          <span className="text-red-500 text-xl shrink-0">⊘</span>
+          <div>
+            <p className="text-sm font-semibold text-red-700">계정이 정지된 상태입니다.</p>
+            <p className="text-xs text-red-500 mt-0.5">신규 견적 요청을 받을 수 없습니다. 기존 진행 중인 견적은 계속 처리 가능합니다. 문의: 관리자에게 연락해주세요.</p>
+          </div>
+        </div>
+      )}
       {/* 목록 헤더 */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-lg font-bold text-gray-900">견적 요청 목록</h1>
@@ -351,9 +370,12 @@ export function LandcoDashboardClient({
       <div className="space-y-8">
         {SECTIONS.map(section => {
           const baseSectionRequests = filteredRequests.filter(section.filter)
-          const sectionRequests = section.key === 'confirmed' && confirmedSubFilter !== 'all'
-            ? baseSectionRequests.filter(r => r.phase === confirmedSubFilter)
-            : baseSectionRequests
+          const sectionRequests =
+            section.key === 'confirmed' && confirmedSubFilter !== 'all'
+              ? baseSectionRequests.filter(r => r.phase === confirmedSubFilter)
+              : section.key === 'ing' && ingSubFilter !== 'all'
+                ? baseSectionRequests.filter(r => ingSubFilter === 'submitted' ? r.submitted : !r.submitted)
+                : baseSectionRequests
           const isDone = false
 
           return (
@@ -365,6 +387,23 @@ export function LandcoDashboardClient({
                 <span className="text-sm text-gray-400">({baseSectionRequests.length}건)</span>
                 <div className="flex-1 h-px bg-gray-100 ml-1" />
               </div>
+              {section.key === 'ing' && (
+                <div className="flex items-center gap-1 mb-3">
+                  {ING_SUB_FILTERS.map(f => (
+                    <button
+                      key={f.key}
+                      onClick={() => setIngSubFilter(f.key)}
+                      className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
+                        ingSubFilter === f.key
+                          ? 'bg-blue-100 text-blue-700 font-semibold'
+                          : 'text-gray-400 hover:bg-blue-100 hover:text-blue-700'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               {section.key === 'confirmed' && (
                 <div className="flex items-center gap-1 mb-3">
                   {SUB_FILTERS.map(f => (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import type { SignupOcrResult } from '@/lib/supabase/types'
 import { formatPhoneByCountry } from '@/lib/phoneFormat'
 import { PhoneCountrySelect } from './PhoneCountrySelect'
@@ -76,20 +76,11 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
     phone_mobile: initial?.phone_mobile ?? '',
     phone_landline: initial?.phone_landline ?? '',
   })
-  const [brnStatus, setBrnStatus] = useState<BrnStatus>('idle')
+  // initial이 있으면 이미 검증 통과 후 돌아온 것이므로 'valid'로 초기화
+  const [brnStatus, setBrnStatus] = useState<BrnStatus>(initial ? 'valid' : 'idle')
   const [brnMessage, setBrnMessage] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [passwordConfirm, setPasswordConfirm] = useState('')
-
-  // 이메일 인증
-  const [emailVerified, setEmailVerified] = useState(false)
-  const [emailCodeSent, setEmailCodeSent] = useState(false)
-  const [emailToken, setEmailToken] = useState('')
-  const [emailCode, setEmailCode] = useState('')
-  const [emailError, setEmailError] = useState('')
-  const [emailLoading, setEmailLoading] = useState(false)
-  const [countdown, setCountdown] = useState(0)
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // 국가코드
   const [mobileCc, setMobileCc] = useState('+82')
@@ -103,63 +94,6 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
   function handleLandlineCcChange(code: string) {
     setLandlineCc(code)
     setValues(prev => ({ ...prev, phone_landline: '' }))
-  }
-
-  function startCountdown() {
-    setCountdown(600)
-    if (countdownRef.current) clearInterval(countdownRef.current)
-    countdownRef.current = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) { clearInterval(countdownRef.current!); return 0 }
-        return prev - 1
-      })
-    }, 1000)
-  }
-
-  async function sendEmailCode() {
-    setEmailLoading(true)
-    setEmailError('')
-    try {
-      const res = await fetch('/api/signup/send-email-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: values.email }),
-      })
-      const data = await res.json()
-      if (!res.ok) { setEmailError(data.error); return }
-      setEmailToken(data.token)
-      setEmailCodeSent(true)
-      setEmailCode('')
-      startCountdown()
-    } catch {
-      setEmailError('이메일 발송에 실패했습니다.')
-    } finally {
-      setEmailLoading(false)
-    }
-  }
-
-  async function verifyEmailCode() {
-    setEmailLoading(true)
-    setEmailError('')
-    try {
-      const res = await fetch('/api/signup/verify-email-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: emailToken, code: emailCode }),
-      })
-      const data = await res.json()
-      if (data.valid) {
-        setEmailVerified(true)
-        setEmailCodeSent(false)
-        if (countdownRef.current) clearInterval(countdownRef.current)
-      } else {
-        setEmailError(data.error ?? '인증에 실패했습니다.')
-      }
-    } catch {
-      setEmailError('인증 확인에 실패했습니다.')
-    } finally {
-      setEmailLoading(false)
-    }
   }
 
   useEffect(() => {
@@ -185,13 +119,6 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
     if (key === 'business_registration_number') {
       setBrnStatus('idle')
       setBrnMessage('')
-    }
-    if (key === 'email') {
-      setEmailVerified(false)
-      setEmailCodeSent(false)
-      setEmailToken('')
-      setEmailCode('')
-      setEmailError('')
     }
   }
 
@@ -219,7 +146,6 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
       setBrnMessage('사업자등록번호를 먼저 검증해주세요.')
       return
     }
-    if (!emailVerified) return
     const pwValid =
       values.password.length >= 8 &&
       /[A-Z]/.test(values.password) &&
@@ -300,65 +226,14 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
 
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">대표 이메일 <span className="text-red-400">*</span></label>
-          <div className="flex gap-2">
-            <input
-              type="email"
-              required
-              value={values.email}
-              onChange={e => set('email', e.target.value)}
-              disabled={emailVerified}
-              placeholder="로그인 계정으로 사용됩니다"
-              className={`flex-1 rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50 disabled:text-gray-400 ${
-                emailVerified ? 'border-green-300' : 'border-gray-300'
-              }`}
-            />
-            {emailVerified ? (
-              <span className="inline-flex items-center gap-1 rounded-lg bg-green-50 px-3 text-xs font-medium text-green-600 border border-green-200">
-                ✓ 인증완료
-              </span>
-            ) : (
-              <button
-                type="button"
-                onClick={sendEmailCode}
-                disabled={!values.email || emailLoading}
-                className="rounded-lg bg-gray-800 px-3 py-2 text-xs font-medium text-white hover:bg-gray-700 disabled:opacity-40 whitespace-nowrap"
-              >
-                {emailLoading && !emailCodeSent ? '발송 중' : emailCodeSent ? '재발송' : '인증 요청'}
-              </button>
-            )}
-          </div>
-
-          {emailCodeSent && !emailVerified && (
-            <div className="mt-2 space-y-1.5">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={emailCode}
-                  onChange={e => setEmailCode(e.target.value.replace(/[^0-9]/g, ''))}
-                  placeholder="인증 코드 6자리"
-                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
-                <button
-                  type="button"
-                  onClick={verifyEmailCode}
-                  disabled={emailCode.length !== 6 || emailLoading}
-                  className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-40"
-                >
-                  {emailLoading ? '확인 중' : '확인'}
-                </button>
-              </div>
-              <div className="flex items-center justify-between">
-                {emailError && <p className="text-xs text-red-500">{emailError}</p>}
-                {countdown > 0 && (
-                  <p className="text-xs text-gray-400 ml-auto">
-                    {String(Math.floor(countdown / 60)).padStart(2, '0')}:{String(countdown % 60).padStart(2, '0')} 후 만료
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
+          <input
+            type="email"
+            required
+            value={values.email}
+            onChange={e => set('email', e.target.value)}
+            placeholder="로그인 계정으로 사용됩니다"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
         </div>
 
         <div>
@@ -375,6 +250,7 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
             />
             <button
               type="button"
+              tabIndex={-1}
               onClick={() => setShowPassword(p => !p)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"
             >
@@ -477,7 +353,7 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
               type="tel"
               value={values.phone_landline}
               onChange={e => set('phone_landline', formatPhoneByCountry(landlineCc, e.target.value))}
-              placeholder={landlineCc === '+82' ? '02-0000-0000' : '번호 입력'}
+              placeholder={landlineCc === '+82' ? '02-000-0000' : '번호 입력'}
               className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </div>
@@ -495,7 +371,6 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
         <button
           type="submit"
           disabled={
-            !emailVerified ||
             brnStatus !== 'valid' ||
             values.password.length < 8 ||
             !/[A-Z]/.test(values.password) ||

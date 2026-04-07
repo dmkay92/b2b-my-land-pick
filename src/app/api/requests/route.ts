@@ -45,8 +45,15 @@ export async function POST(request: NextRequest) {
     leaders: body.leaders,
     quote_type: quoteType,
     hotel_grade: quoteType === 'land' ? null : body.hotel_grade,
+    shopping_option: body.shopping_option ?? null,
+    shopping_count: body.shopping_option === true ? (body.shopping_count ?? null) : null,
+    tip_option: body.tip_option ?? null,
+    local_option: body.local_option ?? null,
     deadline: body.deadline,
     notes: body.notes ?? null,
+    attachment_url: body.attachment_url ?? null,
+    attachment_name: body.attachment_name ?? null,
+    flight_schedule: body.flight_schedule ?? null,
   }).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

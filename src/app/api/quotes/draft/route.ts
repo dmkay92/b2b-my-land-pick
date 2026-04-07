@@ -9,22 +9,49 @@ async function getAuthorizedUser() {
   return { supabase, user, error }
 }
 
-// GET ?requestId=<uuid>
+// GET ?requestId=<uuid>  → 특정 draft 조회
+// GET (no params)        → 전체 draft 목록 (quote_requests 조인)
 export async function GET(request: NextRequest) {
   const { supabase, user, error } = await getAuthorizedUser()
   if (error) return error
 
   const requestId = request.nextUrl.searchParams.get('requestId')
-  if (!requestId) return NextResponse.json({ error: 'requestId가 필요합니다.' }, { status: 400 })
 
-  const { data: draft } = await supabase
+  if (requestId) {
+    const { data: draft } = await supabase
+      .from('quote_drafts')
+      .select('*')
+      .eq('request_id', requestId)
+      .eq('landco_id', user!.id)
+      .single()
+
+    return NextResponse.json({ draft: draft ?? null })
+  }
+
+  // 전체 목록: quote_requests 정보와 함께 반환
+  const { data: drafts } = await supabase
     .from('quote_drafts')
-    .select('*')
-    .eq('request_id', requestId)
+    .select(`
+      request_id,
+      updated_at,
+      quote_requests (
+        id,
+        event_name,
+        destination_country,
+        destination_city,
+        depart_date,
+        return_date,
+        adults,
+        children,
+        infants,
+        leaders,
+        status
+      )
+    `)
     .eq('landco_id', user!.id)
-    .single()
+    .order('updated_at', { ascending: false })
 
-  return NextResponse.json({ draft: draft ?? null })
+  return NextResponse.json({ drafts: drafts ?? [] })
 }
 
 // PUT body: { requestId, itinerary, pricing }

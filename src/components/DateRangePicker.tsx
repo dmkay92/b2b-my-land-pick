@@ -6,6 +6,13 @@ interface Props {
   startDate: string
   endDate: string
   onChange: (start: string, end: string) => void
+  triggerClassName?: string
+  compact?: boolean
+}
+
+function toKSTStr(d: Date): string {
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().slice(0, 10)
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -23,7 +30,8 @@ function toDateStr(year: number, month: number, day: number): string {
 function formatDisplay(dateStr: string): string {
   if (!dateStr) return ''
   const [y, m, d] = dateStr.split('-')
-  return `${y}년 ${parseInt(m)}월 ${parseInt(d)}일`
+  const dow = new Date(Number(y), Number(m) - 1, Number(d)).getDay()
+  return `${y}년 ${parseInt(m)}월 ${parseInt(d)}일 (${DAYS[dow]})`
 }
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토']
@@ -118,16 +126,18 @@ function MonthGrid({ year, month, startDate, endDate, hoverDate, selectingEnd, t
   )
 }
 
-export function DateRangePicker({ startDate, endDate, onChange }: Props) {
+export function DateRangePicker({ startDate, endDate, onChange, triggerClassName, compact }: Props) {
   const today = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
+  const todayStr = toKSTStr(today)
   const [open, setOpen] = useState(false)
   const [tempStart, setTempStart] = useState(startDate)
   const [tempEnd, setTempEnd] = useState(endDate)
   const [baseYear, setBaseYear] = useState(today.getFullYear())
   const [baseMonth, setBaseMonth] = useState(today.getMonth())
   const [hoverDate, setHoverDate] = useState('')
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const selectingEnd = !!(tempStart && !tempEnd)
 
@@ -136,7 +146,10 @@ export function DateRangePicker({ startDate, endDate, onChange }: Props) {
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target as Node) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+      ) {
         setOpen(false)
       }
     }
@@ -145,6 +158,15 @@ export function DateRangePicker({ startDate, endDate, onChange }: Props) {
   }, [open])
 
   function handleOpen() {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const calendarHeight = 420
+    if (spaceBelow >= calendarHeight) {
+      setDropdownStyle({ position: 'fixed', top: rect.bottom + 8, left: rect.left, minWidth: 680 })
+    } else {
+      setDropdownStyle({ position: 'fixed', bottom: window.innerHeight - rect.top + 8, left: rect.left, minWidth: 680 })
+    }
     setTempStart(startDate)
     setTempEnd(endDate)
     setOpen(true)
@@ -175,31 +197,34 @@ export function DateRangePicker({ startDate, endDate, onChange }: Props) {
   }
 
   return (
-    <div ref={containerRef} className="relative">
+    <div className="relative">
       {/* 트리거 버튼 */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={handleOpen}
-        className="w-full flex items-center gap-3 border border-gray-300 rounded-lg px-4 py-2.5 bg-white hover:border-blue-400 transition-colors text-sm"
+        className={triggerClassName ?? 'w-full flex items-center gap-3 border border-gray-300 rounded-lg px-4 py-2.5 bg-white hover:border-blue-400 transition-colors text-sm'}
       >
-        <span className="text-gray-400">📅</span>
-        <span className={startDate ? 'text-gray-900 font-medium' : 'text-gray-400'}>
-          {startDate ? formatDisplay(startDate) : '날짜 선택'}
+        {!compact && <span className="text-gray-400">📅</span>}
+        <span className={`${compact ? 'text-xs' : 'text-sm'} ${startDate ? 'text-gray-800 font-medium' : 'text-gray-400'}`}>
+          {startDate ? (compact ? (() => { const [y,m,d] = startDate.split('-'); const dow = new Date(Number(y), Number(m)-1, Number(d)).getDay(); return `${y}.${m}.${d}(${DAYS[dow]})` })() : formatDisplay(startDate)) : '시작일'}
         </span>
-        <span className="text-gray-300 mx-1">—</span>
-        <span className={endDate ? 'text-gray-900 font-medium' : 'text-gray-400'}>
-          {endDate ? formatDisplay(endDate) : '날짜 선택'}
+        <span className="text-gray-300">—</span>
+        <span className={`${compact ? 'text-xs' : 'text-sm'} ${endDate ? 'text-gray-800 font-medium' : 'text-gray-400'}`}>
+          {endDate ? (compact ? (() => { const [y,m,d] = endDate.split('-'); const dow = new Date(Number(y), Number(m)-1, Number(d)).getDay(); return `${y}.${m}.${d}(${DAYS[dow]})` })() : formatDisplay(endDate)) : '종료일'}
         </span>
         {startDate && endDate && (() => {
           const diff = Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000)
-          return <span className="ml-auto text-xs text-[#009CF0] font-medium">총 {diff}일</span>
+          return <span className={`ml-auto font-medium text-gray-400 ${compact ? 'text-[11px]' : 'text-xs text-[#009CF0]'}`}>{diff}일</span>
         })()}
       </button>
 
       {/* 캘린더 드롭다운 */}
       {open && (
-        <div className="absolute left-0 top-full mt-2 z-50 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden"
-          style={{ minWidth: 680 }}
+        <div
+          ref={dropdownRef}
+          className="z-50 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden"
+          style={dropdownStyle}
         >
           <div
             className="px-6 py-2"
@@ -273,11 +298,12 @@ interface SingleDatePickerProps {
   value: string
   onChange: (date: string) => void
   placeholder?: string
+  compact?: boolean  // 짧은 포맷 표시: "04/09(목)"
 }
 
-export function SingleDatePicker({ value, onChange, placeholder = '날짜 선택' }: SingleDatePickerProps) {
+export function SingleDatePicker({ value, onChange, placeholder = '날짜 선택', compact = false }: SingleDatePickerProps) {
   const today = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
+  const todayStr = toKSTStr(today)
   const [open, setOpen] = useState(false)
   const [baseYear, setBaseYear] = useState(today.getFullYear())
   const [baseMonth, setBaseMonth] = useState(today.getMonth())
@@ -335,11 +361,22 @@ export function SingleDatePicker({ value, onChange, placeholder = '날짜 선택
         ref={triggerRef}
         type="button"
         onClick={handleOpen}
-        className="w-full flex items-center gap-3 border border-gray-300 rounded-lg px-4 py-2.5 bg-white hover:border-blue-400 transition-colors text-sm"
+        className={`flex items-center gap-2 border border-gray-300 rounded-lg bg-white hover:border-blue-400 transition-colors text-sm ${
+          compact ? 'px-2.5 py-2 w-full' : 'w-full px-4 py-2.5 gap-3'
+        }`}
       >
-        <span className="text-gray-400">📅</span>
+        <span className={compact ? 'text-gray-400 text-xs' : 'text-gray-400'}>📅</span>
         <span className={value ? 'text-gray-900 font-medium' : 'text-gray-400'}>
-          {value ? formatDisplay(value) : placeholder}
+          {value
+            ? compact
+              ? (() => {
+                  const [y, m, d] = value.split('-')
+                  const dow = new Date(Number(y), Number(m) - 1, Number(d)).getDay()
+                  const DAYS = ['일','월','화','수','목','금','토']
+                  return `${m}/${d}(${DAYS[dow]})`
+                })()
+              : formatDisplay(value)
+            : placeholder}
         </span>
       </button>
 

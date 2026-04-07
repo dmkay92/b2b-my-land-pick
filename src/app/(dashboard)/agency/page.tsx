@@ -37,6 +37,10 @@ export default async function AgencyDashboard() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  const { data: profile } = await supabase
+    .from('profiles').select('status').eq('id', user!.id).single()
+  const isRejected = profile?.status === 'rejected'
+
   const { data: raw } = await supabase
     .from('quote_requests')
     .select('*')
@@ -133,5 +137,5 @@ export default async function AgencyDashboard() {
     cancelled: requests.filter(r => r.phase === 'cancelled').length,
   }
 
-  return <AgencyDashboardClient requests={requests} counts={counts} />
+  return <AgencyDashboardClient requests={requests} counts={counts} isRejected={isRejected} />
 }

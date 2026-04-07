@@ -7,15 +7,17 @@ interface Props {
   requestId: string
   onClose: () => void
   onSubmitted: () => void
+  showSubmit?: boolean
 }
 
 interface PreviewResult {
   fileUrl: string
   fileName: string
   filePath: string
+  previewHtml?: Record<string, string>
 }
 
-export function QuotePreview({ requestId, onClose, onSubmitted }: Props) {
+export function QuotePreview({ requestId, onClose, onSubmitted, showSubmit = true }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<PreviewResult | null>(null)
@@ -35,7 +37,7 @@ export function QuotePreview({ requestId, onClose, onSubmitted }: Props) {
           throw new Error(json.error ?? '미리보기를 불러올 수 없습니다.')
         }
         const json = await res.json()
-        setPreview({ fileUrl: json.fileUrl, fileName: json.fileName, filePath: json.filePath })
+        setPreview({ fileUrl: json.fileUrl, fileName: json.fileName, filePath: json.filePath, previewHtml: json.previewHtml })
       } catch (e) {
         setError(e instanceof Error ? e.message : '오류가 발생했습니다.')
       }
@@ -89,7 +91,7 @@ export function QuotePreview({ requestId, onClose, onSubmitted }: Props) {
           <h2 className="text-sm font-semibold text-gray-800">미리보기</h2>
         </div>
 
-        {!submitted && (
+        {showSubmit && !submitted && (
           <button
             onClick={handleSubmit}
             disabled={submitting || !preview || loading}
@@ -142,6 +144,7 @@ export function QuotePreview({ requestId, onClose, onSubmitted }: Props) {
             fileUrl={preview.fileUrl}
             fileName={preview.fileName}
             onClose={onClose}
+            previewHtml={preview.previewHtml}
           />
         )}
       </div>

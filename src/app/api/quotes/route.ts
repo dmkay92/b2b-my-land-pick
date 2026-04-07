@@ -2,6 +2,53 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendQuoteSubmittedEmail } from '@/lib/email/notifications'
 
+// GET: 현재 랜드사가 제출한 전체 견적 목록 (quote_requests 조인)
+export async function GET() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { data: quotes } = await supabase
+    .from('quotes')
+    .select(`
+      id,
+      request_id,
+      version,
+      file_url,
+      file_name,
+      status,
+      submitted_at,
+      quote_requests (
+        id,
+        event_name,
+        destination_country,
+        destination_city,
+        depart_date,
+        return_date,
+        adults,
+        children,
+        infants,
+        leaders,
+        status
+      )
+    `)
+    .eq('landco_id', user.id)
+    .order('submitted_at', { ascending: false })
+
+  // 랜드사 본인이 선택된 요청의 선택 정보 조회 (RLS: landco_id = auth.uid())
+  const requestIds = [...new Set((quotes ?? []).map(q => q.request_id))]
+  const selections: Record<string, string> = {}
+  if (requestIds.length > 0) {
+    const { data: selData } = await supabase
+      .from('quote_selections')
+      .select('request_id, selected_quote_id')
+      .in('request_id', requestIds)
+    selData?.forEach(s => { selections[s.request_id] = s.selected_quote_id })
+  }
+
+  return NextResponse.json({ quotes: quotes ?? [], selections })
+}
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

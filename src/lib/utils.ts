@@ -14,6 +14,14 @@ export function formatDate(dateStr: string): string {
   return `${year}년 ${parseInt(month)}월 ${parseInt(day)}일`
 }
 
+const DOW_KO = ['일', '월', '화', '수', '목', '금', '토']
+
+export function formatDateWithDay(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-')
+  const dow = new Date(Number(year), Number(month) - 1, Number(day)).getDay()
+  return `${year}년 ${parseInt(month)}월 ${parseInt(day)}일 (${DOW_KO[dow]})`
+}
+
 export function hotelGradeLabel(grade: number): string {
   return `${grade}성급`
 }

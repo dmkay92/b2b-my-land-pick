@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getAuthorizedLandco } from '@/lib/supabase/auth-helpers'
 import { generateFilledQuoteTemplate } from '@/lib/excel/template'
 import { calculateTotalPeople } from '@/lib/utils'
+import { workbookToHtml } from '@/lib/excel/workbookToHtml'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -31,7 +32,14 @@ export async function POST(request: NextRequest) {
 
   if (draftError || !draft) return NextResponse.json({ error: '저장된 임시 견적서가 없습니다.' }, { status: 404 })
 
-  // 3. 채워진 Excel 생성
+  // 3. 랜드사 이름 조회
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('company_name')
+    .eq('id', user!.id)
+    .single()
+
+  // 4. 채워진 Excel 생성
   const totalPeople = calculateTotalPeople({
     adults: qr.adults,
     children: qr.children,
@@ -47,6 +55,13 @@ export async function POST(request: NextRequest) {
       return_date: qr.return_date,
       total_people: totalPeople,
       hotel_grade: qr.hotel_grade ?? 3,
+      landco_name: profile?.company_name ?? '',
+      adults: qr.adults ?? 0,
+      children: qr.children ?? 0,
+      infants: qr.infants ?? 0,
+      leaders: qr.leaders ?? 0,
+      includes: '',
+      excludes: '',
     },
     {
       itinerary: draft.itinerary,
@@ -56,27 +71,13 @@ export async function POST(request: NextRequest) {
 
   const buffer = await workbook.xlsx.writeBuffer()
   const timestamp = Date.now()
-  const filePath = `drafts/${requestId}/${user!.id}/preview_${timestamp}.xlsx`
   const fileName = `견적서_미리보기_${qr.event_name}_${timestamp}.xlsx`
 
-  // 4. Supabase Storage 업로드
-  const { error: uploadError } = await supabase.storage
-    .from('quotes')
-    .upload(filePath, new Uint8Array(buffer as ArrayBuffer), {
-      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      upsert: true,
-    })
+  // 4. buffer를 base64 data URL로 변환 (Storage 업로드 없이 다운로드 지원)
+  const base64 = Buffer.from(buffer as ArrayBuffer).toString('base64')
+  const fileUrl = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${base64}`
 
-  if (uploadError) return NextResponse.json({ error: uploadError.message }, { status: 500 })
+  const previewHtml = workbookToHtml(workbook)
 
-  // 5. signed URL 생성 (1시간)
-  const { data: urlData, error: urlError } = await supabase.storage
-    .from('quotes')
-    .createSignedUrl(filePath, 60 * 60)
-
-  if (urlError || !urlData?.signedUrl) {
-    return NextResponse.json({ error: 'URL 생성에 실패했습니다.' }, { status: 500 })
-  }
-
-  return NextResponse.json({ url: urlData.signedUrl, filePath, fileName })
+  return NextResponse.json({ fileUrl, filePath: '', fileName, previewHtml })
 }

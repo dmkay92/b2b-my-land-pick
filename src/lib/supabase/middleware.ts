@@ -46,15 +46,6 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    if (profile?.status === 'rejected') {
-      url.pathname = '/login'
-      const response = NextResponse.redirect(url)
-      // 세션 쿠키 만료시켜 강제 로그아웃
-      request.cookies.getAll().forEach(({ name }) => {
-        if (name.startsWith('sb-')) response.cookies.delete(name)
-      })
-      return response
-    }
   }
 
   if (user && isAuthPage) {
@@ -69,10 +60,6 @@ export async function updateSession(request: NextRequest) {
     if (profile.status === 'pending') {
       url.pathname = '/pending'
       return NextResponse.redirect(url)
-    }
-    if (profile.status === 'rejected') {
-      // 정지된 계정: 세션 삭제 후 로그인 유지 안 함
-      return supabaseResponse
     }
     const dest = profile.role === 'admin' ? '/admin'
       : profile.role === 'agency' ? '/agency' : '/landco'

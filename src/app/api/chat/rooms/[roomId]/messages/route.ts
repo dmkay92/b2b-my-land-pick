@@ -34,9 +34,9 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { content } = await request.json()
-  if (!content?.trim()) {
-    return NextResponse.json({ error: 'content required' }, { status: 400 })
+  const { content, file_url, file_name } = await request.json()
+  if (!content?.trim() && !file_url) {
+    return NextResponse.json({ error: 'content or file required' }, { status: 400 })
   }
 
   // 채팅방 참여자 확인 (RLS + 명시적 조회)
@@ -53,7 +53,13 @@ export async function POST(
 
   const { data: message, error } = await supabase
     .from('messages')
-    .insert({ room_id: roomId, sender_id: user.id, content: content.trim() })
+    .insert({
+      room_id: roomId,
+      sender_id: user.id,
+      content: content?.trim() || null,
+      file_url: file_url ?? null,
+      file_name: file_name ?? null,
+    })
     .select('*, sender:profiles!messages_sender_id_fkey(company_name)')
     .single()
 

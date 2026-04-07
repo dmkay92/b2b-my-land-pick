@@ -13,7 +13,7 @@ const BIZ_PROMPT = `이 이미지는 한국 사업자등록증입니다. 다음 
 
 const BANK_PROMPT = `이 이미지는 한국 통장 사본입니다. 다음 정보를 JSON으로 추출해주세요:
 {
-  "bank_name": "은행명 (예: 국민은행, 신한은행)",
+  "bank_name": "은행명 — 반드시 아래 목록 중 하나로만 반환하세요: 국민은행, 신한은행, 우리은행, 하나은행, NH농협은행, IBK기업은행, 카카오뱅크, 토스뱅크, SC제일은행, 씨티은행, 케이뱅크, 수협은행, 대구은행, 부산은행, 경남은행, 광주은행, 전북은행, 제주은행, 산업은행, 우체국",
   "bank_account": "계좌번호 (숫자와 하이픈만)",
   "bank_holder": "예금주명"
 }
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   const base64 = Buffer.from(arrayBuffer).toString('base64')
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
     const result = await model.generateContent([
       { inlineData: { mimeType, data: base64 } },
@@ -67,7 +67,8 @@ export async function POST(request: NextRequest) {
     const parsed = JSON.parse(jsonMatch[0])
     return NextResponse.json({ result: parsed })
   } catch (err) {
-    console.error('OCR error:', err)
-    return NextResponse.json({ error: 'OCR 처리 중 오류가 발생했습니다.' }, { status: 500 })
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('OCR error:', message)
+    return NextResponse.json({ error: `OCR 처리 중 오류가 발생했습니다: ${message}` }, { status: 500 })
   }
 }

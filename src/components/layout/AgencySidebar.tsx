@@ -18,6 +18,7 @@ const NAV_ITEMS: Record<'agency' | 'landco' | 'admin', { label: string; href: st
   ],
   landco: [
     { label: '대시보드', href: '/landco', icon: '🏠' },
+    { label: '내 견적서', href: '/landco/quotes', icon: '✏️' },
     { label: '담당 국가', href: '/landco/countries', icon: '🌏' },
   ],
   admin: [
@@ -52,7 +53,7 @@ export function AgencySidebar({ companyName, role, rightSlot, children }: Props)
             </svg>
           </button>
           <Link href={role === 'agency' ? '/agency' : role === 'landco' ? '/landco' : '/admin'} className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
-            <span className="text-lg font-bold text-blue-600">마이리얼랜드</span>
+            <span className="text-lg font-bold text-gray-900">마이랜드픽</span>
             <span className="text-gray-400 text-xs">by</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/myrealtrip-logo.png" alt="Myrealtrip" style={{ height: '16px', width: 'auto' }} />
@@ -79,7 +80,9 @@ export function AgencySidebar({ companyName, role, rightSlot, children }: Props)
         {/* 네비게이션 */}
         <nav className="flex-1 py-4 overflow-y-auto space-y-1">
           {NAV_ITEMS[role].map(item => {
-            const isActive = pathname === item.href
+            const isActive = item.href === '/landco' || item.href === '/agency' || item.href === '/admin'
+            ? pathname === item.href
+            : pathname.startsWith(item.href)
             return (
               <Link
                 key={item.href}

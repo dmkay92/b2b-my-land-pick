@@ -88,9 +88,11 @@ function getBorderColor(req: PhasedRequest): string {
 
 export function AgencyDashboardClient({
   requests,
+  isRejected = false,
 }: {
   requests: PhasedRequest[]
   counts?: Record<TravelPhase, number>
+  isRejected?: boolean
 }) {
   type FilterPhase = 'ing' | 'payment_pending' | 'confirmed' | 'end' | 'cancelled'
   const ALL_FILTER_PHASES: FilterPhase[] = ['ing', 'payment_pending', 'confirmed', 'end', 'cancelled']
@@ -98,6 +100,7 @@ export function AgencyDashboardClient({
   const router = useRouter()
   const [activePhases, setActivePhases] = useState<Set<FilterPhase>>(new Set(ALL_FILTER_PHASES))
   const [confirmedSubFilter, setConfirmedSubFilter] = useState<'all' | 'pre' | 'mid' | 'end'>('all')
+  const [ingSubFilter, setIngSubFilter] = useState<'all' | 'no_quote' | 'has_quote'>('all')
   const [hoveredPhase, setHoveredPhase] = useState<TravelPhase | null>(null)
   const [periodStart, setPeriodStart] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
@@ -269,15 +272,34 @@ export function AgencyDashboardClient({
           </div>
         </div>
       )}
+      {/* 계정 정지 배너 */}
+      {isRejected && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-5 py-4 mb-6">
+          <span className="text-red-500 text-xl shrink-0">⊘</span>
+          <div>
+            <p className="text-sm font-semibold text-red-700">계정이 정지된 상태입니다.</p>
+            <p className="text-xs text-red-500 mt-0.5">기존 견적 진행은 가능하지만 새 견적 요청을 생성할 수 없습니다. 문의: 관리자에게 연락해주세요.</p>
+          </div>
+        </div>
+      )}
       {/* 목록 헤더 */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-lg font-bold text-gray-900">내 견적 요청</h1>
-        <Link
-          href="/agency/requests/new"
-          className="bg-[#009CF0] text-white px-4 py-2 rounded-lg hover:bg-[#0088D9] text-sm font-medium"
-        >
-          + 새 견적 요청
-        </Link>
+        {isRejected ? (
+          <button
+            disabled
+            className="bg-gray-200 text-gray-400 px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed"
+          >
+            + 새 견적 요청
+          </button>
+        ) : (
+          <Link
+            href="/agency/requests/new"
+            className="bg-[#009CF0] text-white px-4 py-2 rounded-lg hover:bg-[#0088D9] text-sm font-medium"
+          >
+            + 새 견적 요청
+          </Link>
+        )}
       </div>
 
       {/* KPI 카드 */}
@@ -372,15 +394,24 @@ export function AgencyDashboardClient({
       <div className="space-y-8">
         {SECTIONS.map(section => {
           const baseSectionRequests = filteredRequests.filter(section.filter)
-          const sectionRequests = section.key === 'confirmed' && confirmedSubFilter !== 'all'
-            ? baseSectionRequests.filter(r => r.phase === confirmedSubFilter)
-            : baseSectionRequests
+          const sectionRequests =
+            section.key === 'confirmed' && confirmedSubFilter !== 'all'
+              ? baseSectionRequests.filter(r => r.phase === confirmedSubFilter)
+              : section.key === 'ing' && ingSubFilter !== 'all'
+                ? baseSectionRequests.filter(r => ingSubFilter === 'has_quote' ? r.quoteCount > 0 : r.quoteCount === 0)
+                : baseSectionRequests
           const isEnded = section.key === 'cancelled'
 
           const SUB_FILTERS: { key: 'all' | 'pre' | 'mid' | 'end'; label: string }[] = [
             { key: 'all', label: '전체' },
             { key: 'pre', label: '출발전' },
             { key: 'mid', label: '여행중' },
+          ]
+
+          const ING_SUB_FILTERS: { key: 'all' | 'no_quote' | 'has_quote'; label: string }[] = [
+            { key: 'all', label: '전체' },
+            { key: 'no_quote', label: '받은 견적 없음' },
+            { key: 'has_quote', label: '견적 확정 필요' },
           ]
 
           return (
@@ -392,6 +423,23 @@ export function AgencyDashboardClient({
                 <span className="text-sm text-gray-400">({baseSectionRequests.length}건)</span>
                 <div className="flex-1 h-px bg-gray-100 ml-1" />
               </div>
+              {section.key === 'ing' && (
+                <div className="flex items-center gap-1 mb-3">
+                  {ING_SUB_FILTERS.map(f => (
+                    <button
+                      key={f.key}
+                      onClick={() => setIngSubFilter(f.key)}
+                      className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
+                        ingSubFilter === f.key
+                          ? 'bg-blue-100 text-blue-700 font-semibold'
+                          : 'text-gray-400 hover:bg-blue-100 hover:text-blue-700'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              )}
               {section.key === 'confirmed' && (
                 <div className="flex items-center gap-1 mb-3">
                   {SUB_FILTERS.map(f => (
@@ -444,6 +492,9 @@ export function AgencyDashboardClient({
                               </span>
                               {phase === 'payment_pending' && (
                                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">입금대기</span>
+                              )}
+                              {phase === 'ing' && req.quoteCount > 0 && (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">견적 확정 필요</span>
                               )}
                               {subPhaseColor && (
                                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${subPhaseColor.badge}`}>

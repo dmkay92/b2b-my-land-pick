@@ -12,15 +12,20 @@ interface Props {
   fileUrl: string
   fileName: string
   onClose: () => void
+  previewHtml?: Record<string, string>
 }
 
-export function ExcelPreviewModal({ fileUrl, fileName, onClose }: Props) {
+export function ExcelPreviewModal({ fileUrl, fileName, onClose, previewHtml }: Props) {
   const [sheets, setSheets] = useState<SheetData[]>([])
   const [activeSheet, setActiveSheet] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!previewHtml)
   const [error, setError] = useState<string | null>(null)
 
+  const htmlSheetNames = previewHtml ? Object.keys(previewHtml) : []
+  const [activeHtmlSheet, setActiveHtmlSheet] = useState(0)
+
   useEffect(() => {
+    if (previewHtml) return
     async function load() {
       try {
         const res = await fetch(fileUrl)
@@ -39,7 +44,7 @@ export function ExcelPreviewModal({ fileUrl, fileName, onClose }: Props) {
       setLoading(false)
     }
     load()
-  }, [fileUrl])
+  }, [fileUrl, previewHtml])
 
   const activeRows = sheets[activeSheet]?.rows ?? []
   const headerRow = activeRows[0] ?? []
@@ -80,19 +85,19 @@ export function ExcelPreviewModal({ fileUrl, fileName, onClose }: Props) {
         </div>
 
         {/* 시트 탭 */}
-        {sheets.length > 1 && (
+        {(previewHtml ? htmlSheetNames.length > 1 : sheets.length > 1) && (
           <div className="flex gap-1 px-6 pt-3 bg-gray-50 border-b border-gray-100">
-            {sheets.map((s, i) => (
+            {(previewHtml ? htmlSheetNames : sheets.map(s => s.name)).map((name, i) => (
               <button
-                key={s.name}
-                onClick={() => setActiveSheet(i)}
+                key={name}
+                onClick={() => previewHtml ? setActiveHtmlSheet(i) : setActiveSheet(i)}
                 className={`px-4 py-2 text-xs font-medium rounded-t-lg transition-colors ${
-                  i === activeSheet
+                  i === (previewHtml ? activeHtmlSheet : activeSheet)
                     ? 'bg-white text-blue-600 border border-b-white border-gray-200 shadow-sm'
                     : 'text-gray-500 hover:text-gray-700 hover:bg-white/60'
                 }`}
               >
-                {s.name}
+                {name}
               </button>
             ))}
           </div>
@@ -114,7 +119,13 @@ export function ExcelPreviewModal({ fileUrl, fileName, onClose }: Props) {
               <p className="text-sm">{error}</p>
             </div>
           )}
-          {!loading && !error && sheets[activeSheet] && (
+          {!loading && !error && previewHtml && (
+            <div
+              className="p-4"
+              dangerouslySetInnerHTML={{ __html: previewHtml[htmlSheetNames[activeHtmlSheet]] ?? '' }}
+            />
+          )}
+          {!loading && !error && !previewHtml && sheets[activeSheet] && (
             <table className="w-full border-collapse text-sm">
               <thead className="sticky top-0 z-10">
                 <tr>
@@ -130,10 +141,7 @@ export function ExcelPreviewModal({ fileUrl, fileName, onClose }: Props) {
               </thead>
               <tbody>
                 {dataRows.map((row, ri) => (
-                  <tr
-                    key={ri}
-                    className="hover:bg-blue-50/50 transition-colors"
-                  >
+                  <tr key={ri} className="hover:bg-blue-50/50 transition-colors">
                     {headerRow.map((_, ci) => (
                       <td
                         key={ci}

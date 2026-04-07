@@ -32,11 +32,19 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // 랜드사는 자신의 담당 국가 요청만 접근 가능
+  // 랜드사는 담당 국가 요청 또는 이미 견적을 제출한 요청만 접근 가능
   if (isLandco) {
     const assignedCodes = (profile?.country_codes ?? []) as string[]
-    if (!assignedCodes.includes(request.destination_country)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const isAssignedCountry = assignedCodes.includes(request.destination_country)
+    if (!isAssignedCountry) {
+      const { count } = await supabase
+        .from('quotes')
+        .select('id', { count: 'exact', head: true })
+        .eq('request_id', id)
+        .eq('landco_id', user.id)
+      if (!count || count === 0) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
   }
 
@@ -101,8 +109,15 @@ export async function PATCH(
     infants: body.infants,
     leaders: body.leaders,
     hotel_grade: body.hotel_grade,
+    shopping_option: body.shopping_option ?? null,
+    shopping_count: body.shopping_option === true ? (body.shopping_count ?? null) : null,
+    tip_option: body.tip_option ?? null,
+    local_option: body.local_option ?? null,
     deadline: body.deadline,
     notes: body.notes ?? null,
+    attachment_url: body.attachment_url ?? null,
+    attachment_name: body.attachment_name ?? null,
+    flight_schedule: body.flight_schedule ?? null,
   }).eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

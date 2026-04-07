@@ -80,6 +80,7 @@ export default function AgenciesPage() {
   const [editEmail, setEditEmail] = useState('')
   const [editingEmail, setEditingEmail] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [pendingStatus, setPendingStatus] = useState<Status | null>(null)
   const [logs, setLogs] = useState<AdminActionLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
@@ -138,20 +139,27 @@ export default function AgenciesPage() {
     const emailChanged = editEmail !== selected.email
     if (!statusChanged && !emailChanged) { setSelected(null); return }
     setSaving(true)
-    await Promise.all([
-      statusChanged && fetch('/api/admin/approve', {
+    setSaveError(null)
+    const results = await Promise.all([
+      statusChanged ? fetch('/api/admin/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: selected.id, status: editStatus }),
-      }),
-      emailChanged && fetch('/api/admin/profiles', {
+      }) : Promise.resolve(null),
+      emailChanged ? fetch('/api/admin/profiles', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: selected.id, email: editEmail }),
-      }),
+      }) : Promise.resolve(null),
     ])
     setSaving(false)
-    const approved_at = editStatus === 'approved' ? new Date().toISOString() : selected.approved_at
+    const failed = results.find(r => r !== null && !r.ok)
+    if (failed) {
+      const json = await failed.json().catch(() => ({}))
+      setSaveError(json.error ?? '저장 중 오류가 발생했습니다.')
+      return
+    }
+    const approved_at = editStatus === 'approved' ? (selected.approved_at ?? new Date().toISOString()) : selected.approved_at
     setAgencies(prev => prev.map(a => a.id === selected.id ? { ...a, status: editStatus, email: editEmail, approved_at } : a))
     setSelected(null)
   }
@@ -363,8 +371,13 @@ export default function AgenciesPage() {
               </section>
             </div>
 
+            {saveError && (
+              <div className="mx-6 mb-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+                {saveError}
+              </div>
+            )}
             <div className="flex gap-2 px-6 pb-6 pt-2">
-              <button onClick={() => setSelected(null)} className="flex-1 py-2.5 rounded-xl text-sm text-gray-500 border border-gray-200 hover:bg-gray-50">취소</button>
+              <button onClick={() => { setSelected(null); setSaveError(null) }} className="flex-1 py-2.5 rounded-xl text-sm text-gray-500 border border-gray-200 hover:bg-gray-50">취소</button>
               <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
                 {saving ? '저장 중...' : '저장'}
               </button>

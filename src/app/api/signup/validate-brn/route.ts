@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServiceClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   const { brn } = await request.json()
@@ -10,6 +11,17 @@ export async function POST(request: NextRequest) {
   const clean = brn.replace(/[^0-9]/g, '')
   if (clean.length !== 10) {
     return NextResponse.json({ valid: false, message: '사업자등록번호는 10자리입니다.' })
+  }
+
+  // 이미 가입된 사업자번호인지 확인
+  const serviceClient = await createServiceClient()
+  const { data: existing } = await serviceClient
+    .from('profiles')
+    .select('id')
+    .eq('business_registration_number', clean)
+    .maybeSingle()
+  if (existing) {
+    return NextResponse.json({ valid: false, message: '이미 가입된 사업자입니다. 로그인하거나 관리자에게 문의해주세요.' })
   }
 
   const serviceKey = process.env.NTS_SERVICE_KEY

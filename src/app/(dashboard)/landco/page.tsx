@@ -35,8 +35,9 @@ export default async function LandcoDashboard() {
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
-    .from('profiles').select('country_codes').eq('id', user.id).single()
+    .from('profiles').select('country_codes, status').eq('id', user.id).single()
 
+  const isRejected = profile?.status === 'rejected'
   const countryCodes = (profile?.country_codes ?? []) as string[]
 
   const admin = createAdminClient(
@@ -79,7 +80,7 @@ export default async function LandcoDashboard() {
     (myAbandonmentsRaw ?? []).map((a: { request_id: string }) => a.request_id)
   )
 
-  const { data: openRaw } = await supabase
+  const { data: openRaw } = isRejected ? { data: [] } : await supabase
     .from('quote_requests')
     .select('*')
     .in('destination_country', countryCodes.length > 0 ? countryCodes : ['__none__'])
@@ -123,5 +124,5 @@ export default async function LandcoDashboard() {
   const requests: PhasedLandcoRequest[] = [...openRequests, ...nonOpenRequests]
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
 
-  return <LandcoDashboardClient requests={requests} />
+  return <LandcoDashboardClient requests={requests} isRejected={isRejected} />
 }

@@ -1,34 +1,50 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { toast } from '@/lib/toast'
 import type { QuoteRequest, ItineraryDay, PricingData } from '@/lib/supabase/types'
 import { ItineraryEditor } from './ItineraryEditor'
 import { PricingEditor } from './PricingEditor'
 import { QuotePreview } from './QuotePreview'
+import { TemplateModal } from './TemplateModal'
 
 interface Props {
   requestId: string
 }
 
+const emptyPricingRow = () => ({ date: '', detail: '', price: 0, count: 1, quantity: 1 })
+
 const defaultPricing: PricingData = {
-  호텔: [],
-  차량: [],
-  식사: [],
-  입장료: [],
-  가이드비용: [],
-  기타: [],
+  호텔: [emptyPricingRow()],
+  차량: [emptyPricingRow()],
+  식사: [emptyPricingRow()],
+  입장료: [emptyPricingRow()],
+  가이드비용: [emptyPricingRow()],
+  기타: [emptyPricingRow()],
 }
 
 type ActiveTab = 'itinerary' | 'pricing'
 type SaveStatus = 'saved' | 'saving' | 'unsaved'
 
 export function QuoteEditorShell({ requestId }: Props) {
+  const searchParams = useSearchParams()
+  const resetDraft = searchParams.get('reset') === '1'
   const [request, setRequest] = useState<QuoteRequest | null>(null)
   const [activeTab, setActiveTab] = useState<ActiveTab>('itinerary')
   const [itinerary, setItinerary] = useState<ItineraryDay[]>([])
   const [pricing, setPricing] = useState<PricingData>(defaultPricing)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
-  const [showPreview, setShowPreview] = useState(false)
+  const [previewMode, setPreviewMode] = useState<'hidden' | 'preview' | 'submit'>('hidden')
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showExitConfirm, setShowExitConfirm] = useState(false)
+  const [showTemplateSaveAfterSubmit, setShowTemplateSaveAfterSubmit] = useState(false)
+  const [templateMode, setTemplateMode] = useState<'save' | 'load' | null>(null)
+  const closeAfterTemplateSaveRef = useRef(false)
 
   const isDirtyRef = useRef(false)
   const itineraryRef = useRef(itinerary)
@@ -46,16 +62,47 @@ export function QuoteEditorShell({ requestId }: Props) {
           fetch(`/api/requests/${requestId}`),
           fetch(`/api/quotes/draft?requestId=${requestId}`),
         ])
+        let req: QuoteRequest | null = null
         if (reqRes.ok) {
-          const { request: req } = await reqRes.json()
+          const json = await reqRes.json()
+          req = json.request
           setRequest(req)
         }
         if (draftRes.ok) {
           const { draft } = await draftRes.json()
           if (draft) {
-            if (draft.itinerary?.length > 0) setItinerary(draft.itinerary)
-            if (draft.pricing) setPricing(draft.pricing)
+            if (resetDraft) {
+              // 새로 작성 요청: 기존 임시저장 삭제
+              await fetch(`/api/quotes/draft?requestId=${requestId}`, { method: 'DELETE' })
+            } else {
+              if (draft.itinerary?.length > 0) setItinerary(draft.itinerary)
+              if (draft.pricing) setPricing(draft.pricing)
+              return
+            }
           }
+        }
+        // draft 없음(또는 reset): 날짜 범위로 기본 일정 생성 (각 날짜에 빈 row 1개)
+        if (req) {
+          const [dy, dm, dd] = req.depart_date.split('-').map(Number)
+          const [ry, rm, rd] = req.return_date.split('-').map(Number)
+          const departMs = Date.UTC(dy, dm - 1, dd)
+          const returnMs = Date.UTC(ry, rm - 1, rd)
+          const totalDays = Math.max(1, Math.ceil((returnMs - departMs) / (1000 * 60 * 60 * 24)) + 1)
+          const defaultItinerary: ItineraryDay[] = Array.from({ length: totalDays }, (_, i) => {            const ms = departMs + i * 86400000
+            const d = new Date(ms)
+            const date = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+            return {
+              day: i + 1,
+              date,
+              rows: [
+                { area: '', transport: '', time: '', content: '', meal: '' },
+                { area: '', transport: '', time: '', content: '', meal: '' },
+                { area: '', transport: '', time: '', content: '', meal: '' },
+              ],
+              overnight: { type: 'hotel', stars: (req!.hotel_grade as 3 | 4 | 5) ?? 4 },
+            }
+          })
+          setItinerary(defaultItinerary)
         }
       } catch {
         // 로드 실패 시 무시
@@ -104,6 +151,61 @@ export function QuoteEditorShell({ requestId }: Props) {
     setSaveStatus('unsaved')
   }
 
+  async function handleDownload() {
+    setIsDownloading(true)
+    try {
+      await saveDraft()
+      const res = await fetch('/api/quotes/draft/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId }),
+      })
+      if (!res.ok) return
+      const { fileUrl, fileName } = await res.json()
+      const a = document.createElement('a')
+      a.href = fileUrl
+      a.download = fileName
+      a.click()
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  async function handleSubmit() {
+    setIsSubmitting(true)
+    try {
+      await saveDraft()
+      const res = await fetch('/api/quotes/draft/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId }),
+      })
+      if (!res.ok) {
+        const json = await res.json()
+        toast(json.error ?? '제출에 실패했습니다.', 'error')
+        return
+      }
+      setSaveStatus('saved')
+      toast('견적서가 제출되었습니다.', 'success')
+      setShowTemplateSaveAfterSubmit(true)
+    } catch {
+      toast('제출 중 오류가 발생했습니다.', 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleDeleteDraft() {
+    setIsDeleting(true)
+    try {
+      await fetch(`/api/quotes/draft?requestId=${requestId}`, { method: 'DELETE' })
+      window.opener?.location.reload()
+      window.close()
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   async function handleTabChange(tab: ActiveTab) {
     if (tab === activeTab) return
     await saveDraft()
@@ -132,15 +234,136 @@ export function QuoteEditorShell({ requestId }: Props) {
     )
   }
 
+  function handleTemplateLoad(newItinerary: ItineraryDay[], newPricing: PricingData) {
+    setItinerary(newItinerary)
+    setPricing(newPricing)
+    isDirtyRef.current = true
+    setSaveStatus('unsaved')
+  }
+
   return (
     <>
-      {showPreview && (
+      {showTemplateSaveAfterSubmit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setShowTemplateSaveAfterSubmit(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-1">템플릿으로 저장할까요?</h3>
+            <p className="text-sm text-gray-500 mt-2">제출된 견적서는 사라집니다. 다음에도 활용하려면 템플릿으로 저장해 두세요.</p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => { setShowTemplateSaveAfterSubmit(false); window.opener?.location.reload(); window.close() }}
+                className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                저장 안함
+              </button>
+              <button
+                autoFocus
+                onClick={() => { setShowTemplateSaveAfterSubmit(false); closeAfterTemplateSaveRef.current = true; setTemplateMode('save') }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                템플릿 저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setShowExitConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-1">에디터 나가기</h3>
+            <p className="text-sm text-gray-500 mt-2">작성 중인 내용은 자동저장되어 있습니다.</p>
+            <p className="text-xs text-gray-400 mt-1">나가도 임시저장된 내용은 유지됩니다.</p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                autoFocus
+                onClick={() => { setShowExitConfirm(false); window.opener?.location.reload(); window.close() }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                나가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setShowDeleteConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-1">임시저장 삭제</h3>
+            <p className="text-sm text-gray-500 mt-2">임시저장된 내용을 삭제하시겠습니까?</p>
+            <p className="text-xs text-gray-400 mt-1">삭제 후 복구할 수 없습니다.</p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                autoFocus
+                onClick={() => { setShowDeleteConfirm(false); handleDeleteDraft() }}
+                disabled={isDeleting}
+                className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showSubmitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setShowSubmitConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-1">견적서 제출</h3>
+            <p className="text-sm text-gray-500 mt-2">견적서를 제출하시겠습니까?</p>
+            <p className="text-xs text-gray-400 mt-1">제출 후에는 수정할 수 없습니다.</p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => setShowSubmitConfirm(false)}
+                className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                autoFocus
+                onClick={() => { setShowSubmitConfirm(false); handleSubmit() }}
+                disabled={isSubmitting}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                제출하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {templateMode && (
+        <TemplateModal
+          mode={templateMode}
+          itinerary={itinerary}
+          pricing={pricing}
+          onLoad={handleTemplateLoad}
+          onClose={() => {
+            setTemplateMode(null)
+            if (closeAfterTemplateSaveRef.current) {
+              closeAfterTemplateSaveRef.current = false
+              window.opener?.location.reload()
+              window.close()
+            }
+          }}
+        />
+      )}
+      {previewMode !== 'hidden' && (
         <QuotePreview
           requestId={requestId}
-          onClose={() => setShowPreview(false)}
+          onClose={() => setPreviewMode('hidden')}
           onSubmitted={() => {
             setSaveStatus('saved')
           }}
+          showSubmit={previewMode === 'submit'}
         />
       )}
 
@@ -153,9 +376,18 @@ export function QuoteEditorShell({ requestId }: Props) {
                 {request.event_name} 견적서 작성
               </h1>
             </div>
-            <span className={`text-xs font-medium ${saveStatusColor}`}>
-              {saveStatusLabel}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className={`text-xs font-medium ${saveStatusColor}`}>
+                {saveStatusLabel}
+              </span>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={isDeleting}
+                className="border border-red-200 text-red-400 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                {isDeleting ? '삭제 중...' : '임시저장 삭제'}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -167,7 +399,7 @@ export function QuoteEditorShell({ requestId }: Props) {
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'itinerary'
                   ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  : 'border-transparent text-gray-400 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
               📅 일정표
@@ -177,21 +409,52 @@ export function QuoteEditorShell({ requestId }: Props) {
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'pricing'
                   ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  : 'border-transparent text-gray-400 hover:text-gray-900 hover:bg-gray-100'
               }`}
             >
               💰 견적서
             </button>
           </div>
-          <button
-            onClick={() => setShowPreview(true)}
-            className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            미리보기 · 제출
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowExitConfirm(true)}
+              className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              나가기
+            </button>
+            <button
+              onClick={() => setTemplateMode('load')}
+              className="flex items-center gap-1.5 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              템플릿 불러오기
+            </button>
+            <button
+              onClick={() => setTemplateMode('save')}
+              className="flex items-center gap-1.5 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              템플릿 저장
+            </button>
+            <button
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="flex items-center gap-1.5 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {isDownloading ? '생성 중...' : '엑셀 다운로드'}
+            </button>
+            <button
+              onClick={() => setPreviewMode('preview')}
+              className="flex items-center gap-1.5 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              미리보기
+            </button>
+            <button
+              onClick={() => setShowSubmitConfirm(true)}
+              disabled={isSubmitting}
+              className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {isSubmitting ? '제출 중...' : '제출하기'}
+            </button>
+          </div>
         </div>
 
         {/* 탭 컨텐츠 */}

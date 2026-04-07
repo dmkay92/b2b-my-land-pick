@@ -8,6 +8,7 @@ import type { QuoteRequest, Quote } from '@/lib/supabase/types'
 
 type QuoteWithPricing = Quote & { pricing?: { total: number | null; per_person: number | null } }
 import { ExcelPreviewModal } from '@/components/ExcelPreviewModal'
+import { AttachmentPreviewModal } from '@/components/AttachmentPreviewModal'
 import { BackButton } from '@/components/BackButton'
 
 export default function LandcoRequestDetail() {
@@ -30,6 +31,7 @@ export default function LandcoRequestDetail() {
   const [paymentConfirming, setPaymentConfirming] = useState(false)
   const [paymentConfirmed, setPaymentConfirmed] = useState(false)
   const [savedMemo, setSavedMemo] = useState<string | null>(null)
+  const [attachmentPreview, setAttachmentPreview] = useState<{ url: string; name: string } | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -165,6 +167,13 @@ export default function LandcoRequestDetail() {
 
   return (
     <>
+      {attachmentPreview && (
+        <AttachmentPreviewModal
+          url={attachmentPreview.url}
+          name={attachmentPreview.name}
+          onClose={() => setAttachmentPreview(null)}
+        />
+      )}
       {preview && (
         <ExcelPreviewModal
           fileUrl={preview.url}
@@ -283,6 +292,32 @@ export default function LandcoRequestDetail() {
           </div>
         </div>
 
+        {/* 항공 스케줄 */}
+        {request.flight_schedule && (request.flight_schedule.outbound || request.flight_schedule.inbound) && (
+          <div className="px-6 py-4 border-b border-gray-100">
+            <p className="text-xs text-gray-400 mb-2">항공 스케줄</p>
+            <div className="space-y-2">
+              {(['outbound', 'inbound'] as const).map(dir => {
+                const f = request.flight_schedule![dir]
+                if (!f) return null
+                return (
+                  <div key={dir} className="flex items-center gap-3 text-sm flex-wrap">
+                    <span className="text-xs font-semibold text-gray-400 w-10 shrink-0">{dir === 'outbound' ? '출발편' : '귀국편'}</span>
+                    {f.code && <span className="font-semibold text-[#009CF0]">{f.code}</span>}
+                    <span className="text-gray-500">
+                      {f.dep_date && <span>{f.dep_date}</span>}
+                      {f.dep_time && <span> {f.dep_time}</span>}
+                      {(f.dep_date || f.dep_time) && (f.arr_date || f.arr_time) && <span className="mx-1">→</span>}
+                      {f.arr_date && f.arr_date !== f.dep_date && <span>{f.arr_date} </span>}
+                      {f.arr_time && <span>{f.arr_time}</span>}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* 인원 + 호텔 */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-start gap-8">
           <div>
@@ -340,15 +375,41 @@ export default function LandcoRequestDetail() {
         {/* 첨부파일 */}
         {(request as QuoteRequest & { attachment_url?: string; attachment_name?: string }).attachment_url && (
           <div className="px-6 py-4 border-t border-gray-100">
-            <p className="text-xs text-gray-400 mb-1">첨부파일</p>
-            <a
-              href={(request as QuoteRequest & { attachment_url?: string }).attachment_url!}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm text-[#009CF0] hover:underline"
-            >
-              ↓ {(request as QuoteRequest & { attachment_name?: string }).attachment_name ?? '파일 다운로드'}
-            </a>
+            <p className="text-xs text-gray-400 mb-2">첨부파일</p>
+            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+              <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+              <span className="text-sm text-gray-700 truncate flex-1">
+                {(request as QuoteRequest & { attachment_name?: string }).attachment_name ?? '첨부파일'}
+              </span>
+              <button
+                onClick={() => {
+                  const url = (request as QuoteRequest & { attachment_url?: string }).attachment_url!
+                  const name = (request as QuoteRequest & { attachment_name?: string }).attachment_name ?? '파일'
+                  setAttachmentPreview({ url, name })
+                }}
+                className="text-xs text-[#009CF0] border border-[#009CF0] px-2.5 py-1 rounded-md hover:bg-blue-50 transition-colors shrink-0"
+              >
+                미리보기
+              </button>
+              <button
+                onClick={async () => {
+                  const url = (request as QuoteRequest & { attachment_url?: string }).attachment_url!
+                  const name = (request as QuoteRequest & { attachment_name?: string }).attachment_name ?? '파일'
+                  const res = await fetch(url)
+                  const blob = await res.blob()
+                  const a = document.createElement('a')
+                  a.href = URL.createObjectURL(blob)
+                  a.download = name
+                  a.click()
+                  URL.revokeObjectURL(a.href)
+                }}
+                className="text-xs text-gray-600 border border-gray-300 px-2.5 py-1 rounded-md hover:bg-gray-100 transition-colors shrink-0"
+              >
+                다운로드
+              </button>
+            </div>
           </div>
         )}
       </div>

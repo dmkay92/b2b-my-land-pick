@@ -10,6 +10,39 @@ const BANK_OPTIONS = [
   '광주은행', '전북은행', '제주은행', '산업은행', '우체국',
 ]
 
+const BANK_ALIAS: Record<string, string> = {
+  'kb국민': '국민은행', 'kb': '국민은행', '국민': '국민은행',
+  '신한': '신한은행',
+  '우리': '우리은행',
+  'keb하나': '하나은행', '하나': '하나은행',
+  'nh농협': 'NH농협은행', '농협': 'NH농협은행', 'nh': 'NH농협은행',
+  'ibk기업': 'IBK기업은행', '기업': 'IBK기업은행', 'ibk': 'IBK기업은행',
+  '카카오': '카카오뱅크',
+  '토스': '토스뱅크',
+  'sc제일': 'SC제일은행', '제일': 'SC제일은행', 'sc': 'SC제일은행',
+  '씨티': '씨티은행', 'citi': '씨티은행',
+  '케이뱅크': '케이뱅크', '케이': '케이뱅크',
+  '수협': '수협은행',
+  '대구': '대구은행',
+  '부산': '부산은행',
+  '경남': '경남은행',
+  '광주': '광주은행',
+  '전북': '전북은행',
+  '제주': '제주은행',
+  '산업': '산업은행',
+  '우체국은행': '우체국',
+}
+
+function normalizeBankName(raw: string): string {
+  if (!raw) return ''
+  if (BANK_OPTIONS.includes(raw)) return raw
+  const key = raw.toLowerCase().replace(/\s/g, '').replace(/은행$/, '')
+  for (const [alias, canonical] of Object.entries(BANK_ALIAS)) {
+    if (key === alias || key.includes(alias)) return canonical
+  }
+  return ''
+}
+
 interface Props {
   ocr: BankOcrResult | null
   initial: BankOcrResult | null
@@ -19,9 +52,9 @@ interface Props {
 
 export function Step4BankInfo({ ocr, initial, onNext, onBack }: Props) {
   const [values, setValues] = useState<BankOcrResult>({
-    bank_name: initial?.bank_name ?? ocr?.bank_name ?? '',
+    bank_name: initial?.bank_name ?? normalizeBankName(ocr?.bank_name ?? '') ?? '',
     bank_account: initial?.bank_account ?? ocr?.bank_account ?? '',
-    bank_holder: initial?.bank_holder ?? ocr?.bank_holder ?? '',
+    bank_holder: (initial?.bank_holder ?? ocr?.bank_holder ?? '').replace(/\s/g, ''),
   })
 
   function set(key: keyof BankOcrResult, val: string) {
@@ -79,7 +112,7 @@ export function Step4BankInfo({ ocr, initial, onNext, onBack }: Props) {
             type="text"
             required
             value={values.bank_holder}
-            onChange={e => set('bank_holder', e.target.value)}
+            onChange={e => set('bank_holder', e.target.value.replace(/\s/g, ''))}
             placeholder="예금주명을 입력해주세요"
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />

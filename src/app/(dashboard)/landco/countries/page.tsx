@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getCountryName } from '@/lib/utils'
+import { BackButton } from '@/components/BackButton'
 
 export default async function LandcoCountriesPage() {
   const supabase = await createClient()
@@ -17,6 +18,7 @@ export default async function LandcoCountriesPage() {
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
+      <BackButton href="/landco" />
       <h1 className="text-2xl font-bold mb-2">담당 국가</h1>
       <p className="text-sm text-gray-400 mb-6">견적 요청을 수신할 수 있는 국가 목록입니다. 변경이 필요하면 관리자에게 문의하세요.</p>
 

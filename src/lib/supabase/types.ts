@@ -26,6 +26,19 @@ export interface Profile {
   document_bank_url: string | null
 }
 
+export interface FlightEntry {
+  dep_date: string  // YYYY-MM-DD 출발 날짜
+  code: string      // 편명 (예: KE637)
+  dep_time: string  // HH:MM
+  arr_date: string  // YYYY-MM-DD 도착 날짜 (익일 가능)
+  arr_time: string  // HH:MM
+}
+
+export interface FlightSchedule {
+  outbound: FlightEntry | null
+  inbound: FlightEntry | null
+}
+
 export interface QuoteRequest {
   id: string
   agency_id: string
@@ -48,6 +61,7 @@ export interface QuoteRequest {
   notes: string | null
   status: QuoteRequestStatus
   created_at: string
+  flight_schedule: FlightSchedule | null
 }
 
 export interface Quote {

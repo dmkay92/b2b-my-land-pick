@@ -20,20 +20,28 @@ function DropZone({
   onFile: (f: File) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [dragging, setDragging] = useState(false)
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
+    setDragging(false)
     const f = e.dataTransfer.files[0]
     if (f) onFile(f)
   }
 
   return (
     <div
-      onDragOver={e => e.preventDefault()}
+      onDragOver={e => { e.preventDefault(); setDragging(true) }}
+      onDragEnter={e => { e.preventDefault(); setDragging(true) }}
+      onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
       onClick={() => inputRef.current?.click()}
       className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 cursor-pointer transition-colors ${
-        file ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'
+        file
+          ? 'border-green-400 bg-green-50'
+          : dragging
+          ? 'border-blue-500 bg-blue-100 scale-[1.02]'
+          : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'
       }`}
     >
       <input
@@ -53,7 +61,7 @@ function DropZone({
         <>
           <span className="text-2xl">📄</span>
           <p className="text-sm font-medium text-gray-700">{label}</p>
-          <p className="text-xs text-gray-400">{hint}</p>
+          <p className="text-xs text-gray-400 text-center break-keep">{hint}</p>
           <p className="text-xs text-gray-300">JPG, PNG, PDF</p>
         </>
       )}
@@ -66,9 +74,9 @@ async function runOcr(file: File, type: 'biz' | 'bank') {
   form.append('file', file)
   form.append('type', type)
   const res = await fetch('/api/signup/ocr', { method: 'POST', body: form })
-  if (!res.ok) throw new Error('OCR 처리 실패')
-  const { result } = await res.json()
-  return result
+  const json = await res.json()
+  if (!res.ok) throw new Error(json.error || 'OCR 처리 실패')
+  return json.result
 }
 
 export function Step2Documents({ onComplete, onBack }: Props) {
@@ -89,8 +97,21 @@ export function Step2Documents({ onComplete, onBack }: Props) {
         runOcr(bankFile, 'bank'),
       ])
       onComplete(bizFile, bankFile, biz, bank)
-    } catch {
-      setError('서류 읽기에 실패했습니다. 이미지가 선명한지 확인 후 다시 시도해주세요.')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : ''
+      if (msg.includes('quota') || msg.includes('429')) {
+        setError('AI 서비스 사용량이 초과되었습니다. 잠시 후 다시 시도해주세요.')
+      } else if (msg.includes('API key') || msg.includes('401') || msg.includes('403')) {
+        setError('서비스 설정 오류가 발생했습니다. 관리자에게 문의해주세요.')
+      } else if (msg.includes('파싱') || msg.includes('422')) {
+        setError('서류 내용을 읽지 못했습니다. 더 선명한 이미지로 다시 시도해주세요.')
+      } else if (msg.includes('파일 크기')) {
+        setError('파일 크기가 5MB를 초과합니다. 더 작은 파일을 올려주세요.')
+      } else if (msg.includes('파일 형식')) {
+        setError('JPG, PNG, PDF 파일만 업로드 가능합니다.')
+      } else {
+        setError('서류 읽기에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      }
     } finally {
       setLoading(false)
     }
