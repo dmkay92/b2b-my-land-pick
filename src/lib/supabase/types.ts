@@ -73,6 +73,8 @@ export interface Quote {
   file_name: string
   status: QuoteStatus
   submitted_at: string
+  itinerary?: unknown  // ItineraryDay[] JSON
+  pricing?: unknown    // PricingData JSON
 }
 
 export interface QuoteSelection {

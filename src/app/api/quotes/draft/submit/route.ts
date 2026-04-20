@@ -115,6 +115,8 @@ export async function POST(request: NextRequest) {
       version: nextVersion,
       file_url: urlData?.signedUrl ?? officialPath,
       file_name: fileName,
+      itinerary: draft.itinerary,
+      pricing: draft.pricing,
     })
     .select()
     .single()

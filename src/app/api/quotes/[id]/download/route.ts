@@ -24,17 +24,17 @@ export async function GET(
     .from('quote_requests').select('*').eq('id', quote.request_id).single()
   if (!req) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
 
-  // Get draft data (itinerary + pricing) using admin client (bypasses RLS since drafts are deleted after submit)
+  // Admin client for cross-user profile lookup (bypasses RLS)
   const adminClient = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  const { data: draft } = await adminClient
-    .from('quote_drafts').select('itinerary, pricing')
-    .eq('request_id', quote.request_id).eq('landco_id', quote.landco_id).single()
-
-  if (!draft) return NextResponse.json({ error: 'Draft data not found' }, { status: 404 })
+  // Read itinerary/pricing from quote record (persisted at submit time)
+  if (!quote.itinerary || !quote.pricing) {
+    return NextResponse.json({ error: 'Quote data not found' }, { status: 404 })
+  }
+  const draft = { itinerary: quote.itinerary, pricing: quote.pricing }
 
   // Get platform margin rate
   const { data: marginSetting } = await supabase

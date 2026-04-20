@@ -25,11 +25,11 @@ export async function GET(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Get draft data
-  const { data: draft } = await adminClient
-    .from('quote_drafts').select('itinerary, pricing')
-    .eq('request_id', quote.request_id).eq('landco_id', quote.landco_id).single()
-  if (!draft) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+  // Read itinerary/pricing from quote record (persisted at submit time)
+  if (!quote.itinerary || !quote.pricing) {
+    return NextResponse.json({ error: 'Quote data not found' }, { status: 404 })
+  }
+  const draft = { itinerary: quote.itinerary, pricing: quote.pricing }
 
   // Get margin rate
   const { data: marginSetting } = await supabase
