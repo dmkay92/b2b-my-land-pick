@@ -73,10 +73,12 @@ export default function AgencyRequestDetail() {
       setGrouped(groups)
 
       // 현재 선택 상태 조회
+      let selectedQuoteId: string | null = null
       const selRes = await fetch(`/api/quotes/selection?requestId=${id}`)
       if (selRes.ok) {
         const selJson = await selRes.json()
         setSelection(selJson.selection ?? null)
+        selectedQuoteId = selJson.selection?.selected_quote_id ?? null
       }
 
       // Fetch agency markups
@@ -86,9 +88,14 @@ export default function AgencyRequestDetail() {
         const markupMap: Record<string, AgencyMarkup> = {}
         for (const m of markupsList) { markupMap[m.quote_id] = m }
         setMarkups(markupMap)
-        // 첫 번째 마크업으로 글로벌 마크업 초기화
-        if (markupsList.length > 0) {
-          setGlobalMarkup({ perPerson: markupsList[0].markup_per_person, total: markupsList[0].markup_total })
+
+        // 글로벌 마크업 초기화: 선택된 견적의 마크업 우선, 없으면 첫 번째
+        const selectedMarkup = selectedQuoteId
+          ? markupsList.find((m: AgencyMarkup) => m.quote_id === selectedQuoteId)
+          : null
+        const initMarkup = selectedMarkup ?? markupsList[0]
+        if (initMarkup) {
+          setGlobalMarkup({ perPerson: initMarkup.markup_per_person, total: initMarkup.markup_total })
         }
       }
     }
