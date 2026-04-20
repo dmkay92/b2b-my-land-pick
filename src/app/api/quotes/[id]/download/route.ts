@@ -46,23 +46,29 @@ export async function GET(
     .from('profiles').select('role').eq('id', user.id).single()
   const isAgency = profile?.role === 'agency'
 
-  // Get agency markup — try this quote first, then fallback to any quote in the same request
-  const agencyId = isAgency ? user.id : req.agency_id
-  let markup = null
-  const { data: directMarkup } = await supabase
-    .from('agency_markups').select('*')
-    .eq('quote_id', quoteId).eq('agency_id', agencyId).maybeSingle()
-  if (directMarkup) {
-    markup = directMarkup
+  // Get agency markup — query param takes priority, then DB lookup
+  const markupParam = request.nextUrl.searchParams.get('markup')
+  let markupTotal = 0
+
+  if (markupParam) {
+    markupTotal = Number(markupParam) || 0
   } else {
-    const { data: requestQuotes } = await supabase
-      .from('quotes').select('id').eq('request_id', quote.request_id)
-    const qIds = (requestQuotes ?? []).map(q => q.id)
-    if (qIds.length > 0) {
-      const { data: fallbackMarkup } = await supabase
-        .from('agency_markups').select('*')
-        .eq('agency_id', agencyId).in('quote_id', qIds).limit(1).maybeSingle()
-      markup = fallbackMarkup
+    const agencyId = isAgency ? user.id : req.agency_id
+    const { data: directMarkup } = await supabase
+      .from('agency_markups').select('markup_total')
+      .eq('quote_id', quoteId).eq('agency_id', agencyId).maybeSingle()
+    if (directMarkup) {
+      markupTotal = directMarkup.markup_total ?? 0
+    } else {
+      const { data: requestQuotes } = await supabase
+        .from('quotes').select('id').eq('request_id', quote.request_id)
+      const qIds = (requestQuotes ?? []).map(q => q.id)
+      if (qIds.length > 0) {
+        const { data: fallbackMarkup } = await supabase
+          .from('agency_markups').select('markup_total')
+          .eq('agency_id', agencyId).in('quote_id', qIds).limit(1).maybeSingle()
+        markupTotal = fallbackMarkup?.markup_total ?? 0
+      }
     }
   }
 
@@ -73,8 +79,8 @@ export async function GET(
   }
 
   // Apply agency markup if exists
-  if (markup && markup.markup_total > 0) {
-    pricing = distributeMealExcludedMarkup(pricing, markup.markup_total)
+  if (markupTotal > 0) {
+    pricing = distributeMealExcludedMarkup(pricing, markupTotal)
   }
 
   // Check if quote is selected (determines whether to include pricing sheet)

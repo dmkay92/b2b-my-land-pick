@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, use } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import ItineraryView from '@/components/quote-view/ItineraryView'
 import PricingView from '@/components/quote-view/PricingView'
 import QuoteSummaryBar from '@/components/quote-view/QuoteSummaryBar'
@@ -22,6 +22,8 @@ interface QuoteDetailData {
 export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId: string }> }) {
   const { quoteId } = use(params)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const urlMarkup = Number(searchParams.get('markup')) || 0
   const [data, setData] = useState<QuoteDetailData | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'itinerary' | 'pricing'>('itinerary')
@@ -47,8 +49,8 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
   // Apply platform margin
   let pricing = applyPlatformMargin(data.draft.pricing, data.marginRate)
 
-  // Apply agency markup if exists
-  const markupTotal = data.markup?.markup_total ?? 0
+  // URL param takes priority over DB markup
+  const markupTotal = urlMarkup > 0 ? urlMarkup : (data.markup?.markup_total ?? 0)
   if (markupTotal > 0) {
     pricing = distributeMealExcludedMarkup(pricing, markupTotal)
   }
@@ -57,7 +59,8 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
   const perPerson = totalPeople > 0 ? Math.round(totals.total / totalPeople) : 0
 
   const handleDownload = async () => {
-    const res = await fetch(`/api/quotes/${quoteId}/download`)
+    const params = markupTotal > 0 ? `?markup=${markupTotal}` : ''
+    const res = await fetch(`/api/quotes/${quoteId}/download${params}`)
     if (!res.ok) return
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)

@@ -476,14 +476,18 @@ export default function AgencyRequestDetail() {
                             {new Date(q.submitted_at).toLocaleString('ko-KR')}
                           </span>
                           <button
-                            onClick={() => window.open(`/agency/quotes/${q.id}`, '_blank')}
+                            onClick={() => {
+                              const params = globalMarkup.total > 0 ? `?markup=${globalMarkup.total}` : ''
+                              window.open(`/agency/quotes/${q.id}${params}`, '_blank')
+                            }}
                             className="border border-gray-300 text-gray-600 rounded-lg px-3 py-1 text-xs font-medium bg-white hover:bg-gray-50 whitespace-nowrap"
                           >
                             미리보기
                           </button>
                           <button
                             onClick={async () => {
-                              const res = await fetch(`/api/quotes/${q.id}/download`)
+                              const params = globalMarkup.total > 0 ? `?markup=${globalMarkup.total}` : ''
+                              const res = await fetch(`/api/quotes/${q.id}/download${params}`)
                               if (!res.ok) return
                               const blob = await res.blob()
                               const url = URL.createObjectURL(blob)
