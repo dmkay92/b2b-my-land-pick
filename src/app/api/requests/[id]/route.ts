@@ -32,6 +32,10 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const { data: marginSetting } = await supabase
+    .from('platform_settings').select('value').eq('key', 'margin_rate').single()
+  const marginRate = marginSetting ? Number(marginSetting.value) : 0.05
+
   // 랜드사는 담당 국가 요청 또는 이미 견적을 제출한 요청만 접근 가능
   if (isLandco) {
     const assignedCodes = (profile?.country_codes ?? []) as string[]
@@ -69,10 +73,16 @@ export async function GET(
   const quotesWithPricing = await Promise.all(
     (quotes ?? []).map(async q => {
       const pricing = await extractQuotePricing(q.file_url)
+      const adjustedTotal = isOwner && pricing.total
+        ? Math.round(pricing.total * (1 + marginRate))
+        : pricing.total
+      const adjustedPerPerson = isOwner && pricing.per_person
+        ? Math.round(pricing.per_person * (1 + marginRate))
+        : pricing.per_person
       return {
         ...q,
         profiles: profileMap[q.landco_id] ?? null,
-        pricing,
+        pricing: { total: adjustedTotal, per_person: adjustedPerPerson },
       }
     })
   )

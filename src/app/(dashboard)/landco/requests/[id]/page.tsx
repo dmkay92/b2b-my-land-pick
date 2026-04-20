@@ -7,7 +7,6 @@ import { formatDate, formatDateWithDay, calculateTotalPeople, hotelGradeLabel, g
 import type { QuoteRequest, Quote } from '@/lib/supabase/types'
 
 type QuoteWithPricing = Quote & { pricing?: { total: number | null; per_person: number | null } }
-import { ExcelPreviewModal } from '@/components/ExcelPreviewModal'
 import { AttachmentPreviewModal } from '@/components/AttachmentPreviewModal'
 import { BackButton } from '@/components/BackButton'
 
@@ -20,8 +19,6 @@ export default function LandcoRequestDetail() {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [preview, setPreview] = useState<{ url: string; name: string; previewHtml?: Record<string, string> } | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
   const [selectionResult, setSelectionResult] = useState<'selected' | 'lost' | null>(null)
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
   const [hasDraft, setHasDraft] = useState(false)
@@ -172,14 +169,6 @@ export default function LandcoRequestDetail() {
           url={attachmentPreview.url}
           name={attachmentPreview.name}
           onClose={() => setAttachmentPreview(null)}
-        />
-      )}
-      {preview && (
-        <ExcelPreviewModal
-          fileUrl={preview.url}
-          fileName={preview.name}
-          previewHtml={preview.previewHtml}
-          onClose={() => setPreview(null)}
         />
       )}
     <div className="p-8 max-w-3xl mx-auto">
@@ -551,21 +540,8 @@ export default function LandcoRequestDetail() {
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-gray-400 whitespace-nowrap">{new Date(q.submitted_at).toLocaleString('ko-KR')}</span>
                     <button
-                      onClick={async () => {
-                        setPreviewLoading(true)
-                        setPreview({ url: q.file_url, name: q.file_name })
-                        try {
-                          const res = await fetch(`/api/quotes/${q.id}/preview`)
-                          if (res.ok) {
-                            const json = await res.json()
-                            setPreview({ url: q.file_url, name: q.file_name, previewHtml: json.previewHtml })
-                          }
-                        } finally {
-                          setPreviewLoading(false)
-                        }
-                      }}
-                      disabled={previewLoading}
-                      className="border border-gray-300 text-gray-600 rounded-lg px-3 py-1 text-xs font-medium bg-white hover:bg-gray-50 whitespace-nowrap disabled:opacity-50"
+                      onClick={() => window.open(`/landco/quotes/${q.id}`, '_blank')}
+                      className="border border-gray-300 text-gray-600 rounded-lg px-3 py-1 text-xs font-medium bg-white hover:bg-gray-50 whitespace-nowrap"
                     >
                       미리보기
                     </button>

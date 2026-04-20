@@ -5,9 +5,11 @@ import { useParams, useRouter } from 'next/navigation'
 import { formatDate, formatDateWithDay, calculateTotalPeople, hotelGradeLabel, getCountryName } from '@/lib/utils'
 import type { QuoteRequest, Quote } from '@/lib/supabase/types'
 import { useChat } from '@/lib/chat/ChatContext'
-import { ExcelPreviewModal } from '@/components/ExcelPreviewModal'
 import { AttachmentPreviewModal } from '@/components/AttachmentPreviewModal'
 import { BackButton } from '@/components/BackButton'
+import MarkupInput from '@/components/MarkupInput'
+import ConfirmMarkupModal from '@/components/ConfirmMarkupModal'
+import type { AgencyMarkup } from '@/lib/supabase/types'
 
 interface QuoteWithLandco extends Quote {
   profiles: { company_name: string }
@@ -35,10 +37,9 @@ export default function AgencyRequestDetail() {
   const [request, setRequest] = useState<QuoteRequest | null>(null)
   const [grouped, setGrouped] = useState<GroupedQuotes>({})
   const [selection, setSelection] = useState<Selection | null>(null)
-  const [confirmTarget, setConfirmTarget] = useState<{ landcoId: string; quoteId: string } | null>(null)
+  const [confirmTarget, setConfirmTarget] = useState<{ landcoId: string; quoteId: string; total: number; companyName: string } | null>(null)
   const { openOrCreateRoom } = useChat()
-  const [preview, setPreview] = useState<{ url: string; name: string; previewHtml?: Record<string, string> } | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
+  const [markups, setMarkups] = useState<Record<string, AgencyMarkup>>({})
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showCopyModal, setShowCopyModal] = useState(false)
   const [canceling, setCanceling] = useState(false)
@@ -77,6 +78,15 @@ export default function AgencyRequestDetail() {
         const selJson = await selRes.json()
         setSelection(selJson.selection ?? null)
       }
+
+      // Fetch agency markups
+      const markupsRes = await fetch(`/api/agency-markups?requestId=${id}`)
+      if (markupsRes.ok) {
+        const { markups: markupsList } = await markupsRes.json()
+        const markupMap: Record<string, AgencyMarkup> = {}
+        for (const m of markupsList) { markupMap[m.quote_id] = m }
+        setMarkups(markupMap)
+      }
     }
     load()
   }, [id])
@@ -93,6 +103,18 @@ export default function AgencyRequestDetail() {
     }
   }
 
+  async function handleMarkupChange(quoteId: string, perPerson: number, total: number) {
+    setMarkups(prev => ({
+      ...prev,
+      [quoteId]: { ...prev[quoteId], quote_id: quoteId, markup_per_person: perPerson, markup_total: total } as AgencyMarkup,
+    }))
+    await fetch('/api/agency-markups', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quoteId, markupPerPerson: perPerson, markupTotal: total }),
+    })
+  }
+
   if (!request) return <div className="p-8 text-gray-400">로딩 중...</div>
 
   const total = calculateTotalPeople(request)
@@ -105,27 +127,27 @@ export default function AgencyRequestDetail() {
   return (
     <>
       {confirmTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="text-base font-bold text-gray-900 mb-1">견적서 확정</h3>
-            <p className="text-sm text-gray-500 mt-2">이 견적서로 확정하시겠습니까?</p>
-            <p className="text-xs text-gray-400 mt-1">확정 후에는 변경이 어렵습니다.</p>
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                onClick={() => setConfirmTarget(null)}
-                className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
-                취소
-              </button>
-              <button
-                onClick={() => { handleConfirm(confirmTarget.landcoId, confirmTarget.quoteId); setConfirmTarget(null) }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                확정하기
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmMarkupModal
+          landcoTotal={confirmTarget.total}
+          totalPeople={total}
+          initialPerPerson={markups[confirmTarget.quoteId]?.markup_per_person ?? 0}
+          initialTotal={markups[confirmTarget.quoteId]?.markup_total ?? 0}
+          landcoName={confirmTarget.companyName}
+          onConfirm={async (markupPerPerson, markupTotal) => {
+            await fetch('/api/agency-markups', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                quoteId: confirmTarget.quoteId,
+                markupPerPerson,
+                markupTotal,
+              }),
+            })
+            await handleConfirm(confirmTarget.landcoId, confirmTarget.quoteId)
+            setConfirmTarget(null)
+          }}
+          onClose={() => setConfirmTarget(null)}
+        />
       )}
       {showCopyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -177,14 +199,6 @@ export default function AgencyRequestDetail() {
           url={attachmentPreview.url}
           name={attachmentPreview.name}
           onClose={() => setAttachmentPreview(null)}
-        />
-      )}
-      {preview && (
-        <ExcelPreviewModal
-          fileUrl={preview.url}
-          fileName={preview.name}
-          previewHtml={preview.previewHtml}
-          onClose={() => setPreview(null)}
         />
       )}
       <div className="p-8 max-w-4xl mx-auto">
@@ -421,6 +435,16 @@ export default function AgencyRequestDetail() {
                     <span className="text-xs text-gray-400">{quotes.length}개 버전</span>
                   </div>
                 </div>
+                {request.status !== 'finalized' && request.status !== 'payment_pending' && (
+                  <div className="mb-3 pb-3 border-b border-gray-100">
+                    <MarkupInput
+                      totalPeople={total}
+                      initialPerPerson={markups[latestQuote.id]?.markup_per_person ?? 0}
+                      initialTotal={markups[latestQuote.id]?.markup_total ?? 0}
+                      onChange={(pp, t) => handleMarkupChange(latestQuote.id, pp, t)}
+                    />
+                  </div>
+                )}
                 <div className="space-y-2">
                   {(sortedQuotes as QuoteWithPricing[]).map(q => (
                     <div key={q.id} className="py-2 border-b last:border-0">
@@ -438,32 +462,27 @@ export default function AgencyRequestDetail() {
                             {new Date(q.submitted_at).toLocaleString('ko-KR')}
                           </span>
                           <button
-                            onClick={async () => {
-                              setPreviewLoading(true)
-                              setPreview({ url: q.file_url, name: q.file_name })
-                              try {
-                                const res = await fetch(`/api/quotes/${q.id}/preview`)
-                                if (res.ok) {
-                                  const json = await res.json()
-                                  setPreview({ url: q.file_url, name: q.file_name, previewHtml: json.previewHtml })
-                                }
-                              } finally {
-                                setPreviewLoading(false)
-                              }
-                            }}
-                            disabled={previewLoading}
-                            className="border border-gray-300 text-gray-600 rounded-lg px-3 py-1 text-xs font-medium bg-white hover:bg-gray-50 whitespace-nowrap disabled:opacity-50"
+                            onClick={() => window.open(`/agency/quotes/${q.id}`, '_blank')}
+                            className="border border-gray-300 text-gray-600 rounded-lg px-3 py-1 text-xs font-medium bg-white hover:bg-gray-50 whitespace-nowrap"
                           >
                             미리보기
                           </button>
-                          <a
-                            href={q.file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            onClick={async () => {
+                              const res = await fetch(`/api/quotes/${q.id}/download`)
+                              if (!res.ok) return
+                              const blob = await res.blob()
+                              const url = URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = q.file_name
+                              a.click()
+                              URL.revokeObjectURL(url)
+                            }}
                             className="bg-[#009CF0] text-white rounded-lg px-3 py-1 text-xs font-medium hover:bg-[#0088D9] whitespace-nowrap"
                           >
                             ↓ 다운로드
-                          </a>
+                          </button>
                         </div>
                       </div>
                       <div className="flex items-center justify-between mt-1.5">
@@ -490,7 +509,12 @@ export default function AgencyRequestDetail() {
                             </span>
                           ) : request.status !== 'finalized' && request.status !== 'payment_pending' && (
                             <button
-                              onClick={() => setConfirmTarget({ landcoId, quoteId: q.id })}
+                              onClick={() => setConfirmTarget({
+                                landcoId,
+                                quoteId: q.id,
+                                total: q.pricing?.total ?? 0,
+                                companyName: company_name,
+                              })}
                               className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700"
                             >
                               이 견적서로 확정

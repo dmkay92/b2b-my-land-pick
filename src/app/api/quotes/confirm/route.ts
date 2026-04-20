@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendQuoteSelectedEmail } from '@/lib/email/notifications'
+import { extractQuotePricing } from '@/lib/excel/parse'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -52,6 +53,35 @@ export async function POST(request: NextRequest) {
       request_id: requestId,
     })
   }
+
+  // Create settlement record
+  const { data: marginSetting } = await supabase
+    .from('platform_settings').select('value').eq('key', 'margin_rate').single()
+  const marginRate = marginSetting ? Number(marginSetting.value) : 0.05
+
+  const { data: markup } = await supabase
+    .from('agency_markups').select('markup_total')
+    .eq('quote_id', quoteId).eq('agency_id', user.id).maybeSingle()
+  const agencyMarkup = markup?.markup_total ?? 0
+
+  const { data: quoteData } = await supabase
+    .from('quotes').select('file_url').eq('id', quoteId).single()
+  const pricingResult = await extractQuotePricing(quoteData!.file_url)
+  const landcoAmount = pricingResult.total ?? 0
+  const platformMargin = Math.round(landcoAmount * marginRate)
+  const totalAmount = landcoAmount + platformMargin + agencyMarkup
+
+  await supabase.from('quote_settlements').upsert({
+    request_id: requestId,
+    quote_id: quoteId,
+    landco_id: landcoId,
+    agency_id: user.id,
+    landco_amount: landcoAmount,
+    platform_margin: platformMargin,
+    platform_margin_rate: marginRate,
+    agency_markup: agencyMarkup,
+    total_amount: totalAmount,
+  }, { onConflict: 'request_id' })
 
   return NextResponse.json({ success: true })
 }
