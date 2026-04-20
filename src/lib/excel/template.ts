@@ -475,37 +475,35 @@ export async function generateFilledQuoteTemplate(
   // 빈 행 하나
   scheduleSheet.addRow([])
 
-  const summaryTotalRow = scheduleSheet.addRow(['', '', '', '', '총 합계', pricingGrandTotal > 0 ? pricingGrandTotal : ''])
-  summaryTotalRow.height = 22
-  summaryTotalRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
-    if (colNum === 5) {
-      cell.font = { size: 11, bold: true }
-      cell.alignment = { vertical: 'middle', horizontal: 'right' }
-    }
-    if (colNum === 6) {
-      cell.font = { size: 12, bold: true }
-      cell.numFmt = '#,##0'
-      cell.alignment = { vertical: 'middle', horizontal: 'right' }
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
-    }
-  })
+  const totalRowNum = scheduleSheet.rowCount + 1
+  const summaryTotalRow = scheduleSheet.addRow(['총 합계', '', '', '', pricingGrandTotal > 0 ? pricingGrandTotal : '', ''])
+  scheduleSheet.mergeCells(`A${totalRowNum}:D${totalRowNum}`)
+  scheduleSheet.mergeCells(`E${totalRowNum}:F${totalRowNum}`)
+  summaryTotalRow.height = 24
+  const totalLabelCell = scheduleSheet.getCell(`A${totalRowNum}`)
+  totalLabelCell.font = { size: 11, bold: true }
+  totalLabelCell.alignment = { vertical: 'middle', horizontal: 'right' }
+  const totalValueCell = scheduleSheet.getCell(`E${totalRowNum}`)
+  totalValueCell.font = { size: 13, bold: true }
+  totalValueCell.numFmt = '#,##0'
+  totalValueCell.alignment = { vertical: 'middle', horizontal: 'right' }
+  totalValueCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
 
   if (opts.total_people && opts.total_people > 0 && pricingGrandTotal > 0) {
     const perPerson = Math.round(pricingGrandTotal / opts.total_people)
-    const summaryPerPersonRow = scheduleSheet.addRow(['', '', '', '', '1인당', perPerson])
-    summaryPerPersonRow.height = 22
-    summaryPerPersonRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
-      if (colNum === 5) {
-        cell.font = { size: 11, bold: true }
-        cell.alignment = { vertical: 'middle', horizontal: 'right' }
-      }
-      if (colNum === 6) {
-        cell.font = { size: 12, bold: true, color: { argb: 'FF0066CC' } }
-        cell.numFmt = '#,##0'
-        cell.alignment = { vertical: 'middle', horizontal: 'right' }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
-      }
-    })
+    const ppRowNum = scheduleSheet.rowCount + 1
+    const summaryPerPersonRow = scheduleSheet.addRow(['1인당', '', '', '', perPerson, ''])
+    scheduleSheet.mergeCells(`A${ppRowNum}:D${ppRowNum}`)
+    scheduleSheet.mergeCells(`E${ppRowNum}:F${ppRowNum}`)
+    summaryPerPersonRow.height = 24
+    const ppLabelCell = scheduleSheet.getCell(`A${ppRowNum}`)
+    ppLabelCell.font = { size: 11, bold: true }
+    ppLabelCell.alignment = { vertical: 'middle', horizontal: 'right' }
+    const ppValueCell = scheduleSheet.getCell(`E${ppRowNum}`)
+    ppValueCell.font = { size: 13, bold: true, color: { argb: 'FF0066CC' } }
+    ppValueCell.numFmt = '#,##0'
+    ppValueCell.alignment = { vertical: 'middle', horizontal: 'right' }
+    ppValueCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
   }
 
   // ── 시트 2: 견적서 ──────────────────────────────────────────
