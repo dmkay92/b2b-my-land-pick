@@ -72,38 +72,29 @@ export function distributeMealExcludedMarkup(
 
   // Distribute markup to each row's price, rounded to 100원 units
   const ROUND_UNIT = 100
-  let remainingMarkup = totalMarkup
+  let distributed = 0
   for (let i = 0; i < nonMealRows.length; i++) {
     const { cat, rowIdx, total, divisor } = nonMealRows[i]
     const row = result[cat][rowIdx]
+    const isLast = i === nonMealRows.length - 1
 
     // How much markup this row should absorb (proportional)
-    const rowMarkup = i === nonMealRows.length - 1
-      ? remainingMarkup
+    const rowMarkup = isLast
+      ? totalMarkup - distributed
       : Math.round(totalMarkup * (total / nonMealSum))
 
-    // Round price to nearest ROUND_UNIT (ceiling) for clean-looking numbers
-    const rawNewPrice = row.price + rowMarkup / divisor
-    const roundedPrice = Math.ceil(rawNewPrice / ROUND_UNIT) * ROUND_UNIT
-    row.price = roundedPrice
-
-    // Track actual markup distributed
-    remainingMarkup -= (roundedPrice * divisor - total)
-  }
-
-  // Rounding may have over/under-distributed. Add remainder row to compensate.
-  const newTotal = calculatePricingTotals(result).total
-  const originalTotal = calculatePricingTotals(pricing).total
-  const diff = (originalTotal + totalMarkup) - newTotal
-  if (diff !== 0 && nonMealRows.length > 0) {
-    const largestCat = nonMealRows.reduce((a, b) => a.total > b.total ? a : b).cat
-    result[largestCat].push({
-      date: '',
-      detail: '',
-      price: diff,
-      count: 1,
-      quantity: 1,
-    })
+    // Round price to nearest ROUND_UNIT for clean-looking numbers
+    // Non-last rows: round normally. Last row: adjust to hit exact total.
+    if (!isLast) {
+      const rawNewPrice = row.price + rowMarkup / divisor
+      row.price = Math.round(rawNewPrice / ROUND_UNIT) * ROUND_UNIT
+      distributed += (row.price * divisor) - total
+    } else {
+      // Last row absorbs whatever is left to make total exact
+      const remaining = totalMarkup - distributed
+      row.price = row.price + Math.round(remaining / divisor)
+      // Don't round last row to ROUND_UNIT — exact total is more important
+    }
   }
 
   return result
