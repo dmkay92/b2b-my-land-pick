@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
   // Create settlement record
   const { data: marginSetting } = await supabase
     .from('platform_settings').select('value').eq('key', 'margin_rate').single()
-  const marginRate = marginSetting ? Number(marginSetting.value) : 0.05
+  const platformFeeRate = marginSetting ? Number(marginSetting.value) : 0.05
 
   const { data: markup } = await supabase
     .from('agency_markups').select('markup_total')
@@ -67,21 +67,31 @@ export async function POST(request: NextRequest) {
   const { data: quoteData } = await supabase
     .from('quotes').select('file_url').eq('id', quoteId).single()
   const pricingResult = await extractQuotePricing(quoteData!.file_url)
-  const quoteTotal = pricingResult.total ?? 0
-  const platformMargin = Math.round(quoteTotal * marginRate)
-  const landcoAmount = quoteTotal - platformMargin  // 랜드사 수취액 (원가 - 플랫폼 마진)
-  const totalAmount = quoteTotal + agencyMarkup       // 고객가 = 원가 + agency 마크업
+
+  const landcoQuoteTotal = pricingResult.total ?? 0
+  const platformFee = Math.round(landcoQuoteTotal * platformFeeRate)
+  const agencyCommissionRate = 1.0
+  const platformGrossRevenue = platformFee + agencyMarkup
+  const agencyPayout = Math.round(agencyMarkup * agencyCommissionRate)
+  const platformNetRevenue = platformGrossRevenue - agencyPayout
+  const landcoPayout = landcoQuoteTotal - platformFee
+  const gmv = landcoQuoteTotal + agencyMarkup
 
   await supabase.from('quote_settlements').upsert({
     request_id: requestId,
     quote_id: quoteId,
     landco_id: landcoId,
     agency_id: user.id,
-    landco_amount: landcoAmount,
-    platform_margin: platformMargin,
-    platform_margin_rate: marginRate,
+    landco_quote_total: landcoQuoteTotal,
+    platform_fee_rate: platformFeeRate,
+    platform_fee: platformFee,
     agency_markup: agencyMarkup,
-    total_amount: totalAmount,
+    agency_commission_rate: agencyCommissionRate,
+    platform_gross_revenue: platformGrossRevenue,
+    agency_payout: agencyPayout,
+    platform_net_revenue: platformNetRevenue,
+    landco_payout: landcoPayout,
+    gmv,
   }, { onConflict: 'request_id' })
 
   return NextResponse.json({ success: true })

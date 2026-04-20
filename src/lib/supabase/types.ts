@@ -227,11 +227,16 @@ export interface QuoteSettlement {
   quote_id: string
   landco_id: string
   agency_id: string
-  landco_amount: number
-  platform_margin: number
-  platform_margin_rate: number
+  landco_quote_total: number
+  platform_fee_rate: number
+  platform_fee: number
   agency_markup: number
-  total_amount: number
+  agency_commission_rate: number
+  platform_gross_revenue: number
+  agency_payout: number
+  platform_net_revenue: number
+  landco_payout: number
+  gmv: number
   landco_settled: boolean
   agency_settled: boolean
   created_at: string
