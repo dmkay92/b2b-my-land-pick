@@ -70,7 +70,8 @@ export function distributeMealExcludedMarkup(
   if (pricing.currencies) result.currencies = { ...pricing.currencies }
   if (pricing.exchangeRates) result.exchangeRates = { ...pricing.exchangeRates }
 
-  // Distribute markup to each row's price, track remainder precisely
+  // Distribute markup to each row's price, rounded to 100원 units
+  const ROUND_UNIT = 100
   let remainingMarkup = totalMarkup
   for (let i = 0; i < nonMealRows.length; i++) {
     const { cat, rowIdx, total, divisor } = nonMealRows[i]
@@ -81,23 +82,25 @@ export function distributeMealExcludedMarkup(
       ? remainingMarkup
       : Math.round(totalMarkup * (total / nonMealSum))
 
-    // Add to price, floored so we don't overshoot
-    const priceAdd = Math.floor(rowMarkup / divisor)
-    row.price += priceAdd
+    // Round price to nearest ROUND_UNIT (ceiling) for clean-looking numbers
+    const rawNewPrice = row.price + rowMarkup / divisor
+    const roundedPrice = Math.ceil(rawNewPrice / ROUND_UNIT) * ROUND_UNIT
+    row.price = roundedPrice
 
-    // Track what was actually distributed at row-total level
-    remainingMarkup -= priceAdd * divisor
+    // Track actual markup distributed
+    remainingMarkup -= (roundedPrice * divisor - total)
   }
 
-  // Remaining is a small integer (< sum of all divisors).
-  // Add it as a separate 1-unit row in the largest non-meal category to be exact.
-  if (remainingMarkup > 0 && nonMealRows.length > 0) {
-    // Find the category with the largest total to hide the adjustment naturally
+  // Rounding may have over/under-distributed. Add remainder row to compensate.
+  const newTotal = calculatePricingTotals(result).total
+  const originalTotal = calculatePricingTotals(pricing).total
+  const diff = (originalTotal + totalMarkup) - newTotal
+  if (diff !== 0 && nonMealRows.length > 0) {
     const largestCat = nonMealRows.reduce((a, b) => a.total > b.total ? a : b).cat
     result[largestCat].push({
       date: '',
       detail: '',
-      price: remainingMarkup,
+      price: diff,
       count: 1,
       quantity: 1,
     })
