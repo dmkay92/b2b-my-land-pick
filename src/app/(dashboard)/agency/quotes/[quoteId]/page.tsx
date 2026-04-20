@@ -76,15 +76,13 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
-      {/* Top bar — sticky */}
-      <div className="flex items-center justify-between bg-white/80 backdrop-blur-sm sticky top-0 z-10 -mx-6 px-6 py-3 border-b border-gray-100">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="min-w-0">
-            <h1 className="text-base font-bold truncate">{data.request.event_name}</h1>
-            <p className="text-xs text-gray-400">{data.landcoName}</p>
-          </div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">{data.request.event_name}</h1>
+          <p className="text-sm text-gray-500">{data.landcoName}</p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2">
           <button
             onClick={handleDownload}
             disabled={downloading}
@@ -106,12 +104,9 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
           </button>
           <button
             onClick={() => window.close()}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            title="닫기"
+            className="px-4 py-2 text-sm rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 active:scale-95 transition-all duration-200"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            나가기
           </button>
         </div>
       </div>
