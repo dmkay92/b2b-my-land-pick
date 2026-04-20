@@ -41,7 +41,11 @@ describe('distributeMealExcludedMarkup', () => {
     expect(result['식사'][0].price).toBe(30000) // unchanged
     const originalTotal = 300000
     const newTotals = calculatePricingTotals(result)
-    expect(newTotals.total).toBe(originalTotal + totalMarkup)
+    // 100원 단위 반올림으로 약간의 차이 허용 (±1000원 이내)
+    expect(Math.abs(newTotals.total - (originalTotal + totalMarkup))).toBeLessThan(1000)
+    // 모든 non-meal price가 100원 단위인지 확인
+    expect(result['호텔'][0].price % 100).toBe(0)
+    expect(result['차량'][0].price % 100).toBe(0)
   })
 
   it('handles zero markup', () => {
@@ -49,10 +53,10 @@ describe('distributeMealExcludedMarkup', () => {
     expect(result['호텔'][0].price).toBe(basePricing['호텔'][0].price)
   })
 
-  it('handles rounding - total matches exactly', () => {
+  it('handles rounding - total within tolerance', () => {
     const result = distributeMealExcludedMarkup(basePricing, 33333)
     const newTotals = calculatePricingTotals(result)
-    expect(newTotals.total).toBe(300000 + 33333)
+    expect(Math.abs(newTotals.total - (300000 + 33333))).toBeLessThan(1000)
   })
 
   it('handles empty non-meal categories gracefully', () => {

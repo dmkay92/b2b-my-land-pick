@@ -70,31 +70,15 @@ export function distributeMealExcludedMarkup(
   if (pricing.currencies) result.currencies = { ...pricing.currencies }
   if (pricing.exchangeRates) result.exchangeRates = { ...pricing.exchangeRates }
 
-  // Distribute markup to each row's price, rounded to 100원 units
+  // Distribute markup to each row's price, all rounded to 100원 units
   const ROUND_UNIT = 100
-  let distributed = 0
   for (let i = 0; i < nonMealRows.length; i++) {
     const { cat, rowIdx, total, divisor } = nonMealRows[i]
     const row = result[cat][rowIdx]
-    const isLast = i === nonMealRows.length - 1
 
-    // How much markup this row should absorb (proportional)
-    const rowMarkup = isLast
-      ? totalMarkup - distributed
-      : Math.round(totalMarkup * (total / nonMealSum))
-
-    // Round price to nearest ROUND_UNIT for clean-looking numbers
-    // Non-last rows: round normally. Last row: adjust to hit exact total.
-    if (!isLast) {
-      const rawNewPrice = row.price + rowMarkup / divisor
-      row.price = Math.round(rawNewPrice / ROUND_UNIT) * ROUND_UNIT
-      distributed += (row.price * divisor) - total
-    } else {
-      // Last row absorbs whatever is left to make total exact
-      const remaining = totalMarkup - distributed
-      row.price = row.price + Math.round(remaining / divisor)
-      // Don't round last row to ROUND_UNIT — exact total is more important
-    }
+    const rowMarkup = Math.round(totalMarkup * (total / nonMealSum))
+    const rawNewPrice = row.price + rowMarkup / divisor
+    row.price = Math.round(rawNewPrice / ROUND_UNIT) * ROUND_UNIT
   }
 
   return result
