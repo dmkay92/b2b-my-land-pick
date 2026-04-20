@@ -86,6 +86,10 @@ export default function AgencyRequestDetail() {
         const markupMap: Record<string, AgencyMarkup> = {}
         for (const m of markupsList) { markupMap[m.quote_id] = m }
         setMarkups(markupMap)
+        // 첫 번째 마크업으로 글로벌 마크업 초기화
+        if (markupsList.length > 0) {
+          setGlobalMarkup({ perPerson: markupsList[0].markup_per_person, total: markupsList[0].markup_total })
+        }
       }
     }
     load()
@@ -103,16 +107,26 @@ export default function AgencyRequestDetail() {
     }
   }
 
-  async function handleMarkupChange(quoteId: string, perPerson: number, total: number) {
-    setMarkups(prev => ({
-      ...prev,
-      [quoteId]: { ...prev[quoteId], quote_id: quoteId, markup_per_person: perPerson, markup_total: total } as AgencyMarkup,
-    }))
-    await fetch('/api/agency-markups', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quoteId, markupPerPerson: perPerson, markupTotal: total }),
-    })
+  const [globalMarkup, setGlobalMarkup] = useState<{ perPerson: number; total: number }>({ perPerson: 0, total: 0 })
+
+  async function handleGlobalMarkupChange(perPerson: number, total: number) {
+    setGlobalMarkup({ perPerson, total })
+    // 모든 견적의 최신 버전에 동일 마크업 저장
+    const allQuoteIds = Object.values(grouped).map(g => {
+      const sorted = [...g.quotes].sort((a, b) => b.version - a.version)
+      return sorted[0]?.id
+    }).filter(Boolean) as string[]
+
+    const newMarkups: Record<string, AgencyMarkup> = {}
+    for (const qid of allQuoteIds) {
+      newMarkups[qid] = { ...markups[qid], quote_id: qid, markup_per_person: perPerson, markup_total: total } as AgencyMarkup
+      fetch('/api/agency-markups', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quoteId: qid, markupPerPerson: perPerson, markupTotal: total }),
+      })
+    }
+    setMarkups(prev => ({ ...prev, ...newMarkups }))
   }
 
   if (!request) return <div className="p-8 text-gray-400">로딩 중...</div>
@@ -407,10 +421,20 @@ export default function AgencyRequestDetail() {
         </div>
       )}
 
-      <h2 className="text-lg font-semibold mb-4">
-        랜드사 견적서
-        <span className="text-gray-400 font-normal text-sm ml-2">{landcoCount}개 랜드사 제출</span>
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold">
+          랜드사 견적서
+          <span className="text-gray-400 font-normal text-sm ml-2">{landcoCount}개 랜드사 제출</span>
+        </h2>
+        {landcoCount > 0 && request.status !== 'finalized' && request.status !== 'payment_pending' && (
+          <MarkupInput
+            totalPeople={total}
+            initialPerPerson={globalMarkup.perPerson}
+            initialTotal={globalMarkup.total}
+            onChange={(pp, t) => handleGlobalMarkupChange(pp, t)}
+          />
+        )}
+      </div>
 
       {landcoCount === 0 ? (
         <div className="text-center py-16 text-gray-400 bg-white rounded-lg shadow-sm">
@@ -435,16 +459,6 @@ export default function AgencyRequestDetail() {
                     <span className="text-xs text-gray-400">{quotes.length}개 버전</span>
                   </div>
                 </div>
-                {request.status !== 'finalized' && request.status !== 'payment_pending' && (
-                  <div className="mb-3 pb-3 border-b border-gray-100">
-                    <MarkupInput
-                      totalPeople={total}
-                      initialPerPerson={markups[latestQuote.id]?.markup_per_person ?? 0}
-                      initialTotal={markups[latestQuote.id]?.markup_total ?? 0}
-                      onChange={(pp, t) => handleMarkupChange(latestQuote.id, pp, t)}
-                    />
-                  </div>
-                )}
                 <div className="space-y-2">
                   {(sortedQuotes as QuoteWithPricing[]).map(q => (
                     <div key={q.id} className="py-2 border-b last:border-0">
