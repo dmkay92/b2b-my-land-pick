@@ -769,42 +769,40 @@ export async function generateFilledQuoteTemplate(
     }
   }
 
-  // 총합계 행 (D열부터 시작, A:C 빈칸)
+  // 총합계 행 (D열: 레이블, H열: 금액)
   const totalRow = quoteSheet.getRow(rowIndex)
   quoteSheet.mergeCells(`D${rowIndex}:G${rowIndex}`)
   totalRow.getCell(4).value = '총 합계'
-  totalRow.getCell(4).font = { bold: true }
-  totalRow.getCell(4).alignment = { horizontal: 'right', vertical: 'middle' }
+  totalRow.getCell(4).font = { size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+  totalRow.getCell(4).alignment = { horizontal: 'center', vertical: 'middle' }
+  totalRow.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF333333' } }
   totalRow.getCell(8).value = grandTotalKrw
-  totalRow.getCell(8).numFmt = '#,##0'
-  totalRow.getCell(8).font = { bold: true }
-  totalRow.getCell(8).alignment = { vertical: 'middle', horizontal: 'right' }
+  totalRow.getCell(8).numFmt = '#,##0"원"'
+  totalRow.getCell(8).font = { size: 10, bold: true }
+  totalRow.getCell(8).alignment = { vertical: 'middle', horizontal: 'center' }
+  totalRow.getCell(8).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
   totalRow.height = 25
-  for (let c = 4; c <= 8; c++) {
-    totalRow.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
-    applyBlackBorder(totalRow.getCell(c))
-  }
+  for (let c = 4; c <= 8; c++) applyBlackBorder(totalRow.getCell(c))
   rowIndex++
 
   const perPerson = opts.total_people > 0 ? Math.round(grandTotalKrw / opts.total_people) : 0
 
-  // 1인당 금액 행 (D열부터 시작, A:C 빈칸)
+  // 1인당 금액 행
   const perPersonRow = quoteSheet.getRow(rowIndex)
   quoteSheet.mergeCells(`D${rowIndex}:G${rowIndex}`)
-  perPersonRow.getCell(4).value = '1인당 금액'
-  perPersonRow.getCell(4).font = { bold: true }
-  perPersonRow.getCell(4).alignment = { horizontal: 'right', vertical: 'middle' }
+  perPersonRow.getCell(4).value = '1인당'
+  perPersonRow.getCell(4).font = { size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+  perPersonRow.getCell(4).alignment = { horizontal: 'center', vertical: 'middle' }
+  perPersonRow.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF555555' } }
   perPersonRow.getCell(8).value = opts.total_people > 0
     ? { formula: `H${rowIndex - 1}/${opts.total_people}`, result: perPerson }
     : 0
-  perPersonRow.getCell(8).numFmt = '#,##0'
-  perPersonRow.getCell(8).font = { bold: true }
-  perPersonRow.getCell(8).alignment = { vertical: 'middle', horizontal: 'right' }
+  perPersonRow.getCell(8).numFmt = '#,##0"원"'
+  perPersonRow.getCell(8).font = { size: 10, bold: true, color: { argb: 'FF0055CC' } }
+  perPersonRow.getCell(8).alignment = { vertical: 'middle', horizontal: 'center' }
+  perPersonRow.getCell(8).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
   perPersonRow.height = 25
-  for (let c = 4; c <= 8; c++) {
-    perPersonRow.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEEFF' } }
-    applyBlackBorder(perPersonRow.getCell(c))
-  }
+  for (let c = 4; c <= 8; c++) applyBlackBorder(perPersonRow.getCell(c))
 
   // 합계 섹션 전체를 하나의 검정 외곽 테두리로 묶음
   applyQuoteSumBorder(sumSectionStart, rowIndex)
