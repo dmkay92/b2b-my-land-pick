@@ -475,35 +475,48 @@ export async function generateFilledQuoteTemplate(
   // 빈 행 하나
   scheduleSheet.addRow([])
 
+  const summaryBorder = {
+    top: { style: 'thin' as const, color: { argb: 'FF333333' } },
+    bottom: { style: 'thin' as const, color: { argb: 'FF333333' } },
+    left: { style: 'thin' as const, color: { argb: 'FF333333' } },
+    right: { style: 'thin' as const, color: { argb: 'FF333333' } },
+  }
+
   const totalRowNum = scheduleSheet.rowCount + 1
-  const summaryTotalRow = scheduleSheet.addRow(['총 합계', '', '', '', pricingGrandTotal > 0 ? pricingGrandTotal : '', ''])
+  scheduleSheet.addRow(['총 합계', '', '', '', pricingGrandTotal > 0 ? pricingGrandTotal : '', ''])
   scheduleSheet.mergeCells(`A${totalRowNum}:D${totalRowNum}`)
   scheduleSheet.mergeCells(`E${totalRowNum}:F${totalRowNum}`)
-  summaryTotalRow.height = 24
+  scheduleSheet.getRow(totalRowNum).height = 28
   const totalLabelCell = scheduleSheet.getCell(`A${totalRowNum}`)
-  totalLabelCell.font = { size: 11, bold: true }
-  totalLabelCell.alignment = { vertical: 'middle', horizontal: 'right' }
+  totalLabelCell.font = { size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
+  totalLabelCell.alignment = { vertical: 'middle', horizontal: 'center' }
+  totalLabelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF333333' } }
+  totalLabelCell.border = summaryBorder
   const totalValueCell = scheduleSheet.getCell(`E${totalRowNum}`)
-  totalValueCell.font = { size: 13, bold: true }
-  totalValueCell.numFmt = '#,##0'
-  totalValueCell.alignment = { vertical: 'middle', horizontal: 'right' }
+  totalValueCell.font = { size: 14, bold: true }
+  totalValueCell.numFmt = '#,##0"원"'
+  totalValueCell.alignment = { vertical: 'middle', horizontal: 'center' }
   totalValueCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
+  totalValueCell.border = summaryBorder
 
   if (opts.total_people && opts.total_people > 0 && pricingGrandTotal > 0) {
     const perPerson = Math.round(pricingGrandTotal / opts.total_people)
     const ppRowNum = scheduleSheet.rowCount + 1
-    const summaryPerPersonRow = scheduleSheet.addRow(['1인당', '', '', '', perPerson, ''])
+    scheduleSheet.addRow(['1인당', '', '', '', perPerson, ''])
     scheduleSheet.mergeCells(`A${ppRowNum}:D${ppRowNum}`)
     scheduleSheet.mergeCells(`E${ppRowNum}:F${ppRowNum}`)
-    summaryPerPersonRow.height = 24
+    scheduleSheet.getRow(ppRowNum).height = 28
     const ppLabelCell = scheduleSheet.getCell(`A${ppRowNum}`)
-    ppLabelCell.font = { size: 11, bold: true }
-    ppLabelCell.alignment = { vertical: 'middle', horizontal: 'right' }
+    ppLabelCell.font = { size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
+    ppLabelCell.alignment = { vertical: 'middle', horizontal: 'center' }
+    ppLabelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF555555' } }
+    ppLabelCell.border = summaryBorder
     const ppValueCell = scheduleSheet.getCell(`E${ppRowNum}`)
-    ppValueCell.font = { size: 13, bold: true, color: { argb: 'FF0066CC' } }
-    ppValueCell.numFmt = '#,##0'
-    ppValueCell.alignment = { vertical: 'middle', horizontal: 'right' }
+    ppValueCell.font = { size: 14, bold: true, color: { argb: 'FF0055CC' } }
+    ppValueCell.numFmt = '#,##0"원"'
+    ppValueCell.alignment = { vertical: 'middle', horizontal: 'center' }
     ppValueCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
+    ppValueCell.border = summaryBorder
   }
 
   // ── 시트 2: 견적서 ──────────────────────────────────────────
