@@ -421,19 +421,24 @@ export default function AgencyRequestDetail() {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">
-          랜드사 견적서
-          <span className="text-gray-400 font-normal text-sm ml-2">{landcoCount}개 랜드사 제출</span>
-        </h2>
-        {landcoCount > 0 && request.status !== 'finalized' && request.status !== 'payment_pending' && (
-          <MarkupInput
-            totalPeople={total}
-            initialPerPerson={globalMarkup.perPerson}
-            initialTotal={globalMarkup.total}
-            onChange={(pp, t) => handleGlobalMarkupChange(pp, t)}
-          />
-        )}
+      <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl px-6 py-4 mb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <h2 className="text-base font-bold text-white">랜드사 견적서</h2>
+            {landcoCount > 0 && (
+              <span className="text-xs font-medium text-gray-400 bg-gray-700 px-2.5 py-0.5 rounded-full">{landcoCount}개 랜드사</span>
+            )}
+          </div>
+          {landcoCount > 0 && request.status !== 'finalized' && request.status !== 'payment_pending' && (
+            <MarkupInput
+              totalPeople={total}
+              initialPerPerson={globalMarkup.perPerson}
+              initialTotal={globalMarkup.total}
+              onChange={(pp, t) => handleGlobalMarkupChange(pp, t)}
+              variant="dark"
+            />
+          )}
+        </div>
       </div>
 
       {landcoCount === 0 ? (

@@ -7,13 +7,14 @@ interface Props {
   initialPerPerson?: number
   initialTotal?: number
   onChange: (perPerson: number, total: number) => void
+  variant?: 'light' | 'dark'
 }
 
 function formatDisplay(n: number): string {
   return n > 0 ? n.toLocaleString('ko-KR') : ''
 }
 
-export default function MarkupInput({ totalPeople, initialPerPerson, initialTotal, onChange }: Props) {
+export default function MarkupInput({ totalPeople, initialPerPerson, initialTotal, onChange, variant = 'light' }: Props) {
   const [perPerson, setPerPerson] = useState(initialPerPerson ?? 0)
   const [total, setTotal] = useState(initialTotal ?? 0)
   const [editingField, setEditingField] = useState<'perPerson' | 'total' | null>(null)
@@ -34,9 +35,15 @@ export default function MarkupInput({ totalPeople, initialPerPerson, initialTota
     onChange(newPerPerson, num)
   }, [totalPeople, onChange])
 
+  const dark = variant === 'dark'
+
   return (
-    <div className="flex items-center gap-2 bg-blue-50/60 border border-blue-200 rounded-lg px-3 py-2">
-      <span className="text-xs font-semibold text-blue-700 whitespace-nowrap">여행사 수익</span>
+    <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${
+      dark ? 'bg-white/10 border border-white/20' : 'bg-blue-50/60 border border-blue-200'
+    }`}>
+      <span className={`text-xs font-semibold whitespace-nowrap ${dark ? 'text-emerald-400' : 'text-blue-700'}`}>
+        여행사 수익
+      </span>
       <div className="flex items-center gap-1.5">
         <div className="relative">
           <input
@@ -46,12 +53,16 @@ export default function MarkupInput({ totalPeople, initialPerPerson, initialTota
             onFocus={() => setEditingField('perPerson')}
             onBlur={() => setEditingField(null)}
             placeholder="1인당"
-            className="w-24 bg-white border border-blue-200 rounded-md px-2 py-1 text-xs text-right pr-7 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+            className={`w-24 rounded-md px-2 py-1 text-xs text-right pr-7 focus:outline-none focus:ring-1 ${
+              dark
+                ? 'bg-white/10 border border-white/20 text-white placeholder-gray-500 focus:ring-emerald-400 focus:border-emerald-400'
+                : 'bg-white border border-blue-200 text-gray-900 focus:ring-blue-400 focus:border-blue-400'
+            }`}
           />
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-blue-400 pointer-events-none">원</span>
+          <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] pointer-events-none ${dark ? 'text-gray-500' : 'text-blue-400'}`}>원</span>
         </div>
-        <span className="text-[10px] text-blue-400 whitespace-nowrap">×{totalPeople}명</span>
-        <span className="text-blue-300">=</span>
+        <span className={`text-[10px] whitespace-nowrap ${dark ? 'text-gray-500' : 'text-blue-400'}`}>×{totalPeople}명</span>
+        <span className={dark ? 'text-gray-600' : 'text-blue-300'}>=</span>
         <div className="relative">
           <input
             type={editingField === 'total' ? 'number' : 'text'}
@@ -60,9 +71,13 @@ export default function MarkupInput({ totalPeople, initialPerPerson, initialTota
             onFocus={() => setEditingField('total')}
             onBlur={() => setEditingField(null)}
             placeholder="총액"
-            className="w-28 bg-white border border-blue-200 rounded-md px-2 py-1 text-xs text-right pr-7 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400"
+            className={`w-28 rounded-md px-2 py-1 text-xs text-right pr-7 font-semibold focus:outline-none focus:ring-1 ${
+              dark
+                ? 'bg-white/10 border border-white/20 text-emerald-400 placeholder-gray-500 focus:ring-emerald-400 focus:border-emerald-400'
+                : 'bg-white border border-blue-200 text-gray-900 focus:ring-blue-400 focus:border-blue-400'
+            }`}
           />
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-blue-400 pointer-events-none">원</span>
+          <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] pointer-events-none ${dark ? 'text-gray-500' : 'text-blue-400'}`}>원</span>
         </div>
       </div>
     </div>
