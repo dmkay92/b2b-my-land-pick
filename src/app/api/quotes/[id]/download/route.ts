@@ -82,8 +82,7 @@ export async function GET(
   const workbook = await generateFilledQuoteTemplate(
     {
       event_name: req.event_name,
-      destination_country: req.destination_country,
-      destination_city: req.destination_city,
+      destination: `${req.destination_country} ${req.destination_city}`.trim(),
       depart_date: req.depart_date,
       return_date: req.return_date,
       total_people: totalPeople,
@@ -93,7 +92,6 @@ export async function GET(
       leaders: req.leaders,
       hotel_grade: req.hotel_grade,
       landco_name: landcoProfile?.company_name ?? '',
-      flight_schedule: req.flight_schedule,
     },
     { itinerary: draft.itinerary, pricing },
   )
