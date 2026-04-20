@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 interface Props {
   totalPeople: number
@@ -19,6 +19,11 @@ export default function MarkupInput({ totalPeople, initialPerPerson, initialTota
   const [perPerson, setPerPerson] = useState(initialPerPerson ?? 0)
   const [total, setTotal] = useState(initialTotal ?? 0)
   const [editingField, setEditingField] = useState<'perPerson' | 'total' | null>(null)
+
+  useEffect(() => {
+    setPerPerson(initialPerPerson ?? 0)
+    setTotal(initialTotal ?? 0)
+  }, [initialPerPerson, initialTotal])
 
   const handlePerPersonChange = useCallback((value: string) => {
     const num = Math.max(0, Math.floor(Number(value.replace(/,/g, '')) || 0))
