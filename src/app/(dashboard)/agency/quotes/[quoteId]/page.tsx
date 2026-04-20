@@ -114,6 +114,7 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
         total={totals.total}
         perPerson={perPerson}
         agencyMarkup={markupTotal > 0 ? markupTotal : undefined}
+        totalPeople={totalPeople}
       />
 
       {/* Tabs */}
