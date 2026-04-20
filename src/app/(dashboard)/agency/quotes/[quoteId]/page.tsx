@@ -25,6 +25,7 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
   const urlMarkup = Number(searchParams.get('markup')) || 0
   const [data, setData] = useState<QuoteDetailData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
   const [activeTab, setActiveTab] = useState<'itinerary' | 'pricing'>('itinerary')
 
   useEffect(() => {
@@ -56,16 +57,21 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
   const perPerson = totalPeople > 0 ? Math.round(totals.total / totalPeople) : 0
 
   const handleDownload = async () => {
-    const params = markupTotal > 0 ? `?markup=${markupTotal}` : ''
-    const res = await fetch(`/api/quotes/${quoteId}/download${params}`)
-    if (!res.ok) return
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = data.quote.file_name || 'quote.xlsx'
-    a.click()
-    URL.revokeObjectURL(url)
+    setDownloading(true)
+    try {
+      const params = markupTotal > 0 ? `?markup=${markupTotal}` : ''
+      const res = await fetch(`/api/quotes/${quoteId}/download${params}`)
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = data.quote.file_name || 'quote.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setDownloading(false)
+    }
   }
 
   return (
@@ -84,9 +90,22 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
         </div>
         <button
           onClick={handleDownload}
-          className="px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+          disabled={downloading}
+          className={`px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200 ${
+            downloading
+              ? 'bg-gray-400 text-gray-200 cursor-wait'
+              : 'bg-gray-900 text-white hover:bg-gray-800 active:scale-95'
+          }`}
         >
-          엑셀 다운로드
+          {downloading ? (
+            <span className="flex items-center gap-2">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              다운로드 중...
+            </span>
+          ) : '엑셀 다운로드'}
         </button>
       </div>
 
