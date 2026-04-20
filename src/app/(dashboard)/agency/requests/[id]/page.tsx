@@ -426,12 +426,13 @@ export default function AgencyRequestDetail() {
           랜드사 견적서
           <span className="text-gray-400 font-normal text-sm ml-2">{landcoCount}개 랜드사 제출</span>
         </h2>
-        {landcoCount > 0 && request.status !== 'finalized' && request.status !== 'payment_pending' && (
+        {landcoCount > 0 && (
           <MarkupInput
             totalPeople={total}
             initialPerPerson={globalMarkup.perPerson}
             initialTotal={globalMarkup.total}
             onChange={(pp, t) => handleGlobalMarkupChange(pp, t)}
+            disabled={request.status === 'finalized' || request.status === 'payment_pending'}
           />
         )}
       </div>
