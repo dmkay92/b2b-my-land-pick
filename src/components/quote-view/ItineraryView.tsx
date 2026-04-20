@@ -36,10 +36,10 @@ export default function ItineraryView({ itinerary }: Props) {
               {/* Rows */}
               {day.rows.map((row, rowIdx) => (
                 <div key={rowIdx} className="flex items-center border-b border-gray-100">
-                  <div className="w-24 flex-shrink-0 text-sm px-2 py-2.5 border-l-0 text-gray-600">{row.area}</div>
-                  <div className="w-28 flex-shrink-0 text-sm px-2 py-2.5 border-l border-gray-200 text-gray-600">{row.transport}</div>
-                  <div className="w-24 flex-shrink-0 text-sm px-2 py-2.5 border-l border-gray-200 text-gray-500">{row.time}</div>
-                  <div className="flex-1 text-sm px-2 py-2.5 border-l border-gray-200 text-gray-800">{row.content}</div>
+                  <div className="w-24 flex-shrink-0 text-sm px-2 py-2.5 border-l-0 text-gray-600 min-h-[38px]">{row.area || '\u00A0'}</div>
+                  <div className="w-28 flex-shrink-0 text-sm px-2 py-2.5 border-l border-gray-200 text-gray-600 min-h-[38px]">{row.transport || '\u00A0'}</div>
+                  <div className="w-24 flex-shrink-0 text-sm px-2 py-2.5 border-l border-gray-200 text-gray-500 min-h-[38px]">{row.time || '\u00A0'}</div>
+                  <div className="flex-1 text-sm px-2 py-2.5 border-l border-gray-200 text-gray-800 min-h-[38px]">{row.content || '\u00A0'}</div>
                 </div>
               ))}
 
