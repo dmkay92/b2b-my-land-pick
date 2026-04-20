@@ -106,7 +106,7 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
             onClick={() => window.close()}
             className="px-4 py-2 text-sm rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 active:scale-95 transition-all duration-200"
           >
-            나가기
+            닫기
           </button>
         </div>
       </div>
