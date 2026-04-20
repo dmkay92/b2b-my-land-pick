@@ -65,7 +65,7 @@ export default function ItineraryView({ itinerary }: Props) {
             </div>
 
             {/* Right: Meals */}
-            <div className="w-44 flex-shrink-0 border-l border-gray-900 bg-orange-50/30 flex flex-col">
+            <div className="w-32 flex-shrink-0 border-l border-gray-900 bg-orange-50/30 flex flex-col">
               {day.day === 1 && (
                 <div className="text-[11px] font-medium text-white text-center py-1.5 border-b border-gray-700 bg-gray-900">식사</div>
               )}
