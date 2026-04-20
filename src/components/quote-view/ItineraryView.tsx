@@ -7,90 +7,95 @@ interface Props {
   itinerary: ItineraryDay[]
 }
 
-const mealLabel = (meals: ItineraryDay['meals']) => {
-  if (!meals) return ''
-  const parts: string[] = []
-  if (meals['조식']?.active) parts.push(meals['조식'].note ? `조: ${meals['조식'].note}` : '조')
-  if (meals['중식']?.active) parts.push(meals['중식'].note ? `중: ${meals['중식'].note}` : '중')
-  if (meals['석식']?.active) parts.push(meals['석식'].note ? `석: ${meals['석식'].note}` : '석')
-  return parts.join(' / ')
-}
-
-const overnightLabel = (overnight: ItineraryDay['overnight']) => {
-  if (overnight.type === 'hotel') {
-    const stars = overnight.stars ? '★'.repeat(overnight.stars) : ''
-    return `${stars} ${overnight.name ?? ''}`.trim()
-  }
-  if (overnight.type === 'flight') return '✈ 기내박'
-  return ''
-}
+const MEAL_KEYS = ['조식', '중식', '석식'] as const
 
 export default function ItineraryView({ itinerary }: Props) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm bg-white">
-      <table className="w-full border-collapse text-[13px]">
-        <thead>
-          <tr>
-            <th className="bg-gray-50 border-b border-gray-200 px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">날짜</th>
-            <th className="bg-gray-50 border-b border-gray-200 px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-24">지역</th>
-            <th className="bg-gray-50 border-b border-gray-200 px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-20">교통편</th>
-            <th className="bg-gray-50 border-b border-gray-200 px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-16">시간</th>
-            <th className="bg-gray-50 border-b border-gray-200 px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">일정</th>
-            <th className="bg-gray-50 border-b border-gray-200 px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider w-28">식사</th>
-          </tr>
-        </thead>
-        <tbody>
-          {itinerary.map((day, dayIdx) => (
-            <Fragment key={day.day}>
+    <div className="border border-gray-900 divide-y divide-gray-900 rounded-lg overflow-hidden">
+      {itinerary.map(day => (
+        <div key={day.day} className="bg-white">
+          <div className="flex">
+            {/* Left: Day */}
+            <div className="w-28 flex-shrink-0 flex flex-col items-center justify-center py-4 px-2 gap-0.5 border-r border-gray-900 bg-white">
+              <span className="text-xs font-bold text-gray-900">Day {day.day}</span>
+              {day.date && <span className="text-[10px] text-gray-400">{day.date}</span>}
+            </div>
+
+            {/* Middle: Rows + Overnight */}
+            <div className="flex-1 min-w-0 flex flex-col">
+              {/* Column headers (first day only) */}
+              {day.day === 1 && (
+                <div className="flex items-center border-b border-gray-800 bg-gray-900">
+                  <div className="w-24 flex-shrink-0 text-xs font-medium text-white px-2 py-1.5">지역</div>
+                  <div className="w-28 flex-shrink-0 text-xs font-medium text-white px-2 py-1.5 border-l border-gray-700">교통편</div>
+                  <div className="w-24 flex-shrink-0 text-xs font-medium text-white px-2 py-1.5 border-l border-gray-700">시간</div>
+                  <div className="flex-1 text-xs font-medium text-white px-2 py-1.5 border-l border-gray-700">일정</div>
+                </div>
+              )}
+
+              {/* Rows */}
               {day.rows.map((row, rowIdx) => (
-                <tr
-                  key={`${day.day}-${rowIdx}`}
-                  className={`border-b border-gray-100 ${rowIdx === 0 && dayIdx > 0 ? 'border-t-2 border-t-gray-200' : ''}`}
-                >
-                  {rowIdx === 0 && (
-                    <td
-                      className="px-4 py-2 align-top font-semibold text-gray-900 bg-gray-50/50"
-                      rowSpan={day.rows.length + 1}
-                    >
-                      <div className="text-sm">Day {day.day}</div>
-                      {day.date && (
-                        <div className="text-[10px] font-normal text-gray-400 mt-0.5">{day.date}</div>
-                      )}
-                    </td>
-                  )}
-                  <td className="px-4 py-1.5 text-gray-600">{row.area}</td>
-                  <td className="px-4 py-1.5 text-gray-600">{row.transport}</td>
-                  <td className="px-4 py-1.5 text-gray-500 text-xs">{row.time}</td>
-                  <td className="px-4 py-1.5 text-gray-800">{row.content}</td>
-                  {rowIdx === 0 && (
-                    <td
-                      className="px-4 py-1.5 text-xs text-gray-500 align-top"
-                      rowSpan={day.rows.length + 1}
-                    >
-                      {mealLabel(day.meals)}
-                    </td>
-                  )}
-                </tr>
+                <div key={rowIdx} className="flex items-center border-b border-gray-100">
+                  <div className="w-24 flex-shrink-0 text-sm px-2 py-2.5 border-l-0 text-gray-600">{row.area}</div>
+                  <div className="w-28 flex-shrink-0 text-sm px-2 py-2.5 border-l border-gray-200 text-gray-600">{row.transport}</div>
+                  <div className="w-24 flex-shrink-0 text-sm px-2 py-2.5 border-l border-gray-200 text-gray-500">{row.time}</div>
+                  <div className="flex-1 text-sm px-2 py-2.5 border-l border-gray-200 text-gray-800">{row.content}</div>
+                </div>
               ))}
-              {/* Overnight row */}
-              {overnightLabel(day.overnight) && (
-                <tr className={dayIdx < itinerary.length - 1 ? 'border-b-2 border-gray-200' : ''}>
-                  <td colSpan={4} className="px-4 py-1.5 text-right">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
-                      {overnightLabel(day.overnight)}
-                    </span>
-                  </td>
-                </tr>
+
+              {/* Overnight */}
+              {day.overnight.type !== 'none' && (
+                <div className="px-4 py-2.5 bg-blue-50 border-t border-gray-100 flex items-center gap-2">
+                  {day.overnight.type === 'hotel' && (
+                    <>
+                      <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded">호텔</span>
+                      {day.overnight.stars && (
+                        <span className="text-xs text-amber-500">{'★'.repeat(day.overnight.stars)}</span>
+                      )}
+                      {day.overnight.name && (
+                        <span className="text-sm text-gray-700">{day.overnight.name}</span>
+                      )}
+                    </>
+                  )}
+                  {day.overnight.type === 'flight' && (
+                    <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded">기내박</span>
+                  )}
+                </div>
               )}
-              {!overnightLabel(day.overnight) && (
-                <tr className={dayIdx < itinerary.length - 1 ? 'border-b-2 border-gray-200' : ''}>
-                  <td colSpan={4} className="py-0.5" />
-                </tr>
+            </div>
+
+            {/* Right: Meals */}
+            <div className="w-44 flex-shrink-0 border-l border-gray-900 bg-orange-50/30 flex flex-col">
+              {day.day === 1 && (
+                <div className="text-[11px] font-medium text-white text-center py-1.5 border-b border-gray-700 bg-gray-900">식사</div>
               )}
-            </Fragment>
-          ))}
-        </tbody>
-      </table>
+              <div className="flex flex-col gap-1 px-3 py-2 flex-1 justify-center">
+                {MEAL_KEYS.map(meal => {
+                  const mealData = day.meals?.[meal]
+                  const isActive = mealData?.active !== false
+                  return (
+                    <div key={meal} className="flex items-center gap-1.5">
+                      <div className={`w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 ${
+                        isActive ? 'bg-orange-400 border-orange-400' : 'bg-white border border-gray-300'
+                      }`}>
+                        {isActive && (
+                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className={`text-xs font-medium ${isActive ? 'text-gray-700' : 'text-gray-400'}`}>{meal}</span>
+                      {isActive && mealData?.note && (
+                        <span className="text-xs text-gray-500 truncate">{mealData.note}</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
