@@ -1,0 +1,63 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id: quoteId } = await params
+
+  const { data: quote } = await supabase
+    .from('quotes').select('*').eq('id', quoteId).single()
+  if (!quote) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const { data: req } = await supabase
+    .from('quote_requests').select('*').eq('id', quote.request_id).single()
+  if (!req) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
+
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  // Get draft data
+  const { data: draft } = await adminClient
+    .from('quote_drafts').select('itinerary, pricing')
+    .eq('request_id', quote.request_id).eq('landco_id', quote.landco_id).single()
+  if (!draft) return NextResponse.json({ error: 'Draft not found' }, { status: 404 })
+
+  // Get margin rate
+  const { data: marginSetting } = await supabase
+    .from('platform_settings').select('value').eq('key', 'margin_rate').single()
+  const marginRate = marginSetting ? Number(marginSetting.value) : 0.05
+
+  // Get agency markup
+  const { data: markup } = await supabase
+    .from('agency_markups').select('markup_per_person, markup_total')
+    .eq('quote_id', quoteId).eq('agency_id', user.id).maybeSingle()
+
+  // Check selection
+  const { data: selection } = await supabase
+    .from('quote_selections').select('selected_quote_id')
+    .eq('request_id', quote.request_id).maybeSingle()
+  const isSelected = selection?.selected_quote_id === quoteId
+
+  // Get landco name
+  const { data: landcoProfile } = await adminClient
+    .from('profiles').select('company_name').eq('id', quote.landco_id).single()
+
+  return NextResponse.json({
+    quote: { id: quote.id, request_id: quote.request_id, landco_id: quote.landco_id, status: quote.status, file_name: quote.file_name },
+    request: req,
+    draft: { itinerary: draft.itinerary, pricing: draft.pricing },
+    marginRate,
+    markup: markup ?? null,
+    isSelected,
+    landcoName: landcoProfile?.company_name ?? '',
+  })
+}
