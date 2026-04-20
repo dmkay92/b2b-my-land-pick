@@ -58,7 +58,7 @@ export default function QuoteSummaryBar({ total, perPerson, agencyMarkup, totalP
         <div className="flex items-center px-3">
           <span className="text-gray-300 text-lg">=</span>
         </div>
-        <div className="flex-1 px-5 py-3 bg-blue-50 border-l-2 border-blue-500">
+        <div className="flex-1 px-5 py-3 bg-blue-50">
           <div className="text-[10px] text-blue-500 mb-0.5">최종 고객가</div>
           <div className="text-lg font-bold text-gray-900">{fmt(total)}원</div>
           <div className="text-[10px] text-gray-500">1인당 {fmt(perPerson)}원</div>
