@@ -42,7 +42,7 @@ export default function MarkupInput({ totalPeople, initialPerPerson, initialTota
       dark ? 'bg-white/10 border border-white/20' : 'bg-blue-50/60 border border-blue-200'
     }`}>
       <span className={`text-xs font-semibold whitespace-nowrap ${dark ? 'text-emerald-400' : 'text-blue-700'}`}>
-        여행사 수익
+        여행사 커미션
       </span>
       <div className="flex items-center gap-1.5">
         <div className="relative">

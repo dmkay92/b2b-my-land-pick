@@ -42,12 +42,12 @@ export default function QuoteSummaryBar({ total, perPerson, agencyMarkup, totalP
           <div className="text-[10px] text-gray-400">1인당 {fmt(landcoPerPerson)}원</div>
         </div>
 
-        {/* + 여행사 수익 */}
+        {/* + 여행사 커미션 */}
         <div className="flex items-center px-3">
           <span className="text-gray-300 text-lg">+</span>
         </div>
         <div className="flex-1 px-5 py-3 border-r border-gray-100">
-          <div className="text-[10px] text-blue-500 mb-0.5">여행사 수익</div>
+          <div className="text-[10px] text-blue-500 mb-0.5">여행사 커미션</div>
           <div className="text-base font-semibold text-blue-600">{fmt(agencyMarkup)}원</div>
           {totalPeople && (
             <div className="text-[10px] text-blue-400">1인당 {fmt(Math.round(agencyMarkup / totalPeople))}원</div>
