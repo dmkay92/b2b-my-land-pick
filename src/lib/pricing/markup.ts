@@ -70,40 +70,37 @@ export function distributeMealExcludedMarkup(
   if (pricing.currencies) result.currencies = { ...pricing.currencies }
   if (pricing.exchangeRates) result.exchangeRates = { ...pricing.exchangeRates }
 
-  // Strategy: calculate target row total (not price), then back-calculate price
-  // This avoids rounding errors from dividing then multiplying
+  // Distribute markup to each row's price, track remainder precisely
   let remainingMarkup = totalMarkup
   for (let i = 0; i < nonMealRows.length; i++) {
     const { cat, rowIdx, total, divisor } = nonMealRows[i]
     const row = result[cat][rowIdx]
-    const isLast = i === nonMealRows.length - 1
 
-    // Target markup for this row's total
-    const rowMarkup = isLast
+    // How much markup this row should absorb (proportional)
+    const rowMarkup = i === nonMealRows.length - 1
       ? remainingMarkup
       : Math.round(totalMarkup * (total / nonMealSum))
 
-    // Target new total for this row
-    const targetRowTotal = total + rowMarkup
+    // Add to price, floored so we don't overshoot
+    const priceAdd = Math.floor(rowMarkup / divisor)
+    row.price += priceAdd
 
-    // Back-calculate price: price = targetRowTotal / divisor
-    // Use floor for non-last, adjust last row to absorb remainder
-    row.price = Math.floor(targetRowTotal / divisor)
-
-    // Track actual markup applied (may differ due to floor)
-    const actualNewTotal = row.price * divisor
-    remainingMarkup -= (actualNewTotal - total)
+    // Track what was actually distributed at row-total level
+    remainingMarkup -= priceAdd * divisor
   }
 
-  // Final correction: add remaining to last row's price
-  if (remainingMarkup !== 0 && nonMealRows.length > 0) {
-    const last = nonMealRows[nonMealRows.length - 1]
-    result[last.cat][last.rowIdx].price += remainingMarkup / last.divisor
-
-    // If not evenly divisible, round and accept (should be 0-1 won difference max)
-    if (!Number.isInteger(result[last.cat][last.rowIdx].price)) {
-      result[last.cat][last.rowIdx].price = Math.round(result[last.cat][last.rowIdx].price)
-    }
+  // Remaining is a small integer (< sum of all divisors).
+  // Add it as a separate 1-unit row in the largest non-meal category to be exact.
+  if (remainingMarkup > 0 && nonMealRows.length > 0) {
+    // Find the category with the largest total to hide the adjustment naturally
+    const largestCat = nonMealRows.reduce((a, b) => a.total > b.total ? a : b).cat
+    result[largestCat].push({
+      date: '',
+      detail: '',
+      price: remainingMarkup,
+      count: 1,
+      quantity: 1,
+    })
   }
 
   return result
