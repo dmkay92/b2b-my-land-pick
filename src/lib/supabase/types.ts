@@ -208,3 +208,35 @@ export interface SignupDraft {
   } | null
   countries: string[]
 }
+
+export interface AgencyMarkup {
+  id: string
+  quote_id: string
+  agency_id: string
+  markup_per_person: number
+  markup_total: number
+  created_at: string
+  updated_at: string
+}
+
+export interface QuoteSettlement {
+  id: string
+  request_id: string
+  quote_id: string
+  landco_id: string
+  agency_id: string
+  landco_amount: number
+  platform_margin: number
+  platform_margin_rate: number
+  agency_markup: number
+  total_amount: number
+  landco_settled: boolean
+  agency_settled: boolean
+  created_at: string
+}
+
+export interface PlatformSetting {
+  key: string
+  value: unknown
+  updated_at: string
+}
