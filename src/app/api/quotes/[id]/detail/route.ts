@@ -36,10 +36,24 @@ export async function GET(
     .from('platform_settings').select('value').eq('key', 'margin_rate').single()
   const marginRate = marginSetting ? Number(marginSetting.value) : 0.05
 
-  // Get agency markup
-  const { data: markup } = await supabase
+  // Get agency markup — try this quote first, then fallback to any quote in the same request
+  let markup = null
+  const { data: directMarkup } = await supabase
     .from('agency_markups').select('markup_per_person, markup_total')
     .eq('quote_id', quoteId).eq('agency_id', user.id).maybeSingle()
+  if (directMarkup) {
+    markup = directMarkup
+  } else {
+    const { data: requestQuotes } = await supabase
+      .from('quotes').select('id').eq('request_id', quote.request_id)
+    const qIds = (requestQuotes ?? []).map(q => q.id)
+    if (qIds.length > 0) {
+      const { data: fallbackMarkup } = await supabase
+        .from('agency_markups').select('markup_per_person, markup_total')
+        .eq('agency_id', user.id).in('quote_id', qIds).limit(1).maybeSingle()
+      markup = fallbackMarkup
+    }
+  }
 
   // Check selection
   const { data: selection } = await supabase

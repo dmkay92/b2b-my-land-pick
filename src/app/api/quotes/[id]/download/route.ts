@@ -46,11 +46,25 @@ export async function GET(
     .from('profiles').select('role').eq('id', user.id).single()
   const isAgency = profile?.role === 'agency'
 
-  // Get agency markup if exists
-  const { data: markup } = await supabase
+  // Get agency markup — try this quote first, then fallback to any quote in the same request
+  const agencyId = isAgency ? user.id : req.agency_id
+  let markup = null
+  const { data: directMarkup } = await supabase
     .from('agency_markups').select('*')
-    .eq('quote_id', quoteId).eq('agency_id', isAgency ? user.id : req.agency_id)
-    .maybeSingle()
+    .eq('quote_id', quoteId).eq('agency_id', agencyId).maybeSingle()
+  if (directMarkup) {
+    markup = directMarkup
+  } else {
+    const { data: requestQuotes } = await supabase
+      .from('quotes').select('id').eq('request_id', quote.request_id)
+    const qIds = (requestQuotes ?? []).map(q => q.id)
+    if (qIds.length > 0) {
+      const { data: fallbackMarkup } = await supabase
+        .from('agency_markups').select('*')
+        .eq('agency_id', agencyId).in('quote_id', qIds).limit(1).maybeSingle()
+      markup = fallbackMarkup
+    }
+  }
 
   // Apply platform margin for agency view
   let pricing = draft.pricing

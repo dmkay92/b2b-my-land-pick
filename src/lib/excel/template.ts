@@ -463,6 +463,51 @@ export async function generateFilledQuoteTemplate(
     }
   }
 
+  // 일정표 하단: 총액 / 1인당 요약
+  const pricingCategories = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타'] as const
+  let pricingGrandTotal = 0
+  for (const cat of pricingCategories) {
+    for (const r of (draft.pricing[cat] ?? [])) {
+      pricingGrandTotal += (r.price ?? 0) * (r.count ?? 0) * (r.quantity ?? 0)
+    }
+  }
+
+  // 빈 행 하나
+  scheduleSheet.addRow([])
+
+  const summaryTotalRow = scheduleSheet.addRow(['', '', '', '', '총 합계', pricingGrandTotal > 0 ? pricingGrandTotal : ''])
+  summaryTotalRow.height = 22
+  summaryTotalRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+    if (colNum === 5) {
+      cell.font = { size: 11, bold: true }
+      cell.alignment = { vertical: 'middle', horizontal: 'right' }
+    }
+    if (colNum === 6) {
+      cell.font = { size: 12, bold: true }
+      cell.numFmt = '#,##0'
+      cell.alignment = { vertical: 'middle', horizontal: 'right' }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
+    }
+  })
+
+  if (opts.total_people && opts.total_people > 0 && pricingGrandTotal > 0) {
+    const perPerson = Math.round(pricingGrandTotal / opts.total_people)
+    const summaryPerPersonRow = scheduleSheet.addRow(['', '', '', '', '1인당', perPerson])
+    summaryPerPersonRow.height = 22
+    summaryPerPersonRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+      if (colNum === 5) {
+        cell.font = { size: 11, bold: true }
+        cell.alignment = { vertical: 'middle', horizontal: 'right' }
+      }
+      if (colNum === 6) {
+        cell.font = { size: 12, bold: true, color: { argb: 'FF0066CC' } }
+        cell.numFmt = '#,##0'
+        cell.alignment = { vertical: 'middle', horizontal: 'right' }
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
+      }
+    })
+  }
+
   // ── 시트 2: 견적서 ──────────────────────────────────────────
   const quoteSheet = workbook.addWorksheet('견적서')
   quoteSheet.views = [{ showGridLines: false }]
