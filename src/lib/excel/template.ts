@@ -486,14 +486,14 @@ export async function generateFilledQuoteTemplate(
   scheduleSheet.addRow(['총 합계', '', '', '', pricingGrandTotal > 0 ? pricingGrandTotal : '', ''])
   scheduleSheet.mergeCells(`A${totalRowNum}:D${totalRowNum}`)
   scheduleSheet.mergeCells(`E${totalRowNum}:F${totalRowNum}`)
-  scheduleSheet.getRow(totalRowNum).height = 28
+  scheduleSheet.getRow(totalRowNum).height = 25
   const totalLabelCell = scheduleSheet.getCell(`A${totalRowNum}`)
-  totalLabelCell.font = { size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
+  totalLabelCell.font = { size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
   totalLabelCell.alignment = { vertical: 'middle', horizontal: 'center' }
   totalLabelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF333333' } }
   totalLabelCell.border = summaryBorder
   const totalValueCell = scheduleSheet.getCell(`E${totalRowNum}`)
-  totalValueCell.font = { size: 14, bold: true }
+  totalValueCell.font = { size: 10, bold: true }
   totalValueCell.numFmt = '#,##0"원"'
   totalValueCell.alignment = { vertical: 'middle', horizontal: 'center' }
   totalValueCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
@@ -505,14 +505,14 @@ export async function generateFilledQuoteTemplate(
     scheduleSheet.addRow(['1인당', '', '', '', perPerson, ''])
     scheduleSheet.mergeCells(`A${ppRowNum}:D${ppRowNum}`)
     scheduleSheet.mergeCells(`E${ppRowNum}:F${ppRowNum}`)
-    scheduleSheet.getRow(ppRowNum).height = 28
+    scheduleSheet.getRow(ppRowNum).height = 25
     const ppLabelCell = scheduleSheet.getCell(`A${ppRowNum}`)
-    ppLabelCell.font = { size: 11, bold: true, color: { argb: 'FFFFFFFF' } }
+    ppLabelCell.font = { size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
     ppLabelCell.alignment = { vertical: 'middle', horizontal: 'center' }
     ppLabelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF555555' } }
     ppLabelCell.border = summaryBorder
     const ppValueCell = scheduleSheet.getCell(`E${ppRowNum}`)
-    ppValueCell.font = { size: 14, bold: true, color: { argb: 'FF0055CC' } }
+    ppValueCell.font = { size: 10, bold: true, color: { argb: 'FF0055CC' } }
     ppValueCell.numFmt = '#,##0"원"'
     ppValueCell.alignment = { vertical: 'middle', horizontal: 'center' }
     ppValueCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
