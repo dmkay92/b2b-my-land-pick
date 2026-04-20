@@ -67,9 +67,10 @@ export async function POST(request: NextRequest) {
   const { data: quoteData } = await supabase
     .from('quotes').select('file_url').eq('id', quoteId).single()
   const pricingResult = await extractQuotePricing(quoteData!.file_url)
-  const landcoAmount = pricingResult.total ?? 0
-  const platformMargin = Math.round(landcoAmount * marginRate)
-  const totalAmount = landcoAmount + platformMargin + agencyMarkup
+  const quoteTotal = pricingResult.total ?? 0
+  const platformMargin = Math.round(quoteTotal * marginRate)
+  const landcoAmount = quoteTotal - platformMargin  // 랜드사 수취액 (원가 - 플랫폼 마진)
+  const totalAmount = quoteTotal + agencyMarkup       // 고객가 = 원가 + agency 마크업
 
   await supabase.from('quote_settlements').upsert({
     request_id: requestId,

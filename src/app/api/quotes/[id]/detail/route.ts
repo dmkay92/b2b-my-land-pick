@@ -31,11 +31,6 @@ export async function GET(
   }
   const draft = { itinerary: quote.itinerary, pricing: quote.pricing }
 
-  // Get margin rate
-  const { data: marginSetting } = await supabase
-    .from('platform_settings').select('value').eq('key', 'margin_rate').single()
-  const marginRate = marginSetting ? Number(marginSetting.value) : 0.05
-
   // Get agency markup — try this quote first, then fallback to any quote in the same request
   let markup = null
   const { data: directMarkup } = await supabase
@@ -69,7 +64,6 @@ export async function GET(
     quote: { id: quote.id, request_id: quote.request_id, landco_id: quote.landco_id, status: quote.status, file_name: quote.file_name },
     request: req,
     draft: { itinerary: draft.itinerary, pricing: draft.pricing },
-    marginRate,
     markup: markup ?? null,
     isSelected,
     landcoName: landcoProfile?.company_name ?? '',

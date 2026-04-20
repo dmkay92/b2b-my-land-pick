@@ -6,14 +6,13 @@ import ItineraryView from '@/components/quote-view/ItineraryView'
 import PricingView from '@/components/quote-view/PricingView'
 import QuoteSummaryBar from '@/components/quote-view/QuoteSummaryBar'
 import { calculateTotalPeople } from '@/lib/utils'
-import { applyPlatformMargin, distributeMealExcludedMarkup, calculatePricingTotals } from '@/lib/pricing/markup'
+import { distributeMealExcludedMarkup, calculatePricingTotals } from '@/lib/pricing/markup'
 import type { ItineraryDay, PricingData, QuoteRequest } from '@/lib/supabase/types'
 
 interface QuoteDetailData {
   quote: { id: string; request_id: string; landco_id: string; status: string; file_name: string }
   request: QuoteRequest
   draft: { itinerary: ItineraryDay[]; pricing: PricingData }
-  marginRate: number
   markup: { markup_per_person: number; markup_total: number } | null
   isSelected: boolean
   landcoName: string
@@ -46,10 +45,8 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
     infants: data.request.infants, leaders: data.request.leaders,
   })
 
-  // Apply platform margin
-  let pricing = applyPlatformMargin(data.draft.pricing, data.marginRate)
-
-  // URL param takes priority over DB markup
+  // Agency markup (URL param takes priority over DB)
+  let pricing = data.draft.pricing
   const markupTotal = urlMarkup > 0 ? urlMarkup : (data.markup?.markup_total ?? 0)
   if (markupTotal > 0) {
     pricing = distributeMealExcludedMarkup(pricing, markupTotal)

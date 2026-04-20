@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { generateFilledQuoteTemplate } from '@/lib/excel/template'
 import { calculateTotalPeople } from '@/lib/utils'
-import { applyPlatformMargin, distributeMealExcludedMarkup } from '@/lib/pricing/markup'
+import { distributeMealExcludedMarkup } from '@/lib/pricing/markup'
 
 export async function GET(
   request: NextRequest,
@@ -72,13 +72,8 @@ export async function GET(
     }
   }
 
-  // Apply platform margin for agency view
-  let pricing = draft.pricing
-  if (isAgency) {
-    pricing = applyPlatformMargin(pricing, marginRate)
-  }
-
   // Apply agency markup if exists
+  let pricing = draft.pricing
   if (markupTotal > 0) {
     pricing = distributeMealExcludedMarkup(pricing, markupTotal)
   }
