@@ -76,37 +76,44 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <button
-            onClick={() => router.back()}
-            className="text-sm text-gray-500 hover:text-gray-700 mb-2"
-          >
-            ← 뒤로가기
-          </button>
-          <h1 className="text-xl font-bold">{data.request.event_name}</h1>
-          <p className="text-sm text-gray-500">{data.landcoName}</p>
+      {/* Top bar — sticky */}
+      <div className="flex items-center justify-between bg-white/80 backdrop-blur-sm sticky top-0 z-10 -mx-6 px-6 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="min-w-0">
+            <h1 className="text-base font-bold truncate">{data.request.event_name}</h1>
+            <p className="text-xs text-gray-400">{data.landcoName}</p>
+          </div>
         </div>
-        <button
-          onClick={handleDownload}
-          disabled={downloading}
-          className={`px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200 ${
-            downloading
-              ? 'bg-gray-400 text-gray-200 cursor-wait'
-              : 'bg-gray-900 text-white hover:bg-gray-800 active:scale-95'
-          }`}
-        >
-          {downloading ? (
-            <span className="flex items-center gap-2">
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              다운로드 중...
-            </span>
-          ) : '엑셀 다운로드'}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className={`px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200 ${
+              downloading
+                ? 'bg-gray-400 text-gray-200 cursor-wait'
+                : 'bg-gray-900 text-white hover:bg-gray-800 active:scale-95'
+            }`}
+          >
+            {downloading ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                다운로드 중...
+              </span>
+            ) : '엑셀 다운로드'}
+          </button>
+          <button
+            onClick={() => window.close()}
+            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            title="닫기"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Summary Bar */}
