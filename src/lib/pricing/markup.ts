@@ -42,13 +42,15 @@ export function distributeMealExcludedMarkup(
 
   const nonMealCategories = PRICING_CATEGORIES.filter(c => c !== '식사')
 
-  const nonMealRowTotals: { cat: PricingCategory; rowIdx: number; total: number }[] = []
+  // Collect non-meal rows with their totals
+  const nonMealRows: { cat: PricingCategory; rowIdx: number; total: number; divisor: number }[] = []
   let nonMealSum = 0
   for (const cat of nonMealCategories) {
     pricing[cat].forEach((row, rowIdx) => {
       const rt = rowTotal(row)
-      if (rt > 0) {
-        nonMealRowTotals.push({ cat, rowIdx, total: rt })
+      const divisor = row.count * row.quantity
+      if (rt > 0 && divisor > 0) {
+        nonMealRows.push({ cat, rowIdx, total: rt, divisor })
         nonMealSum += rt
       }
     })
@@ -56,6 +58,7 @@ export function distributeMealExcludedMarkup(
 
   if (nonMealSum === 0) return pricing
 
+  // Deep clone
   const result: PricingData = {
     호텔: pricing['호텔'].map(r => ({ ...r })),
     차량: pricing['차량'].map(r => ({ ...r })),
@@ -67,34 +70,39 @@ export function distributeMealExcludedMarkup(
   if (pricing.currencies) result.currencies = { ...pricing.currencies }
   if (pricing.exchangeRates) result.exchangeRates = { ...pricing.exchangeRates }
 
-  let distributed = 0
-  for (let i = 0; i < nonMealRowTotals.length; i++) {
-    const { cat, rowIdx, total } = nonMealRowTotals[i]
+  // Strategy: calculate target row total (not price), then back-calculate price
+  // This avoids rounding errors from dividing then multiplying
+  let remainingMarkup = totalMarkup
+  for (let i = 0; i < nonMealRows.length; i++) {
+    const { cat, rowIdx, total, divisor } = nonMealRows[i]
     const row = result[cat][rowIdx]
-    const isLast = i === nonMealRowTotals.length - 1
+    const isLast = i === nonMealRows.length - 1
 
+    // Target markup for this row's total
     const rowMarkup = isLast
-      ? totalMarkup - distributed
+      ? remainingMarkup
       : Math.round(totalMarkup * (total / nonMealSum))
 
-    const divisor = row.count * row.quantity
-    if (divisor > 0) {
-      row.price = row.price + Math.round(rowMarkup / divisor)
-      const actualRowMarkup = rowTotal(row) - total
-      distributed += actualRowMarkup
-    }
+    // Target new total for this row
+    const targetRowTotal = total + rowMarkup
+
+    // Back-calculate price: price = targetRowTotal / divisor
+    // Use floor for non-last, adjust last row to absorb remainder
+    row.price = Math.floor(targetRowTotal / divisor)
+
+    // Track actual markup applied (may differ due to floor)
+    const actualNewTotal = row.price * divisor
+    remainingMarkup -= (actualNewTotal - total)
   }
 
-  // Final rounding correction
-  const newTotal = calculatePricingTotals(result).total
-  const originalTotal = calculatePricingTotals(pricing).total
-  const diff = (originalTotal + totalMarkup) - newTotal
-  if (diff !== 0 && nonMealRowTotals.length > 0) {
-    const last = nonMealRowTotals[nonMealRowTotals.length - 1]
-    const lastRow = result[last.cat][last.rowIdx]
-    const divisor = lastRow.count * lastRow.quantity
-    if (divisor > 0) {
-      lastRow.price += Math.round(diff / divisor)
+  // Final correction: add remaining to last row's price
+  if (remainingMarkup !== 0 && nonMealRows.length > 0) {
+    const last = nonMealRows[nonMealRows.length - 1]
+    result[last.cat][last.rowIdx].price += remainingMarkup / last.divisor
+
+    // If not evenly divisible, round and accept (should be 0-1 won difference max)
+    if (!Number.isInteger(result[last.cat][last.rowIdx].price)) {
+      result[last.cat][last.rowIdx].price = Math.round(result[last.cat][last.rowIdx].price)
     }
   }
 
