@@ -195,10 +195,10 @@ export default function LandcoRequestDetail() {
         </div>
       )}
 
-      {/* 입금 확인 섹션 — 랜드사만 표시, payment_pending + 선택됨 */}
+      {/* 결제 확인 섹션 — 랜드사만 표시, payment_pending + 선택됨 */}
       {request.status === 'payment_pending' && selectionResult === 'selected' && !paymentConfirmed && (
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-amber-200">
-          <h2 className="font-semibold text-lg mb-1">입금 확인</h2>
+          <h2 className="font-semibold text-lg mb-1">결제 확인</h2>
           <p className="text-sm text-gray-500 mb-4">입금이 확인되면 아래 버튼을 눌러 최종 확정 처리해주세요.</p>
           <textarea
             value={paymentMemo}
@@ -213,7 +213,7 @@ export default function LandcoRequestDetail() {
               disabled={paymentConfirming}
               className="bg-amber-500 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50 transition-colors"
             >
-              {paymentConfirming ? '처리 중...' : '✓ 입금확인 완료'}
+              {paymentConfirming ? '처리 중...' : '✓ 결제확인 완료'}
             </button>
           </div>
         </div>
@@ -223,7 +223,7 @@ export default function LandcoRequestDetail() {
         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-6">
           <span className="text-2xl">✅</span>
           <div>
-            <p className="text-sm font-semibold text-amber-700">입금 확인이 완료되었습니다.</p>
+            <p className="text-sm font-semibold text-amber-700">결제 확인이 완료되었습니다.</p>
             <p className="text-xs text-amber-600 mt-0.5">최종 확정 처리가 완료되었습니다.</p>
           </div>
         </div>

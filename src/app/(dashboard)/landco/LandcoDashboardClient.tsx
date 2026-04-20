@@ -33,7 +33,7 @@ const SUB_PHASE_COLORS: Record<'pre' | 'mid', { border: string; badge: string }>
 const KPI_CARDS: { phase: LandcoPhase; label: string; subtext: string; color?: string }[] = [
   { phase: 'all',       label: '전체',          subtext: '모든 요청' },
   { phase: 'ing',             label: '견적 수집 중',  subtext: '견적 수집 중',       color: '#2563eb' },
-  { phase: 'payment_pending', label: '입금 대기 중',  subtext: '입금 확인 중',       color: '#d97706' },
+  { phase: 'payment_pending', label: '결제 대기 중',  subtext: '결제 확인 중',       color: '#d97706' },
   { phase: 'confirmed',       label: '여행 확정',     subtext: '출발전 · 여행중',    color: '#7c3aed' },
   { phase: 'end',       label: '여행 완료',      subtext: '일정 종료',           color: '#059669' },
   { phase: 'abandoned', label: '포기',           subtext: '참여 포기',           color: '#dc2626' },
@@ -49,7 +49,7 @@ const SECTIONS = [
   },
   {
     key: 'payment_pending' as const,
-    label: '입금 대기 중',
+    label: '결제 대기 중',
     dotColor: 'bg-amber-500',
     filter: (r: PhasedLandcoRequest) => r.phase === 'payment_pending',
   },
@@ -460,7 +460,7 @@ export function LandcoDashboardClient({
                                   : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">미제출</span>
                               )}
                               {phase === 'payment_pending' && (
-                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">입금대기</span>
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">결제대기</span>
                               )}
                               {phase === 'lost' && (
                                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">미선택</span>

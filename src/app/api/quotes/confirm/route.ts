@@ -17,12 +17,12 @@ export async function POST(request: NextRequest) {
     .from('quote_requests').select('agency_id, event_name, status').eq('id', requestId).single()
   if (qr?.agency_id !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // 이미 입금대기 또는 확정된 경우 차단
+  // 이미 결제대기 또는 확정된 경우 차단
   if (qr?.status === 'payment_pending' || qr?.status === 'finalized') {
     return NextResponse.json({ error: 'Already confirmed' }, { status: 409 })
   }
 
-  // 선택 기록 저장 (finalized_at은 null — 랜드사 입금확인 후 설정)
+  // 선택 기록 저장 (finalized_at은 null — 랜드사 결제확인 후 설정)
   await supabase.from('quote_selections').upsert({
     request_id: requestId,
     selected_quote_id: quoteId,

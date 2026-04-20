@@ -38,7 +38,7 @@ const SUB_PHASE_COLORS: Record<'pre' | 'mid' | 'end', { border: string; badge: s
 const KPI_CARDS: { phase: TravelPhase; label: string; subtext: string; color?: string }[] = [
   { phase: 'all',       label: '전체',          subtext: '모든 요청' },
   { phase: 'ing',             label: '견적 수집 중',  subtext: '랜드사 견적 대기 중', color: '#2563eb' },
-  { phase: 'payment_pending', label: '입금 대기 중',  subtext: '랜드사 입금 확인 중', color: '#d97706' },
+  { phase: 'payment_pending', label: '결제 대기 중',  subtext: '결제 확인 중', color: '#d97706' },
   { phase: 'confirmed',       label: '여행 확정',     subtext: '출발전 · 여행중',     color: '#7c3aed' },
   { phase: 'end',       label: '여행 완료',      subtext: '일정 종료',           color: '#059669' },
   { phase: 'cancelled', label: '취소',           subtext: '선택 없이 마감',      color: '#9ca3af' },
@@ -53,7 +53,7 @@ const SECTIONS = [
   },
   {
     key: 'payment_pending' as const,
-    label: '입금 대기 중',
+    label: '결제 대기 중',
     dotColor: 'bg-amber-500',
     filter: (r: PhasedRequest) => r.phase === 'payment_pending',
   },
@@ -491,7 +491,7 @@ export function AgencyDashboardClient({
                                 {req.quote_type === 'land' ? '랜드' : '호텔+랜드'}
                               </span>
                               {phase === 'payment_pending' && (
-                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">입금대기</span>
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">결제대기</span>
                               )}
                               {phase === 'ing' && req.quoteCount > 0 && (
                                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">견적 확정 필요</span>

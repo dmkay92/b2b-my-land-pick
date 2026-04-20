@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
   const now = new Date().toISOString()
 
-  // 입금 확인 처리
+  // 결제 확인 처리
   await admin.from('quote_selections').update({
     finalized_at: now,
     payment_memo: memo ?? null,

@@ -422,8 +422,8 @@ export default function AgencyRequestDetail() {
         <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-6">
           <span className="text-2xl">⏳</span>
           <div>
-            <p className="text-sm font-semibold text-amber-700">입금 대기 중입니다</p>
-            <p className="text-xs text-amber-600 mt-0.5">랜드사의 입금 확인을 기다리고 있습니다.</p>
+            <p className="text-sm font-semibold text-amber-700">결제 대기 중입니다</p>
+            <p className="text-xs text-amber-600 mt-0.5">고객 결제를 기다리고 있습니다.</p>
           </div>
         </div>
       )}
@@ -531,7 +531,7 @@ export default function AgencyRequestDetail() {
                             </span>
                           ) : selection?.selected_quote_id === q.id && request.status === 'payment_pending' ? (
                             <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-medium">
-                              입금 대기 중
+                              결제 대기 중
                             </span>
                           ) : request.status !== 'finalized' && request.status !== 'payment_pending' && (
                             <button
