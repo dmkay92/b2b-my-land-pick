@@ -63,8 +63,8 @@ export default function MarkupInput({ totalPeople, initialPerPerson, initialTota
           />
           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] pointer-events-none text-gray-400">원</span>
         </div>
-        <span className="text-[10px] whitespace-nowrap text-gray-400">×{totalPeople}명</span>
-        <span className="text-gray-300">=</span>
+        <span className="text-xs whitespace-nowrap text-gray-600 font-medium">×{totalPeople}명</span>
+        <span className="text-gray-400 font-medium">=</span>
         <div className="relative">
           <input
             type={!disabled && editingField === 'total' ? 'number' : 'text'}
