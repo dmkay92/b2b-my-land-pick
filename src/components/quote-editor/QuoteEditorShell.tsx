@@ -45,6 +45,9 @@ export function QuoteEditorShell({ requestId }: Props) {
   const [showTemplateSaveAfterSubmit, setShowTemplateSaveAfterSubmit] = useState(false)
   const [templateMode, setTemplateMode] = useState<'save' | 'load' | null>(null)
   const [isParsingExcel, setIsParsingExcel] = useState(false)
+  const [previousVersions, setPreviousVersions] = useState<{ id: string; version: number; submitted_at: string }[]>([])
+  const [showVersionDropdown, setShowVersionDropdown] = useState(false)
+  const [loadingVersion, setLoadingVersion] = useState(false)
   const closeAfterTemplateSaveRef = useRef(false)
   const excelInputRef = useRef<HTMLInputElement>(null)
 
@@ -109,6 +112,21 @@ export function QuoteEditorShell({ requestId }: Props) {
       } catch {
         // 로드 실패 시 무시
       }
+
+      // 이전 제출 버전 목록 로드
+      try {
+        const versionsRes = await fetch(`/api/requests/${requestId}`)
+        if (versionsRes.ok) {
+          const { quotes } = await versionsRes.json()
+          const myQuotes = (quotes ?? [])
+            .filter((q: { itinerary?: unknown }) => q.itinerary)
+            .map((q: { id: string; version: number; submitted_at: string }) => ({
+              id: q.id, version: q.version, submitted_at: q.submitted_at,
+            }))
+            .sort((a: { version: number }, b: { version: number }) => b.version - a.version)
+          setPreviousVersions(myQuotes)
+        }
+      } catch { /* ignore */ }
     }
     load()
   }, [requestId])
@@ -256,6 +274,24 @@ export function QuoteEditorShell({ requestId }: Props) {
       alert('엑셀 파싱 중 오류가 발생했습니다.')
     } finally {
       setIsParsingExcel(false)
+    }
+  }
+
+  async function handleLoadVersion(quoteId: string) {
+    setLoadingVersion(true)
+    setShowVersionDropdown(false)
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}/detail`)
+      if (!res.ok) { alert('버전 데이터를 불러올 수 없습니다.'); return }
+      const { draft } = await res.json()
+      if (draft?.itinerary) setItinerary(draft.itinerary)
+      if (draft?.pricing) setPricing(draft.pricing)
+      isDirtyRef.current = true
+      setSaveStatus('unsaved')
+    } catch {
+      alert('버전 불러오기에 실패했습니다.')
+    } finally {
+      setLoadingVersion(false)
     }
   }
 
@@ -465,6 +501,34 @@ export function QuoteEditorShell({ requestId }: Props) {
             >
               {isParsingExcel ? '분석 중...' : '📄 엑셀 불러오기'}
             </button>
+            {previousVersions.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowVersionDropdown(!showVersionDropdown)}
+                  disabled={loadingVersion}
+                  className="flex items-center gap-1.5 border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  {loadingVersion ? '불러오는 중...' : '이전 버전 ▼'}
+                </button>
+                {showVersionDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowVersionDropdown(false)} />
+                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[220px] py-1">
+                      {previousVersions.map(v => (
+                        <button
+                          key={v.id}
+                          onClick={() => handleLoadVersion(v.id)}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
+                        >
+                          <span className="font-medium text-gray-900">v{v.version}</span>
+                          <span className="text-xs text-gray-400">{new Date(v.submitted_at).toLocaleString('ko-KR')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             <button
               onClick={() => setTemplateMode('load')}
               className="flex items-center gap-1.5 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
