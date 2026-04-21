@@ -530,6 +530,9 @@ export function AgencyDashboardClient({
                               {phase === 'pre' && dday !== null && (
                                 <p className="text-[11px]" style={{ color: SUB_PHASE_COLORS.pre.border }}>출발까지 D-{dday}</p>
                               )}
+                              {phase === 'payment_pending' && dday !== null && (
+                                <p className="text-[11px] text-amber-600">출발까지 D-{dday}</p>
+                              )}
                               {phase === 'mid' && dday !== null && (
                                 <p className="text-[11px]" style={{ color: SUB_PHASE_COLORS.mid.border }}>귀국까지 D-{dday}</p>
                               )}
