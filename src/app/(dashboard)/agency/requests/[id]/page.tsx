@@ -475,7 +475,7 @@ export default function AgencyRequestDetail() {
             )}
           </div>
           {landcoCount > 0 && (
-            <div className="-mr-1">
+            <div className="-mr-3">
               <MarkupInput
                 totalPeople={total}
                 initialPerPerson={globalMarkup.perPerson}
