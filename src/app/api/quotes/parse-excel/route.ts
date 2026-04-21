@@ -101,18 +101,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Excel file appears empty' }, { status: 400 })
   }
 
-  // Call Gemini
-  let text: string
-  try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
-    const result = await model.generateContent([
-      SYSTEM_PROMPT,
-      `\n\n## 엑셀 내용:\n${sheetText}`,
-    ])
-    text = result.response.text()
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'AI 서비스 연결 실패'
-    return NextResponse.json({ error: `AI 분석 실패: ${msg}. 잠시 후 다시 시도해주세요.` }, { status: 502 })
+  // Call Gemini (with fallback model)
+  const MODELS = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
+  let text: string | null = null
+  let lastError = ''
+  for (const modelName of MODELS) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName })
+      const result = await model.generateContent([
+        SYSTEM_PROMPT,
+        `\n\n## 엑셀 내용:\n${sheetText}`,
+      ])
+      text = result.response.text()
+      break
+    } catch (e: unknown) {
+      lastError = e instanceof Error ? e.message : 'AI 서비스 연결 실패'
+    }
+  }
+  if (!text) {
+    return NextResponse.json({ error: `AI 분석 실패: ${lastError}. 잠시 후 다시 시도해주세요.` }, { status: 502 })
   }
 
   // Extract JSON from response
