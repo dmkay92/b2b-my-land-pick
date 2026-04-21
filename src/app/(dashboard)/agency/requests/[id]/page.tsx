@@ -481,7 +481,6 @@ export default function AgencyRequestDetail() {
               initialTotal={globalMarkup.total}
               onChange={(pp, t) => handleGlobalMarkupChange(pp, t)}
               disabled={request.status === 'finalized' || request.status === 'payment_pending'}
-              variant="light"
             />
           )}
         </div>
