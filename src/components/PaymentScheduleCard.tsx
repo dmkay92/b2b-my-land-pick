@@ -49,7 +49,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
   const [payingInstallment, setPayingInstallment] = useState<PaymentInstallment | null>(null)
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
   const [payAmount, setPayAmount] = useState('')
-  const [partialMode, setPartialMode] = useState(false)
+  const [isSplitModal, setIsSplitModal] = useState(false)
 
   const noPaid = installments.every(i => i.status === 'pending')
   const isImmediate = schedule.template_type === 'immediate'
@@ -64,11 +64,11 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
     } finally { setSwitching(false) }
   }
 
-  const openPayModal = (inst: PaymentInstallment) => {
+  const openPayModal = (inst: PaymentInstallment, split: boolean) => {
     setPayingInstallment(inst)
     setSelectedMethod(null)
-    setPayAmount(String(inst.amount - inst.paid_amount))
-    setPartialMode(inst.paid_amount > 0) // 이미 부분결제 됐으면 자동으로 금액 편집 모드
+    setIsSplitModal(split)
+    setPayAmount(split ? '' : String(inst.amount - inst.paid_amount))
   }
 
   const handlePay = async () => {
@@ -85,11 +85,13 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
             <div className="px-5 py-4 border-b border-gray-100">
-              <h3 className="text-base font-bold text-gray-900">결제하기</h3>
+              <h3 className="text-base font-bold text-gray-900">
+                {isSplitModal ? '분할결제' : '결제하기'}
+              </h3>
               <p className="text-sm text-gray-500 mt-0.5">
                 {payingInstallment.label} — {fmt(payingInstallment.amount)}원
                 {payingInstallment.paid_amount > 0 && (
-                  <span className="text-xs text-gray-400 ml-1">({fmt(payingInstallment.paid_amount)}원 결제됨)</span>
+                  <span className="text-xs text-gray-400 ml-1">({fmt(payingInstallment.paid_amount)}원 결제됨, 잔여 {fmt(payingInstallment.amount - payingInstallment.paid_amount)}원)</span>
                 )}
               </p>
             </div>
@@ -97,41 +99,21 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
             <div className="px-5 py-4 space-y-4">
               {/* 결제 금액 */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-medium text-gray-600">결제 금액</label>
-                  {payingInstallment.allow_split && !partialMode && (
-                    <button
-                      onClick={() => setPartialMode(true)}
-                      className="text-[10px] text-blue-500 hover:text-blue-700"
-                    >
-                      일부 금액만 결제
-                    </button>
-                  )}
-                  {payingInstallment.allow_split && partialMode && payingInstallment.paid_amount === 0 && (
-                    <button
-                      onClick={() => {
-                        setPartialMode(false)
-                        setPayAmount(String(payingInstallment.amount - payingInstallment.paid_amount))
-                      }}
-                      className="text-[10px] text-gray-400 hover:text-gray-600"
-                    >
-                      전액 결제
-                    </button>
-                  )}
-                </div>
-                {partialMode ? (
+                <label className="text-xs font-medium text-gray-600 mb-1.5 block">결제 금액</label>
+                {isSplitModal ? (
                   <>
                     <div className="relative">
                       <input
                         type="number"
                         value={payAmount}
                         onChange={e => setPayAmount(e.target.value)}
+                        placeholder="결제할 금액을 입력하세요"
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-right pr-8 focus:outline-none focus:ring-1 focus:ring-blue-400"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">원</span>
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1">
-                      잔여 금액: {fmt(payingInstallment.amount - payingInstallment.paid_amount)}원
+                      잔여 {fmt(payingInstallment.amount - payingInstallment.paid_amount)}원 중 일부를 결제합니다. 나머지는 다른 수단으로 결제할 수 있습니다.
                     </p>
                   </>
                 ) : (
@@ -217,8 +199,8 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
 
             return (
               <div key={inst.id} className={`px-5 py-4 ${idx > 0 ? 'border-t border-gray-100' : ''}`}>
-                {/* Top row: label + amount */}
-                <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center justify-between">
+                  {/* 좌: 넘버 + 정보 */}
                   <div className="flex items-center gap-2.5">
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${
                       inst.status === 'paid' ? 'bg-emerald-500 text-white' :
@@ -240,44 +222,53 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-lg font-bold text-gray-900">{fmt(inst.amount)}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></div>
-                    {inst.paid_at && (
-                      <div className="text-[10px] text-gray-400">{new Date(inst.paid_at).toLocaleDateString('ko-KR')} 결제</div>
+
+                  {/* 우: 금액 + 버튼 */}
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-base font-bold text-gray-900">{fmt(inst.amount)}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></div>
+                      {inst.paid_at && (
+                        <div className="text-[10px] text-gray-400">{new Date(inst.paid_at).toLocaleDateString('ko-KR')} 결제</div>
+                      )}
+                      {inst.paid_amount > 0 && inst.status !== 'paid' && (
+                        <div className="text-[10px] text-blue-500">{fmt(inst.paid_amount)}원 결제됨</div>
+                      )}
+                    </div>
+                    {canPay && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => openPayModal(inst, false)}
+                          className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all active:scale-95 whitespace-nowrap ${
+                            inst.status === 'overdue'
+                              ? 'bg-red-500 text-white hover:bg-red-600'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                          }`}
+                        >
+                          {remaining < inst.amount ? `${fmt(remaining)}원 결제` : '결제하기'}
+                        </button>
+                        {inst.allow_split && (
+                          <button
+                            onClick={() => openPayModal(inst, true)}
+                            className="px-2.5 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all active:scale-95 whitespace-nowrap"
+                          >
+                            분할결제
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
 
-                {/* Progress bar (partial 또는 paid일 때) */}
+                {/* Progress bar */}
                 {inst.paid_amount > 0 && (
-                  <div className="mb-2">
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="mt-2 ml-10">
+                    <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${inst.status === 'paid' ? 'bg-emerald-500' : 'bg-blue-500'}`}
                         style={{ width: `${progressPct}%` }}
                       />
                     </div>
-                    {inst.status !== 'paid' && (
-                      <div className="flex justify-between mt-1">
-                        <span className="text-[10px] text-gray-400">{fmt(inst.paid_amount)}원 결제됨</span>
-                        <span className="text-[10px] text-gray-400">잔여 {fmt(remaining)}원</span>
-                      </div>
-                    )}
                   </div>
-                )}
-
-                {/* 결제 버튼 */}
-                {canPay && (
-                  <button
-                    onClick={() => openPayModal(inst)}
-                    className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] ${
-                      inst.status === 'overdue'
-                        ? 'bg-red-500 text-white hover:bg-red-600'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
-                  >
-                    {remaining < inst.amount ? `${fmt(remaining)}원 결제하기` : `${fmt(inst.amount)}원 결제하기`}
-                  </button>
                 )}
               </div>
             )
