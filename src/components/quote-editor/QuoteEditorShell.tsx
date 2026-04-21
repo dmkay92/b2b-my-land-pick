@@ -501,26 +501,6 @@ export function QuoteEditorShell({ requestId }: Props) {
             >
               💰 견적서
             </button>
-            {activeTab === 'pricing' && (
-              <div className="flex items-center gap-0.5 ml-2 bg-gray-100 rounded-lg p-0.5">
-                <button
-                  onClick={() => { setPricingMode('detailed'); isDirtyRef.current = true; setSaveStatus('unsaved') }}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                    pricingMode === 'detailed' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  항목별
-                </button>
-                <button
-                  onClick={() => { setPricingMode('summary'); isDirtyRef.current = true; setSaveStatus('unsaved') }}
-                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                    pricingMode === 'summary' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  합계만
-                </button>
-              </div>
-            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -598,6 +578,34 @@ export function QuoteEditorShell({ requestId }: Props) {
             </button>
           </div>
         </div>
+
+        {/* 견적서 서브탭 */}
+        {activeTab === 'pricing' && (
+          <div className="bg-gray-50 border-b border-gray-200 px-6 py-2 flex-shrink-0">
+            <div className="flex gap-1 bg-white rounded-lg border border-gray-200 p-1 w-fit">
+              <button
+                onClick={() => { setPricingMode('detailed'); isDirtyRef.current = true; setSaveStatus('unsaved') }}
+                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  pricingMode === 'detailed'
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                항목별 내역
+              </button>
+              <button
+                onClick={() => { setPricingMode('summary'); isDirtyRef.current = true; setSaveStatus('unsaved') }}
+                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  pricingMode === 'summary'
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                합계만
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 탭 컨텐츠 */}
         <div className="flex-1 overflow-auto p-6">
