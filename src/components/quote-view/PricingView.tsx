@@ -120,7 +120,7 @@ export default function PricingView({ pricing, totalPeople }: Props) {
       {/* 외화 환율 환산 테이블 */}
       {hasNonKrw && (
         <div>
-          <table className="mx-auto border-collapse text-sm">
+          <table className="ml-auto border-collapse text-sm">
             <thead>
               <tr className="bg-gray-900 text-white">
                 <th className="border border-gray-300 px-4 py-2">통화</th>
