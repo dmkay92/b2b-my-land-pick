@@ -102,13 +102,18 @@ export async function POST(request: NextRequest) {
   }
 
   // Call Gemini
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
-  const result = await model.generateContent([
-    SYSTEM_PROMPT,
-    `\n\n## 엑셀 내용:\n${sheetText}`,
-  ])
-
-  const text = result.response.text()
+  let text: string
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const result = await model.generateContent([
+      SYSTEM_PROMPT,
+      `\n\n## 엑셀 내용:\n${sheetText}`,
+    ])
+    text = result.response.text()
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'AI 서비스 연결 실패'
+    return NextResponse.json({ error: `AI 분석 실패: ${msg}. 잠시 후 다시 시도해주세요.` }, { status: 502 })
+  }
 
   // Extract JSON from response
   const jsonMatch = text.match(/\{[\s\S]*\}/)
