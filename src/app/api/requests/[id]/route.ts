@@ -68,7 +68,12 @@ export async function GET(
 
   const quotesWithPricing = await Promise.all(
     (quotes ?? []).map(async q => {
-      const pricing = await extractQuotePricing(q.file_url)
+      let pricing
+      if (q.pricing_mode === 'summary') {
+        pricing = { total: q.summary_total ?? null, per_person: q.summary_per_person ?? null }
+      } else {
+        pricing = await extractQuotePricing(q.file_url)
+      }
       return {
         ...q,
         profiles: profileMap[q.landco_id] ?? null,
