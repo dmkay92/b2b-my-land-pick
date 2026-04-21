@@ -41,7 +41,7 @@ export default function MarkupInput({ totalPeople, initialPerPerson, initialTota
   }, [totalPeople, onChange])
 
   return (
-    <div className="flex items-center gap-2 rounded-lg px-3 py-2 bg-white border border-gray-200 shadow-sm">
+    <div className="flex items-center gap-2 rounded-md px-2.5 py-1.5 bg-white border border-gray-200 shadow-sm">
       <span className="text-xs font-semibold whitespace-nowrap text-blue-700">
         여행사 커미션
       </span>

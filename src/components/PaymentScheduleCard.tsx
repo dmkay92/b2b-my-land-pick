@@ -263,7 +263,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
       {/* 스케줄 카드 */}
       <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-gray-900 to-gray-800">
+        <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
           <div className="flex items-center gap-2.5">
             <h3 className="text-sm font-bold text-white">결제 스케줄</h3>
             <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">

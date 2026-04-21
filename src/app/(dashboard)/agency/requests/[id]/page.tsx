@@ -266,7 +266,7 @@ export default function AgencyRequestDetail() {
       {/* 견적 조건 카드 */}
       <div className="rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
         {/* 헤더: 목적지 + 마감 */}
-        <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-gray-900 to-gray-800">
+        <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
           <h3 className="text-sm font-bold text-white">견적 정보</h3>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-300">{formatDate(request.deadline)}</span>
@@ -467,7 +467,7 @@ export default function AgencyRequestDetail() {
 
       <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-gray-900 to-gray-800">
+        <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
           <div className="flex items-center gap-2.5">
             <h2 className="text-sm font-bold text-white">랜드사 견적서</h2>
             {landcoCount > 0 && (
