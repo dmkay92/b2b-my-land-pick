@@ -247,3 +247,46 @@ export interface PlatformSetting {
   value: unknown
   updated_at: string
 }
+
+export type PaymentTemplateType = 'standard' | 'large_event' | 'immediate'
+export type PaymentInstallmentStatus = 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled'
+export type PaymentTransactionStatus = 'pending' | 'success' | 'failed' | 'cancelled'
+export type PaymentMethod = 'virtual_account' | 'card_link' | 'card_keyin'
+
+export interface PaymentSchedule {
+  id: string
+  request_id: string
+  settlement_id: string | null
+  template_type: PaymentTemplateType
+  total_amount: number
+  total_people: number
+  created_at: string
+  updated_at: string
+}
+
+export interface PaymentInstallment {
+  id: string
+  schedule_id: string
+  label: string
+  rate: number
+  amount: number
+  paid_amount: number
+  due_date: string
+  status: PaymentInstallmentStatus
+  allow_split: boolean
+  paid_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PaymentTransaction {
+  id: string
+  installment_id: string
+  amount: number
+  payment_method: PaymentMethod
+  status: PaymentTransactionStatus
+  pg_transaction_id: string | null
+  pg_response: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
