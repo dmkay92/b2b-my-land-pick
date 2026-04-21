@@ -20,7 +20,7 @@ function getPhase(req: QuoteRequest, today: string): InternalPhase {
 }
 
 function getDday(req: QuoteRequest, phase: InternalPhase, today: string): number | null {
-  if (phase === 'pre') {
+  if (phase === 'pre' || phase === 'payment_pending') {
     const [ty, tm, td] = today.split('-').map(Number)
     const [dy, dm, dd] = req.depart_date.slice(0, 10).split('-').map(Number)
     return Math.ceil((Date.UTC(dy, dm - 1, dd) - Date.UTC(ty, tm - 1, td)) / 86400000)
