@@ -9,7 +9,8 @@ import { AttachmentPreviewModal } from '@/components/AttachmentPreviewModal'
 import { BackButton } from '@/components/BackButton'
 import MarkupInput from '@/components/MarkupInput'
 import ConfirmMarkupModal from '@/components/ConfirmMarkupModal'
-import type { AgencyMarkup } from '@/lib/supabase/types'
+import PaymentScheduleCard from '@/components/PaymentScheduleCard'
+import type { AgencyMarkup, PaymentSchedule, PaymentInstallment } from '@/lib/supabase/types'
 
 interface QuoteWithLandco extends Quote {
   profiles: { company_name: string }
@@ -44,6 +45,8 @@ export default function AgencyRequestDetail() {
   const [showCopyModal, setShowCopyModal] = useState(false)
   const [canceling, setCanceling] = useState(false)
   const [attachmentPreview, setAttachmentPreview] = useState<{ url: string; name: string } | null>(null)
+  const [paymentSchedule, setPaymentSchedule] = useState<PaymentSchedule | null>(null)
+  const [paymentInstallments, setPaymentInstallments] = useState<PaymentInstallment[]>([])
 
   async function handleCancel() {
     setCanceling(true)
@@ -97,6 +100,14 @@ export default function AgencyRequestDetail() {
         if (initMarkup) {
           setGlobalMarkup({ perPerson: initMarkup.markup_per_person, total: initMarkup.markup_total })
         }
+      }
+
+      // Fetch payment schedule
+      const scheduleRes = await fetch(`/api/payment-schedule?requestId=${id}`)
+      if (scheduleRes.ok) {
+        const { schedule, installments } = await scheduleRes.json()
+        setPaymentSchedule(schedule)
+        setPaymentInstallments(installments ?? [])
       }
     }
     load()
@@ -418,13 +429,25 @@ export default function AgencyRequestDetail() {
         )}
       </div>
 
-      {request.status === 'payment_pending' && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-6">
-          <span className="text-2xl">⏳</span>
-          <div>
-            <p className="text-sm font-semibold text-amber-700">결제 대기 중입니다</p>
-            <p className="text-xs text-amber-600 mt-0.5">고객 결제를 기다리고 있습니다.</p>
-          </div>
+      {(request.status === 'payment_pending' || request.status === 'finalized') && paymentSchedule && (
+        <div className="mb-6">
+          <PaymentScheduleCard
+            schedule={paymentSchedule}
+            installments={paymentInstallments}
+            onSwitchToImmediate={async () => {
+              await fetch('/api/payment-schedule', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId: id, templateType: 'immediate' }),
+              })
+              const res = await fetch(`/api/payment-schedule?requestId=${id}`)
+              if (res.ok) {
+                const { schedule, installments } = await res.json()
+                setPaymentSchedule(schedule)
+                setPaymentInstallments(installments ?? [])
+              }
+            }}
+          />
         </div>
       )}
 
