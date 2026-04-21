@@ -627,9 +627,6 @@ export default function LandcoRequestDetail() {
                   }`}>
                     v{q.version}
                   </span>
-                  {q.pricing_mode === 'summary' && (
-                    <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">합계만</span>
-                  )}
                   <span className="text-sm text-gray-600 truncate min-w-0 flex-1">{q.file_name}</span>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-gray-400 whitespace-nowrap">{new Date(q.submitted_at).toLocaleString('ko-KR')}</span>
@@ -679,9 +676,9 @@ export default function LandcoRequestDetail() {
                       </span>
                     )}
                     {q.pricing_mode === 'summary' ? (
-                      <span className="text-[10px] text-amber-500">항목별 내역 없음</span>
+                      <span className="text-xs font-medium text-amber-500">항목별 내역 없음</span>
                     ) : (
-                      <span className="text-[10px] text-emerald-500">항목별 내역 포함</span>
+                      <span className="text-xs font-medium text-emerald-500">항목별 내역 포함</span>
                     )}
                   </div>
                   {selectedQuoteId === q.id && (
