@@ -94,23 +94,29 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
 
             <div className="px-5 py-4 space-y-4">
               {/* 결제 금액 */}
-              {payingInstallment.allow_split && (
-                <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1.5 block">결제 금액</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      value={payAmount}
-                      onChange={e => setPayAmount(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-right pr-8 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">원</span>
+              <div>
+                <label className="text-xs font-medium text-gray-600 mb-1.5 block">결제 금액</label>
+                {payingInstallment.allow_split && payingInstallment.paid_amount > 0 ? (
+                  <>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={payAmount}
+                        onChange={e => setPayAmount(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-right pr-8 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">원</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      잔여 금액: {fmt(payingInstallment.amount - payingInstallment.paid_amount)}원 (분할 결제 가능)
+                    </p>
+                  </>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-right font-semibold text-gray-900">
+                    {fmt(Number(payAmount))}원
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    잔여 금액: {fmt(payingInstallment.amount - payingInstallment.paid_amount)}원 (분할 결제 가능)
-                  </p>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* 결제 수단 */}
               <div>
