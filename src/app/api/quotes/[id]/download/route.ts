@@ -111,11 +111,35 @@ export async function GET(
     { itinerary: draft.itinerary, pricing },
   )
 
-  // If not selected, remove the pricing sheet
-  if (!isSelected) {
+  // Remove pricing sheet if not selected OR summary-only mode
+  const isSummaryMode = quote.pricing_mode === 'summary'
+  if (!isSelected || isSummaryMode) {
     const pricingSheet = workbook.getWorksheet('견적서')
     if (pricingSheet) {
       workbook.removeWorksheet(pricingSheet.id)
+    }
+  }
+
+  // For summary mode, override itinerary sheet totals with summary values (KRW converted)
+  if (isSummaryMode) {
+    const summaryCurrency = (draft.pricing as { currencies?: Record<string, string> })?.currencies?.['summary'] ?? 'KRW'
+    const exRate = (draft.pricing as { exchangeRates?: Record<string, number> })?.exchangeRates?.[summaryCurrency] ?? 0
+    const rawTotal = quote.summary_total ?? 0
+    const krwTotal = summaryCurrency === 'KRW' ? rawTotal : (exRate > 0 ? Math.round(rawTotal * exRate) : rawTotal)
+    const krwPerPerson = totalPeople > 0 ? Math.round(krwTotal / totalPeople) : 0
+
+    // Find and overwrite summary rows in itinerary sheet
+    const itinerarySheet = workbook.getWorksheet('일정표')
+    if (itinerarySheet) {
+      itinerarySheet.eachRow((row, rowNum) => {
+        const cellA = row.getCell(1)
+        if (cellA.value === '총 합계') {
+          row.getCell(5).value = krwTotal + markupTotal
+        }
+        if (cellA.value === '1인당') {
+          row.getCell(5).value = totalPeople > 0 ? Math.round((krwTotal + markupTotal) / totalPeople) : 0
+        }
+      })
     }
   }
 
