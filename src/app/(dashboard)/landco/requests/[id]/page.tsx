@@ -84,27 +84,33 @@ export default function LandcoRequestDetail() {
     setUploading(true)
     setUploadError(null)
 
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('requestId', id)
-
-    const res = await fetch('/api/quotes', { method: 'POST', body: formData })
-    const json = await res.json()
-
-    if (!res.ok) {
-      setUploadError(json.error)
-    } else {
-      // pricing 포함 전체 reload
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const refreshRes = await fetch(`/api/requests/${id}`)
-        const refreshJson = await refreshRes.json()
-        const allQuotes: QuoteWithPricing[] = refreshJson.quotes ?? []
-        setMyQuotes(allQuotes.filter(q => q.landco_id === user.id).sort((a, b) => b.version - a.version))
+    try {
+      // 1. AI 파싱
+      const formData = new FormData()
+      formData.append('file', file)
+      const parseRes = await fetch('/api/quotes/parse-excel', { method: 'POST', body: formData })
+      if (!parseRes.ok) {
+        const err = await parseRes.json()
+        setUploadError(err.error || '엑셀 분석에 실패했습니다.')
+        return
       }
+      const { itinerary, pricing } = await parseRes.json()
+
+      // 2. Draft에 저장
+      await fetch('/api/quotes/draft', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: id, itinerary, pricing }),
+      })
+
+      // 3. 웹 에디터 열기
+      window.open(`/landco/requests/${id}/quote/new`, '_blank')
+    } catch {
+      setUploadError('엑셀 분석 중 오류가 발생했습니다.')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
-    setUploading(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
   }, [id])
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -457,8 +463,9 @@ export default function LandcoRequestDetail() {
             </>
           ) : uploading ? (
             <>
-              <div className="text-3xl mb-2">📂</div>
-              <p className="text-sm text-blue-600 font-medium">업로드 중...</p>
+              <div className="text-3xl mb-2">🤖</div>
+              <p className="text-sm text-blue-600 font-medium">AI가 엑셀을 분석 중입니다...</p>
+              <p className="text-xs text-gray-400 mt-1">잠시만 기다려주세요</p>
             </>
           ) : isDragging ? (
             <>
@@ -468,8 +475,8 @@ export default function LandcoRequestDetail() {
           ) : (
             <>
               <div className="text-3xl mb-2">📂</div>
-              <p className="text-sm text-gray-600 font-medium">파일을 드래그하거나 클릭하여 업로드</p>
-              <p className="text-xs text-gray-400 mt-1">.xlsx 파일만 허용됩니다</p>
+              <p className="text-sm text-gray-600 font-medium">기존 엑셀을 드래그하거나 클릭하여 업로드</p>
+              <p className="text-xs text-gray-400 mt-1">AI가 자동으로 분석하여 견적서 에디터에 채워드립니다</p>
             </>
           )}
           <input
