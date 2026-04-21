@@ -109,7 +109,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-base font-bold text-gray-900">
-                {isSplitModal ? '혼합결제' : '결제하기'}
+                {isSplitModal ? '나눠서 결제' : '결제하기'}
               </h3>
               <p className="text-sm text-gray-500 mt-0.5">
                 {payingInstallment.label} — {fmt(payingInstallment.amount)}원
@@ -265,7 +265,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
           <div className="flex items-center gap-2.5">
-            <h3 className="text-sm font-bold text-white">결제 스케줄</h3>
+            <h3 className="text-sm font-bold text-white">결제하기</h3>
             <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">
               {templateLabel(schedule.template_type)}
             </span>
@@ -276,9 +276,9 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
               <button
                 onClick={() => handleSwitch(!isImmediate)}
                 disabled={switching}
-                className="text-[10px] text-gray-300 border border-gray-600 px-2 py-0.5 rounded-full hover:bg-white/10 disabled:opacity-50 transition-colors"
+                className="text-xs text-white bg-white/20 border border-white/30 px-3 py-1 rounded-full hover:bg-white/30 disabled:opacity-50 transition-colors font-medium"
               >
-                {switching ? '변경 중...' : isImmediate ? '혼합결제' : '즉시완납'}
+                {switching ? '변경 중...' : isImmediate ? '나눠서 결제하기' : '한번에 결제하기'}
               </button>
             )}
           </div>
@@ -312,7 +312,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[11px] text-gray-500">{inst.due_date}까지</span>
-                        {inst.allow_split && <span className="text-[10px] text-blue-400">혼합결제</span>}
+                        {inst.allow_split && <span className="text-[10px] text-blue-400">나눠서 결제 가능</span>}
                       </div>
                     </div>
                   </div>
@@ -345,7 +345,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                             onClick={() => openPayModal(inst, true)}
                             className="px-2.5 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all active:scale-95 whitespace-nowrap"
                           >
-                            혼합결제
+                            나눠서 결제
                           </button>
                         )}
                       </div>
