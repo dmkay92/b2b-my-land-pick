@@ -30,6 +30,8 @@ export default function LandcoRequestDetail() {
   const [savedMemo, setSavedMemo] = useState<string | null>(null)
   const [attachmentPreview, setAttachmentPreview] = useState<{ url: string; name: string } | null>(null)
   const [savingTemplateId, setSavingTemplateId] = useState<string | null>(null)
+  const [templateModal, setTemplateModal] = useState<{ quoteId: string; defaultName: string } | null>(null)
+  const [templateName, setTemplateName] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -171,6 +173,55 @@ export default function LandcoRequestDetail() {
 
   return (
     <>
+      {templateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-bold text-gray-900">템플릿 저장</h3>
+              <p className="text-xs text-gray-500 mt-0.5">이 견적서를 템플릿으로 저장하면 다음 견적 작성 시 불러올 수 있습니다.</p>
+            </div>
+            <div className="px-5 py-4">
+              <label className="text-xs font-medium text-gray-600 mb-1.5 block">템플릿 이름</label>
+              <input
+                type="text"
+                value={templateName}
+                onChange={e => setTemplateName(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                autoFocus
+              />
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                onClick={() => setTemplateModal(null)}
+                className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                disabled={!templateName.trim() || savingTemplateId === templateModal.quoteId}
+                onClick={async () => {
+                  setSavingTemplateId(templateModal.quoteId)
+                  try {
+                    const detailRes = await fetch(`/api/quotes/${templateModal.quoteId}/detail`)
+                    if (!detailRes.ok) { alert('견적 데이터를 불러올 수 없습니다.'); return }
+                    const detail = await detailRes.json()
+                    const saveRes = await fetch('/api/templates', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ name: templateName.trim(), itinerary: detail.draft.itinerary, pricing: detail.draft.pricing }),
+                    })
+                    if (saveRes.ok) setTemplateModal(null)
+                    else alert('템플릿 저장에 실패했습니다.')
+                  } finally { setSavingTemplateId(null) }
+                }}
+                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              >
+                {savingTemplateId === templateModal.quoteId ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {attachmentPreview && (
         <AttachmentPreviewModal
           url={attachmentPreview.url}
@@ -577,28 +628,13 @@ export default function LandcoRequestDetail() {
                       다운로드
                     </a>
                     <button
-                      disabled={savingTemplateId === q.id}
-                      onClick={async () => {
-                        setSavingTemplateId(q.id)
-                        try {
-                          // quotes 테이블에서 itinerary/pricing 가져오기
-                          const detailRes = await fetch(`/api/quotes/${q.id}/detail`)
-                          if (!detailRes.ok) { alert('견적 데이터를 불러올 수 없습니다.'); return }
-                          const detail = await detailRes.json()
-                          const name = prompt('템플릿 이름을 입력하세요', q.file_name.replace('.xlsx', ''))
-                          if (!name) return
-                          const saveRes = await fetch('/api/templates', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ name, itinerary: detail.draft.itinerary, pricing: detail.draft.pricing }),
-                          })
-                          if (saveRes.ok) alert('템플릿이 저장되었습니다.')
-                          else alert('템플릿 저장에 실패했습니다.')
-                        } finally { setSavingTemplateId(null) }
+                      onClick={() => {
+                        setTemplateModal({ quoteId: q.id, defaultName: q.file_name.replace('.xlsx', '') })
+                        setTemplateName(q.file_name.replace('.xlsx', ''))
                       }}
-                      className="text-xs text-purple-600 border border-purple-300 px-2.5 py-1 rounded-md hover:bg-purple-50 transition-colors whitespace-nowrap shrink-0 disabled:opacity-50"
+                      className="text-xs text-purple-600 border border-purple-300 px-2.5 py-1 rounded-md hover:bg-purple-50 transition-colors whitespace-nowrap shrink-0"
                     >
-                      {savingTemplateId === q.id ? '저장 중...' : '템플릿 저장'}
+                      템플릿 저장
                     </button>
                   </div>
                 </div>
