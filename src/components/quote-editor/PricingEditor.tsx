@@ -129,14 +129,24 @@ function SummaryPricingMode({ pricing, onChange, summaryTotal, summaryPerPerson,
               </div>
             </div>
             {summaryExRate > 0 && summaryTotal > 0 && (
-              <div className="bg-blue-50 rounded-lg p-3 space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">KRW 환산 총액</span>
-                  <span className="font-bold text-gray-900">{krwTotal.toLocaleString('ko-KR')}원</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">KRW 환산 1인당</span>
-                  <span className="font-bold text-blue-600">{krwPerPerson.toLocaleString('ko-KR')}원</span>
+              <div className="bg-white border border-gray-900 rounded-lg p-5 mt-2">
+                <div className="flex flex-col gap-2 items-end">
+                  <div className="flex items-center gap-6">
+                    <span className="text-sm text-gray-500">총 합계</span>
+                    <span className="text-lg font-bold text-gray-900">
+                      <span className="text-sm font-normal text-gray-400 mr-1">KRW</span>
+                      {krwTotal.toLocaleString('ko-KR')}
+                    </span>
+                  </div>
+                  {totalPeople > 0 && (
+                    <div className="flex items-center gap-6">
+                      <span className="text-sm text-gray-500">1인당 금액</span>
+                      <span className="text-lg font-bold text-blue-600">
+                        <span className="text-sm font-normal text-blue-400 mr-1">KRW</span>
+                        {krwPerPerson.toLocaleString('ko-KR')}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
