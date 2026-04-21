@@ -315,8 +315,7 @@ export function PricingEditor({ request, pricing, onChange, pricingMode, onPrici
           </div>
         </div>
         )
-      })()
-      ) : (
+      })()) : (
       <>
       <div className="border border-gray-900 divide-y divide-gray-900">
       {CATEGORIES.map(cat => {
