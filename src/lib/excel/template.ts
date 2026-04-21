@@ -463,14 +463,23 @@ export async function generateFilledQuoteTemplate(
     }
   }
 
-  // 일정표 하단: 총액 / 1인당 요약
+  // 일정표 하단: 총액 / 1인당 요약 (KRW 환산)
   const pricingCategories = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타'] as const
+  const scheduleExchangeRates = draft.pricing.exchangeRates ?? {}
+  const scheduleToKrw = (amount: number, currency: string) => {
+    if (currency === 'KRW') return amount
+    const rate = scheduleExchangeRates[currency] ?? 0
+    return rate > 0 ? amount * rate : 0
+  }
   let pricingGrandTotal = 0
   for (const cat of pricingCategories) {
     for (const r of (draft.pricing[cat] ?? [])) {
-      pricingGrandTotal += (r.price ?? 0) * (r.count ?? 0) * (r.quantity ?? 0)
+      const cur = r.currency ?? 'KRW'
+      const rowTotal = (r.price ?? 0) * (r.count ?? 0) * (r.quantity ?? 0)
+      pricingGrandTotal += scheduleToKrw(rowTotal, cur)
     }
   }
+  pricingGrandTotal = Math.round(pricingGrandTotal)
 
   // 빈 행 하나
   scheduleSheet.addRow([])
