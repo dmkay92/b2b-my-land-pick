@@ -16,6 +16,9 @@ interface QuoteDetailData {
   markup: { markup_per_person: number; markup_total: number } | null
   isSelected: boolean
   landcoName: string
+  pricing_mode: 'detailed' | 'summary'
+  summary_total: number
+  summary_per_person: number
 }
 
 export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId: string }> }) {
@@ -53,8 +56,13 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
     pricing = distributeMealExcludedMarkup(pricing, markupTotal)
   }
 
-  const totals = calculatePricingTotals(pricing)
-  const perPerson = totalPeople > 0 ? Math.round(totals.total / totalPeople) : 0
+  const isSummaryMode = data.pricing_mode === 'summary'
+  const totals = isSummaryMode
+    ? { total: data.summary_total || 0, categoryTotals: {} }
+    : calculatePricingTotals(pricing)
+  const perPerson = isSummaryMode
+    ? (data.summary_per_person || 0)
+    : (totalPeople > 0 ? Math.round(totals.total / totalPeople) : 0)
 
   const handleDownload = async () => {
     setDownloading(true)
@@ -132,7 +140,7 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
           >
             일정표
           </button>
-          {data.isSelected && (
+          {data.isSelected && data.pricing_mode !== 'summary' && (
             <button
               onClick={() => setActiveTab('pricing')}
               className={`pb-2 text-sm font-medium border-b-2 ${
@@ -144,12 +152,15 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
               견적서
             </button>
           )}
+          {data.pricing_mode === 'summary' && (
+            <span className="pb-2 text-xs text-amber-500 font-medium self-end">항목별 내역 없음</span>
+          )}
         </nav>
       </div>
 
       {/* Tab Content */}
       {activeTab === 'itinerary' && <ItineraryView itinerary={data.draft.itinerary} />}
-      {activeTab === 'pricing' && data.isSelected && (
+      {activeTab === 'pricing' && data.isSelected && data.pricing_mode !== 'summary' && (
         <PricingView pricing={pricing} totalPeople={totalPeople} />
       )}
     </div>
