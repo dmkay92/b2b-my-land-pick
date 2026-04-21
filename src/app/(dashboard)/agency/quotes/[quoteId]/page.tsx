@@ -51,19 +51,26 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
 
   const isSummaryMode = data.pricing_mode === 'summary'
 
-  // Agency markup (URL param takes priority over DB) — skip for summary mode
+  // Agency markup
   let pricing = data.draft.pricing
-  const markupTotal = isSummaryMode ? 0 : (urlMarkup > 0 ? urlMarkup : (data.markup?.markup_total ?? 0))
-  if (markupTotal > 0) {
+  const markupTotal = urlMarkup > 0 ? urlMarkup : (data.markup?.markup_total ?? 0)
+  if (!isSummaryMode && markupTotal > 0) {
     pricing = distributeMealExcludedMarkup(pricing, markupTotal)
   }
 
-  const totals = isSummaryMode
-    ? { total: data.summary_total || 0, categoryTotals: {} }
-    : calculatePricingTotals(pricing)
-  const perPerson = isSummaryMode
-    ? (data.summary_per_person || 0)
-    : (totalPeople > 0 ? Math.round(totals.total / totalPeople) : 0)
+  // Calculate totals — summary mode uses summary_total (with KRW conversion if foreign currency)
+  let baseTotal: number
+  if (isSummaryMode) {
+    const summaryCurrency = data.draft.pricing.currencies?.['summary'] ?? 'KRW'
+    const summaryExRate = data.draft.pricing.exchangeRates?.[summaryCurrency] ?? 0
+    const rawTotal = data.summary_total || 0
+    baseTotal = summaryCurrency === 'KRW' ? rawTotal : (summaryExRate > 0 ? Math.round(rawTotal * summaryExRate) : rawTotal)
+  } else {
+    baseTotal = calculatePricingTotals(pricing).total
+  }
+
+  const totals = { total: baseTotal + markupTotal, categoryTotals: {} }
+  const perPerson = totalPeople > 0 ? Math.round(totals.total / totalPeople) : 0
 
   const handleDownload = async () => {
     setDownloading(true)
