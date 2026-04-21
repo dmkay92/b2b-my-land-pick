@@ -17,7 +17,6 @@ function formatDisplay(n: number): string {
 export default function MarkupInput({ totalPeople, initialPerPerson, initialTotal, onChange, disabled = false }: Props) {
   const [perPerson, setPerPerson] = useState(initialPerPerson ?? 0)
   const [total, setTotal] = useState(initialTotal ?? 0)
-  const [editingField, setEditingField] = useState<'perPerson' | 'total' | null>(null)
 
   useEffect(() => {
     setPerPerson(initialPerPerson ?? 0)
@@ -48,11 +47,10 @@ export default function MarkupInput({ totalPeople, initialPerPerson, initialTota
       <div className="flex items-center gap-1.5">
         <div className="relative">
           <input
-            type={!disabled && editingField === 'perPerson' ? 'number' : 'text'}
-            value={!disabled && editingField === 'perPerson' ? (perPerson || '') : formatDisplay(perPerson)}
+            type="text"
+            inputMode="numeric"
+            value={formatDisplay(perPerson)}
             onChange={e => !disabled && handlePerPersonChange(e.target.value)}
-            onFocus={() => !disabled && setEditingField('perPerson')}
-            onBlur={() => setEditingField(null)}
             readOnly={disabled}
             placeholder="1인당"
             className={`w-28 rounded-md px-2 py-1 text-xs text-right pr-7 focus:outline-none ${
@@ -67,11 +65,10 @@ export default function MarkupInput({ totalPeople, initialPerPerson, initialTota
         <span className="text-gray-400 font-medium">=</span>
         <div className="relative">
           <input
-            type={!disabled && editingField === 'total' ? 'number' : 'text'}
-            value={!disabled && editingField === 'total' ? (total || '') : formatDisplay(total)}
+            type="text"
+            inputMode="numeric"
+            value={formatDisplay(total)}
             onChange={e => !disabled && handleTotalChange(e.target.value)}
-            onFocus={() => !disabled && setEditingField('total')}
-            onBlur={() => setEditingField(null)}
             readOnly={disabled}
             placeholder="총액"
             className={`w-28 rounded-md px-2 py-1 text-xs text-right pr-7 font-semibold focus:outline-none ${
