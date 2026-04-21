@@ -50,28 +50,22 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
   })
 
   const isSummaryMode = data.pricing_mode === 'summary'
-
-  // Agency markup
-  let pricing = data.draft.pricing
   const markupTotal = urlMarkup > 0 ? urlMarkup : (data.markup?.markup_total ?? 0)
-  if (!isSummaryMode && markupTotal > 0) {
-    pricing = distributeMealExcludedMarkup(pricing, markupTotal)
-  }
+  const exchangeRates = data.draft.pricing.exchangeRates ?? {}
 
-  // Calculate totals — summary mode uses summary_total (with KRW conversion if foreign currency)
+  // Calculate KRW base total (before markup)
   let baseTotal: number
   if (isSummaryMode) {
     const summaryCurrency = data.draft.pricing.currencies?.['summary'] ?? 'KRW'
-    const summaryExRate = data.draft.pricing.exchangeRates?.[summaryCurrency] ?? 0
+    const summaryExRate = exchangeRates[summaryCurrency] ?? 0
     const rawTotal = data.summary_total || 0
     baseTotal = summaryCurrency === 'KRW' ? rawTotal : (summaryExRate > 0 ? Math.round(rawTotal * summaryExRate) : rawTotal)
   } else {
-    // KRW 환산 — 외화 항목은 환율 적용
-    const exchangeRates = data.draft.pricing.exchangeRates ?? {}
+    // KRW 환산 — 원본 pricing (마크업 적용 전)으로 계산
     const categories = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타'] as const
     let krwTotal = 0
     for (const cat of categories) {
-      for (const r of (pricing[cat] ?? [])) {
+      for (const r of (data.draft.pricing[cat] ?? [])) {
         const cur = r.currency ?? 'KRW'
         const rowTotal = r.price * r.count * r.quantity
         if (cur === 'KRW') {
@@ -85,8 +79,15 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
     baseTotal = krwTotal
   }
 
+  // Markup은 KRW 기준이므로 환산 후 더함
   const totals = { total: baseTotal + markupTotal, categoryTotals: {} }
   const perPerson = totalPeople > 0 ? Math.round(totals.total / totalPeople) : 0
+
+  // Pricing with markup (for breakdown view only)
+  let pricing = data.draft.pricing
+  if (!isSummaryMode && markupTotal > 0) {
+    pricing = distributeMealExcludedMarkup(pricing, markupTotal)
+  }
 
   const handleDownload = async () => {
     setDownloading(true)
