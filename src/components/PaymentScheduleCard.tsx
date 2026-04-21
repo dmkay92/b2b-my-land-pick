@@ -162,85 +162,103 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
       )}
 
       {/* 스케줄 카드 */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold text-gray-900">결제 스케줄</h3>
-            <span className="text-[11px] text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">
+      <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-900 to-gray-800">
+          <div className="flex items-center gap-2.5">
+            <h3 className="text-sm font-bold text-white">결제 스케줄</h3>
+            <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">
               {templateLabel(schedule.template_type)}
             </span>
           </div>
-          {noPaid && !forceImmediate && (
-            <button
-              onClick={() => handleSwitch(!isImmediate)}
-              disabled={switching}
-              className="text-xs text-blue-600 border border-blue-300 px-3 py-1 rounded-full hover:bg-blue-50 disabled:opacity-50"
-            >
-              {switching ? '변경 중...' : isImmediate ? '분할결제 전환' : '즉시완납 전환'}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-white">{fmt(schedule.total_amount)}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></span>
+            {noPaid && !forceImmediate && (
+              <button
+                onClick={() => handleSwitch(!isImmediate)}
+                disabled={switching}
+                className="text-[10px] text-gray-300 border border-gray-600 px-2 py-0.5 rounded-full hover:bg-white/10 disabled:opacity-50 transition-colors"
+              >
+                {switching ? '변경 중...' : isImmediate ? '분할결제' : '즉시완납'}
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="divide-y divide-gray-100">
+        {/* Installments */}
+        <div className="bg-white">
           {installments.map((inst, idx) => {
             const remaining = inst.amount - inst.paid_amount
             const canPay = inst.status === 'pending' || inst.status === 'partial' || inst.status === 'overdue'
+            const progressPct = inst.amount > 0 ? Math.min(100, Math.round((inst.paid_amount / inst.amount) * 100)) : 0
 
             return (
-              <div key={inst.id} className="px-5 py-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+              <div key={inst.id} className={`px-5 py-4 ${idx > 0 ? 'border-t border-gray-100' : ''}`}>
+                {/* Top row: label + amount */}
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${
                       inst.status === 'paid' ? 'bg-emerald-500 text-white' :
                       inst.status === 'partial' ? 'bg-blue-500 text-white' :
-                      'bg-gray-200 text-gray-500'
+                      inst.status === 'overdue' ? 'bg-red-500 text-white' :
+                      'bg-gray-100 text-gray-500 border border-gray-200'
                     }`}>
                       {inst.status === 'paid' ? '✓' : idx + 1}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-gray-900">{inst.label}</span>
-                        <span className="text-xs text-gray-400">{Math.round(inst.rate * 100)}%</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-bold text-gray-900">{inst.label}</span>
+                        <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{Math.round(inst.rate * 100)}%</span>
+                        {statusBadge(inst.status)}
                       </div>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        기한: {inst.due_date}
-                        {inst.allow_split && <span className="ml-2 text-gray-400">(혼합결제 가능)</span>}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] text-gray-500">{inst.due_date}까지</span>
+                        {inst.allow_split && <span className="text-[10px] text-blue-400">혼합결제</span>}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-gray-900">{fmt(inst.amount)}원</div>
-                      <div className="mt-0.5 flex items-center gap-1.5 justify-end">
-                        {inst.paid_amount > 0 && inst.status !== 'paid' && (
-                          <span className="text-[10px] text-gray-400">{fmt(inst.paid_amount)}원 결제됨</span>
-                        )}
-                        {statusBadge(inst.status)}
-                      </div>
-                      {inst.paid_at && (
-                        <div className="text-[10px] text-gray-400 mt-0.5">
-                          {new Date(inst.paid_at).toLocaleString('ko-KR')}
-                        </div>
-                      )}
-                    </div>
-                    {canPay && (
-                      <button
-                        onClick={() => openPayModal(inst)}
-                        className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 active:scale-95 transition-all whitespace-nowrap"
-                      >
-                        {remaining < inst.amount ? `${fmt(remaining)}원 결제` : '결제하기'}
-                      </button>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-gray-900">{fmt(inst.amount)}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></div>
+                    {inst.paid_at && (
+                      <div className="text-[10px] text-gray-400">{new Date(inst.paid_at).toLocaleDateString('ko-KR')} 결제</div>
                     )}
                   </div>
                 </div>
+
+                {/* Progress bar (partial 또는 paid일 때) */}
+                {inst.paid_amount > 0 && (
+                  <div className="mb-2">
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${inst.status === 'paid' ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                    {inst.status !== 'paid' && (
+                      <div className="flex justify-between mt-1">
+                        <span className="text-[10px] text-gray-400">{fmt(inst.paid_amount)}원 결제됨</span>
+                        <span className="text-[10px] text-gray-400">잔여 {fmt(remaining)}원</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 결제 버튼 */}
+                {canPay && (
+                  <button
+                    onClick={() => openPayModal(inst)}
+                    className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-all active:scale-[0.98] ${
+                      inst.status === 'overdue'
+                        ? 'bg-red-500 text-white hover:bg-red-600'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    {remaining < inst.amount ? `${fmt(remaining)}원 결제하기` : `${fmt(inst.amount)}원 결제하기`}
+                  </button>
+                )}
               </div>
             )
           })}
-        </div>
-
-        <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
-          <span className="text-xs text-gray-500">총 결제금액</span>
-          <span className="text-base font-bold text-gray-900">{fmt(schedule.total_amount)}원</span>
         </div>
       </div>
     </>
