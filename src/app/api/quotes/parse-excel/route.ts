@@ -12,7 +12,10 @@ function extractSheetText(workbook: ExcelJS.Workbook): string {
     sheet.eachRow((row, rowNum) => {
       const cells: string[] = []
       row.eachCell({ includeEmpty: false }, (cell) => {
-        const val = cell.text?.trim() || cell.value?.toString()?.trim() || ''
+        let val = ''
+        try {
+          val = cell.text?.trim() || String(cell.value ?? '').trim()
+        } catch { val = '' }
         if (val) cells.push(val)
       })
       if (cells.length > 0) parts.push(`행${rowNum}: ${cells.join(' | ')}`)
