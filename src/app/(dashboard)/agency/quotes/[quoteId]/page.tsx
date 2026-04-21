@@ -83,10 +83,17 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
   const totals = { total: baseTotal + markupTotal, categoryTotals: {} }
   const perPerson = totalPeople > 0 ? Math.round(totals.total / totalPeople) : 0
 
-  // Pricing with markup (for breakdown view only)
+  // Pricing with markup (for breakdown view only — KRW only)
   let pricing = data.draft.pricing
   if (!isSummaryMode && markupTotal > 0) {
-    pricing = distributeMealExcludedMarkup(pricing, markupTotal)
+    const categories = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타'] as const
+    const allKrw = categories.every(cat =>
+      (data.draft.pricing[cat] ?? []).every(r => (r.currency ?? 'KRW') === 'KRW')
+    )
+    if (allKrw) {
+      pricing = distributeMealExcludedMarkup(pricing, markupTotal)
+    }
+    // 외화 포함 시 pricing은 원본 유지 — 마크업은 totals에만 반영됨
   }
 
   const handleDownload = async () => {
