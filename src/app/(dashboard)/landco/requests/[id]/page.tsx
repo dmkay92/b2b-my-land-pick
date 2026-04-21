@@ -636,14 +636,22 @@ export default function LandcoRequestDetail() {
                     >
                       미리보기
                     </button>
-                    <a
-                      href={q.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={async () => {
+                        const res = await fetch(`/api/quotes/${q.id}/download`)
+                        if (!res.ok) return
+                        const blob = await res.blob()
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = q.file_name
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      }}
                       className="text-xs text-gray-600 border border-gray-300 px-2.5 py-1 rounded-md hover:bg-gray-100 transition-colors whitespace-nowrap shrink-0"
                     >
                       다운로드
-                    </a>
+                    </button>
                     <button
                       onClick={() => {
                         setTemplateModal({ quoteId: q.id, defaultName: q.file_name.replace('.xlsx', '') })
