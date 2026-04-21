@@ -49,6 +49,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
   const [payingInstallment, setPayingInstallment] = useState<PaymentInstallment | null>(null)
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
   const [payAmount, setPayAmount] = useState('')
+  const [partialMode, setPartialMode] = useState(false)
 
   const noPaid = installments.every(i => i.status === 'pending')
   const isImmediate = schedule.template_type === 'immediate'
@@ -67,6 +68,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
     setPayingInstallment(inst)
     setSelectedMethod(null)
     setPayAmount(String(inst.amount - inst.paid_amount))
+    setPartialMode(inst.paid_amount > 0) // 이미 부분결제 됐으면 자동으로 금액 편집 모드
   }
 
   const handlePay = async () => {
@@ -95,8 +97,29 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
             <div className="px-5 py-4 space-y-4">
               {/* 결제 금액 */}
               <div>
-                <label className="text-xs font-medium text-gray-600 mb-1.5 block">결제 금액</label>
-                {payingInstallment.allow_split && payingInstallment.paid_amount > 0 ? (
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-medium text-gray-600">결제 금액</label>
+                  {payingInstallment.allow_split && !partialMode && (
+                    <button
+                      onClick={() => setPartialMode(true)}
+                      className="text-[10px] text-blue-500 hover:text-blue-700"
+                    >
+                      일부 금액만 결제
+                    </button>
+                  )}
+                  {payingInstallment.allow_split && partialMode && payingInstallment.paid_amount === 0 && (
+                    <button
+                      onClick={() => {
+                        setPartialMode(false)
+                        setPayAmount(String(payingInstallment.amount - payingInstallment.paid_amount))
+                      }}
+                      className="text-[10px] text-gray-400 hover:text-gray-600"
+                    >
+                      전액 결제
+                    </button>
+                  )}
+                </div>
+                {partialMode ? (
                   <>
                     <div className="relative">
                       <input
@@ -108,7 +131,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">원</span>
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1">
-                      잔여 금액: {fmt(payingInstallment.amount - payingInstallment.paid_amount)}원 (분할 결제 가능)
+                      잔여 금액: {fmt(payingInstallment.amount - payingInstallment.paid_amount)}원
                     </p>
                   </>
                 ) : (
