@@ -65,6 +65,88 @@ function grandTotal(pricing: PricingData): number {
   return CATEGORIES.reduce((sum, cat) => sum + categoryTotal(pricing[cat]), 0)
 }
 
+function SummaryPricingMode({ pricing, onChange, summaryTotal, summaryPerPerson, onSummaryTotalChange, onSummaryPerPersonChange, totalPeople }: {
+  pricing: PricingData; onChange: (p: PricingData) => void;
+  summaryTotal: number; summaryPerPerson: number;
+  onSummaryTotalChange: (v: number) => void; onSummaryPerPersonChange: (v: number) => void;
+  totalPeople: number;
+}) {
+  const summaryCurrency = pricing.currencies?.['summary'] ?? 'KRW'
+  const summaryExRate = pricing.exchangeRates?.[summaryCurrency] ?? 0
+  const isKrw = summaryCurrency === 'KRW'
+  const krwTotal = isKrw ? summaryTotal : (summaryExRate > 0 ? Math.round(summaryTotal * summaryExRate) : 0)
+  const krwPerPerson = totalPeople > 0 && krwTotal > 0 ? Math.round(krwTotal / totalPeople) : 0
+  const curSymbol = getCurrencySymbol(summaryCurrency)
+
+  const setSummaryCurrency = (code: string) => {
+    onChange({ ...pricing, currencies: { ...pricing.currencies, summary: code } })
+  }
+  const setSummaryExRate = (rate: number) => {
+    onChange({ ...pricing, exchangeRates: { ...pricing.exchangeRates, [summaryCurrency]: rate } })
+  }
+
+  return (
+    <div className="bg-white border border-gray-900 rounded-lg p-8">
+      <div className="max-w-md mx-auto space-y-5">
+        <p className="text-sm text-gray-500 text-center mb-6">세부 항목 없이 견적 총액만 제출합니다.<br /><span className="text-xs text-gray-400">여행사에는 &apos;상세 견적 미포함&apos;으로 표시됩니다.</span></p>
+
+        <div>
+          <label className="text-xs font-medium text-gray-600 mb-1.5 block">통화</label>
+          <div className="flex gap-1.5">
+            {CURRENCIES.map(c => (
+              <button key={c.code} type="button" onClick={() => setSummaryCurrency(c.code)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  summaryCurrency === c.code ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                }`}>{c.code}</button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-600 mb-1.5 block">총 합계</label>
+          <div className="relative">
+            <input type="text" inputMode="numeric" value={summaryTotal ? summaryTotal.toLocaleString('ko-KR') : ''} onChange={e => { const v = Number(e.target.value.replace(/,/g, '')) || 0; onSummaryTotalChange(v); if (totalPeople > 0) onSummaryPerPersonChange(Math.round(v / totalPeople)) }} className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg text-right pr-14 focus:outline-none focus:ring-1 focus:ring-blue-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="0" />
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">{curSymbol}</span>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-600 mb-1.5 block">1인당 금액</label>
+          <div className="relative">
+            <input type="text" inputMode="numeric" value={summaryPerPerson ? summaryPerPerson.toLocaleString('ko-KR') : ''} onChange={e => { const v = Number(e.target.value.replace(/,/g, '')) || 0; onSummaryPerPersonChange(v); if (totalPeople > 0) onSummaryTotalChange(v * totalPeople) }} className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg text-right pr-14 focus:outline-none focus:ring-1 focus:ring-blue-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" placeholder="0" />
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">{curSymbol}</span>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-1">총 {totalPeople}명 기준 · 총 합계와 자동 연동</p>
+        </div>
+
+        {!isKrw && (
+          <div className="border-t border-gray-200 pt-4 space-y-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1.5 block">환율 ({summaryCurrency} → KRW)</label>
+              <div className="relative">
+                <input type="text" inputMode="decimal" value={summaryExRate || ''} onChange={e => setSummaryExRate(Number(e.target.value) || 0)} className="w-full border border-gray-300 rounded-lg px-4 py-3 text-right pr-20 focus:outline-none focus:ring-1 focus:ring-blue-400" placeholder="0" />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400">KRW/{summaryCurrency}</span>
+              </div>
+            </div>
+            {summaryExRate > 0 && summaryTotal > 0 && (
+              <div className="bg-blue-50 rounded-lg p-3 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">KRW 환산 총액</span>
+                  <span className="font-bold text-gray-900">{krwTotal.toLocaleString('ko-KR')}원</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-gray-500">KRW 환산 1인당</span>
+                  <span className="font-bold text-blue-600">{krwPerPerson.toLocaleString('ko-KR')}원</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function PricingEditor({ request, pricing, onChange, pricingMode, onPricingModeChange, summaryTotal, summaryPerPerson, onSummaryTotalChange, onSummaryPerPersonChange }: Props) {
   const [dragState, setDragState] = useState<DragState | null>(null)
   const dragStateRef = useRef<DragState | null>(null)
@@ -202,120 +284,17 @@ export function PricingEditor({ request, pricing, onChange, pricingMode, onPrici
   return (
     <div className="pb-24">
 
-      {pricingMode === 'summary' ? (() => {
-        const summaryCurrency = pricing.currencies?.['summary'] ?? 'KRW'
-        const summaryExRate = pricing.exchangeRates?.[summaryCurrency] ?? 0
-        const isKrw = summaryCurrency === 'KRW'
-        const krwTotal = isKrw ? summaryTotal : (summaryExRate > 0 ? Math.round(summaryTotal * summaryExRate) : 0)
-        const krwPerPerson = totalPeople > 0 && krwTotal > 0 ? Math.round(krwTotal / totalPeople) : 0
-        const curSymbol = getCurrencySymbol(summaryCurrency)
-
-        const setSummaryCurrency = (code: string) => {
-          onChange({ ...pricing, currencies: { ...pricing.currencies, summary: code } })
-        }
-        const setSummaryExRate = (rate: number) => {
-          onChange({ ...pricing, exchangeRates: { ...pricing.exchangeRates, [summaryCurrency]: rate } })
-        }
-
-        return (
-        <div className="bg-white border border-gray-900 rounded-lg p-8">
-          <div className="max-w-md mx-auto space-y-5">
-            <p className="text-sm text-gray-500 text-center mb-6">세부 항목 없이 견적 총액만 제출합니다.<br /><span className="text-xs text-gray-400">여행사에는 &apos;상세 견적 미포함&apos;으로 표시됩니다.</span></p>
-
-            {/* 통화 선택 */}
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1.5 block">통화</label>
-              <div className="flex gap-1.5">
-                {CURRENCIES.map(c => (
-                  <button
-                    key={c.code}
-                    type="button"
-                    onClick={() => setSummaryCurrency(c.code)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                      summaryCurrency === c.code
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    {c.code}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1.5 block">총 합계</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={summaryTotal ? summaryTotal.toLocaleString('ko-KR') : ''}
-                  onChange={e => {
-                    const v = Number(e.target.value.replace(/,/g, '')) || 0
-                    onSummaryTotalChange(v)
-                    if (totalPeople > 0) onSummaryPerPersonChange(Math.round(v / totalPeople))
-                  }}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg text-right pr-14 focus:outline-none focus:ring-1 focus:ring-blue-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  placeholder="0"
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">{curSymbol}</span>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600 mb-1.5 block">1인당 금액</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={summaryPerPerson ? summaryPerPerson.toLocaleString('ko-KR') : ''}
-                  onChange={e => {
-                    const v = Number(e.target.value.replace(/,/g, '')) || 0
-                    onSummaryPerPersonChange(v)
-                    if (totalPeople > 0) onSummaryTotalChange(v * totalPeople)
-                  }}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg text-right pr-14 focus:outline-none focus:ring-1 focus:ring-blue-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  placeholder="0"
-                />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">{curSymbol}</span>
-              </div>
-              <p className="text-[10px] text-gray-400 mt-1">총 {totalPeople}명 기준 · 총 합계와 자동 연동</p>
-            </div>
-
-            {/* 환율 입력 (외화일 때) */}
-            {!isKrw && (
-              <div className="border-t border-gray-200 pt-4 space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-gray-600 mb-1.5 block">환율 ({summaryCurrency} → KRW)</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={summaryExRate || ''}
-                      onChange={e => setSummaryExRate(Number(e.target.value) || 0)}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-3 text-right pr-20 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      placeholder="0"
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-400">KRW/{summaryCurrency}</span>
-                  </div>
-                </div>
-                {summaryExRate > 0 && summaryTotal > 0 && (
-                  <div className="bg-blue-50 rounded-lg p-3 space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-500">KRW 환산 총액</span>
-                      <span className="font-bold text-gray-900">{krwTotal.toLocaleString('ko-KR')}원</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-500">KRW 환산 1인당</span>
-                      <span className="font-bold text-blue-600">{krwPerPerson.toLocaleString('ko-KR')}원</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-        )
-      })()) : (
+      {pricingMode === 'summary' ? (
+        <SummaryPricingMode
+          pricing={pricing}
+          onChange={onChange}
+          summaryTotal={summaryTotal}
+          summaryPerPerson={summaryPerPerson}
+          onSummaryTotalChange={onSummaryTotalChange}
+          onSummaryPerPersonChange={onSummaryPerPersonChange}
+          totalPeople={totalPeople}
+        />
+      ) : (
       <>
       <div className="border border-gray-900 divide-y divide-gray-900">
       {CATEGORIES.map(cat => {
