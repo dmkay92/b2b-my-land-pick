@@ -13,7 +13,7 @@ interface Props {
   onClose: () => void
 }
 
-function formatNumber(n: number): string {
+function fmt(n: number): string {
   return n.toLocaleString('ko-KR')
 }
 
@@ -35,19 +35,18 @@ export default function ConfirmMarkupModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
         <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold">
-            {step === 1 ? '여행사 수익 설정' : '최종 금액 확인'}
+          <h3 className="text-base font-bold text-gray-900">
+            {step === 1 ? '여행사 커미션 설정' : '최종 금액 확인'}
           </h3>
-          <p className="text-sm text-gray-500 mt-1">{landcoName}</p>
         </div>
 
         <div className="px-6 py-5">
           {step === 1 ? (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600">
-                고객에게 청구할 여행사 수익을 설정하세요.
+            <div className="space-y-5">
+              <p className="text-sm text-gray-500">
+                고객에게 청구할 여행사 커미션을 설정하세요.
               </p>
               <MarkupInput
                 totalPeople={totalPeople}
@@ -55,27 +54,52 @@ export default function ConfirmMarkupModal({
                 initialTotal={markupTotal}
                 onChange={(pp, t) => { setMarkupPerPerson(pp); setMarkupTotal(t) }}
               />
+
+              {/* 실시간 합계 */}
+              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">랜드사 견적가</span>
+                  <span className="text-gray-700">{fmt(landcoTotal)}원</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">여행사 커미션</span>
+                  <span className="text-blue-600 font-medium">+{fmt(markupTotal)}원</span>
+                </div>
+                <div className="border-t border-gray-200 pt-2 flex justify-between">
+                  <span className="text-sm font-bold text-gray-900">최종 고객가</span>
+                  <span className="text-lg font-bold text-gray-900">{fmt(finalTotal)}원</span>
+                </div>
+                {totalPeople > 0 && (
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>1인당</span>
+                    <span>{fmt(finalPerPerson)}원</span>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
               <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">랜드사 견적가</span>
-                  <span>{formatNumber(landcoTotal)}원</span>
+                  <span className="text-gray-500">랜드사 견적가</span>
+                  <span>{fmt(landcoTotal)}원</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">여행사 수익</span>
-                  <span className="text-blue-600">+{formatNumber(markupTotal)}원</span>
+                  <span className="text-gray-500">여행사 커미션</span>
+                  <span className="text-blue-600 font-medium">+{fmt(markupTotal)}원</span>
                 </div>
-                <div className="border-t border-gray-200 pt-2 flex justify-between font-bold">
-                  <span>최종 고객가</span>
-                  <span className="text-lg">{formatNumber(finalTotal)}원</span>
+                <div className="border-t border-gray-200 pt-2 flex justify-between">
+                  <span className="text-sm font-bold text-gray-900">최종 고객가</span>
+                  <span className="text-lg font-bold text-gray-900">{fmt(finalTotal)}원</span>
                 </div>
-                <div className="flex justify-between text-sm text-gray-500">
-                  <span>1인당</span>
-                  <span>{formatNumber(finalPerPerson)}원</span>
-                </div>
+                {totalPeople > 0 && (
+                  <div className="flex justify-between text-xs text-gray-400">
+                    <span>1인당</span>
+                    <span>{fmt(finalPerPerson)}원</span>
+                  </div>
+                )}
               </div>
+              <p className="text-xs text-gray-400 text-center">위 금액으로 견적을 확정합니다. 확정 후에는 변경이 어렵습니다.</p>
             </div>
           )}
         </div>
