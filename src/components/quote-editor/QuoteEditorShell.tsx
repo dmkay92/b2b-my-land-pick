@@ -131,7 +131,6 @@ export function QuoteEditorShell({ requestId }: Props) {
         if (versionsRes.ok) {
           const { quotes } = await versionsRes.json()
           const myQuotes = (quotes ?? [])
-            .filter((q: { itinerary?: unknown }) => q.itinerary)
             .map((q: { id: string; version: number; submitted_at: string }) => ({
               id: q.id, version: q.version, submitted_at: q.submitted_at,
             }))
