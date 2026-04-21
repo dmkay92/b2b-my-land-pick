@@ -129,7 +129,7 @@ function SummaryPricingMode({ pricing, onChange, summaryTotal, summaryPerPerson,
               </div>
             </div>
             {summaryExRate > 0 && summaryTotal > 0 && (
-              <div className="bg-white border border-gray-900 rounded-lg p-5 mt-2">
+              <div className="p-5 mt-2">
                 <div className="flex flex-col gap-2 items-end">
                   <div className="flex items-center gap-6">
                     <span className="text-sm text-gray-500">총 합계</span>
