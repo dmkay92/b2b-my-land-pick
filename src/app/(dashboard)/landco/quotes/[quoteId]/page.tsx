@@ -1,12 +1,10 @@
 'use client'
 
 import { useEffect, useState, use } from 'react'
-import { useRouter } from 'next/navigation'
 import ItineraryView from '@/components/quote-view/ItineraryView'
 import PricingView from '@/components/quote-view/PricingView'
 import QuoteSummaryBar from '@/components/quote-view/QuoteSummaryBar'
 import { calculateTotalPeople } from '@/lib/utils'
-import { calculatePricingTotals } from '@/lib/pricing/markup'
 import type { ItineraryDay, PricingData, QuoteRequest } from '@/lib/supabase/types'
 
 interface QuoteDetailData {
@@ -14,11 +12,13 @@ interface QuoteDetailData {
   request: QuoteRequest
   draft: { itinerary: ItineraryDay[]; pricing: PricingData }
   landcoName: string
+  pricing_mode: 'detailed' | 'summary'
+  summary_total: number
+  summary_per_person: number
 }
 
 export default function LandcoQuoteDetailPage({ params }: { params: Promise<{ quoteId: string }> }) {
   const { quoteId } = use(params)
-  const router = useRouter()
   const [data, setData] = useState<QuoteDetailData | null>(null)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
@@ -28,8 +28,7 @@ export default function LandcoQuoteDetailPage({ params }: { params: Promise<{ qu
     async function load() {
       const res = await fetch(`/api/quotes/${quoteId}/detail`)
       if (!res.ok) { setLoading(false); return }
-      const json = await res.json()
-      setData(json)
+      setData(await res.json())
       setLoading(false)
     }
     load()
@@ -43,9 +42,35 @@ export default function LandcoQuoteDetailPage({ params }: { params: Promise<{ qu
     infants: data.request.infants, leaders: data.request.leaders,
   })
 
-  const pricing = data.draft.pricing
-  const totals = calculatePricingTotals(pricing)
-  const perPerson = totalPeople > 0 ? Math.round(totals.total / totalPeople) : 0
+  const isSummaryMode = data.pricing_mode === 'summary'
+  const exchangeRates = data.draft.pricing.exchangeRates ?? {}
+
+  // KRW 환산 총액
+  let total: number
+  let perPerson: number
+  if (isSummaryMode) {
+    const summaryCurrency = data.draft.pricing.currencies?.['summary'] ?? 'KRW'
+    const exRate = exchangeRates[summaryCurrency] ?? 0
+    const rawTotal = data.summary_total || 0
+    total = summaryCurrency === 'KRW' ? rawTotal : (exRate > 0 ? Math.round(rawTotal * exRate) : rawTotal)
+    perPerson = totalPeople > 0 ? Math.round(total / totalPeople) : 0
+  } else {
+    const categories = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타'] as const
+    let krwTotal = 0
+    for (const cat of categories) {
+      for (const r of (data.draft.pricing[cat] ?? [])) {
+        const cur = r.currency ?? 'KRW'
+        const rowTotal = r.price * r.count * r.quantity
+        if (cur === 'KRW') krwTotal += rowTotal
+        else {
+          const rate = exchangeRates[cur] ?? 0
+          krwTotal += rate > 0 ? Math.round(rowTotal * rate) : 0
+        }
+      }
+    }
+    total = krwTotal
+    perPerson = totalPeople > 0 ? Math.round(total / totalPeople) : 0
+  }
 
   const handleDownload = async () => {
     setDownloading(true)
@@ -101,7 +126,7 @@ export default function LandcoQuoteDetailPage({ params }: { params: Promise<{ qu
         </div>
       </div>
 
-      <QuoteSummaryBar total={totals.total} perPerson={perPerson} />
+      <QuoteSummaryBar total={total} perPerson={perPerson} />
 
       <div className="border-b border-gray-200">
         <nav className="flex gap-4">
@@ -113,19 +138,28 @@ export default function LandcoQuoteDetailPage({ params }: { params: Promise<{ qu
           >
             일정표
           </button>
-          <button
-            onClick={() => setActiveTab('pricing')}
-            className={`pb-2 text-sm font-medium border-b-2 ${
-              activeTab === 'pricing' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            견적서
-          </button>
+          {isSummaryMode ? (
+            <span className="pb-2 text-sm font-medium text-gray-300 border-b-2 border-transparent cursor-default relative group">
+              견적서
+              <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 bg-gray-900 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-0 pointer-events-none z-10">
+                항목별 내역이 포함되지 않은 견적입니다
+              </span>
+            </span>
+          ) : (
+            <button
+              onClick={() => setActiveTab('pricing')}
+              className={`pb-2 text-sm font-medium border-b-2 ${
+                activeTab === 'pricing' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              견적서
+            </button>
+          )}
         </nav>
       </div>
 
       {activeTab === 'itinerary' && <ItineraryView itinerary={data.draft.itinerary} />}
-      {activeTab === 'pricing' && <PricingView pricing={pricing} totalPeople={totalPeople} />}
+      {activeTab === 'pricing' && !isSummaryMode && <PricingView pricing={data.draft.pricing} totalPeople={totalPeople} />}
     </div>
   )
 }
