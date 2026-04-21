@@ -50,6 +50,10 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
   const [payAmount, setPayAmount] = useState('')
   const [isSplitModal, setIsSplitModal] = useState(false)
+  const [issuedVirtualAccount, setIssuedVirtualAccount] = useState<{
+    bank: string; account_number: string; holder: string; expires_at: string;
+    transactionId: string; amount: number;
+  } | null>(null)
 
   const noPaid = installments.every(i => i.status === 'pending')
   const isImmediate = schedule.template_type === 'immediate'
@@ -73,8 +77,27 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
 
   const handlePay = async () => {
     if (!payingInstallment || !selectedMethod) return
-    // TODO: 플랫폼 PG 연동 시 실제 결제 처리
-    alert(`결제 연동 준비 중입니다.\n\n결제 수단: ${PAYMENT_METHODS.find(m => m.value === selectedMethod)?.label}\n결제 금액: ${fmt(Number(payAmount))}원\n\n플랫폼 PG 연동 후 활성화됩니다.`)
+
+    if (selectedMethod === 'virtual_account') {
+      // Issue virtual account
+      const res = await fetch('/api/payment-schedule/virtual-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ installmentId: payingInstallment.id, amount: Number(payAmount) }),
+      })
+      if (!res.ok) { alert('가상계좌 발급 실패'); return }
+      const { virtualAccount, transaction } = await res.json()
+      setIssuedVirtualAccount({
+        ...virtualAccount,
+        transactionId: transaction.id,
+        amount: Number(payAmount),
+      })
+      setPayingInstallment(null)
+      return
+    }
+
+    // Card payments — placeholder
+    alert(`카드결제 연동 준비 중입니다.\n\n결제 수단: ${PAYMENT_METHODS.find(m => m.value === selectedMethod)?.label}\n결제 금액: ${fmt(Number(payAmount))}원\n\n플랫폼 PG 연동 후 활성화됩니다.`)
     setPayingInstallment(null)
   }
 
@@ -160,6 +183,51 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                 className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 {fmt(Number(payAmount) || 0)}원 결제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 가상계좌 발급 완료 모달 */}
+      {issuedVirtualAccount && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-bold text-gray-900">가상계좌 발급 완료</h3>
+              <p className="text-xs text-gray-500 mt-0.5">아래 계좌로 입금해주세요.</p>
+            </div>
+            <div className="px-5 py-5 space-y-3">
+              <div className="bg-blue-50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-xs text-gray-500">은행</span>
+                  <span className="text-sm font-semibold text-gray-900">{issuedVirtualAccount.bank}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs text-gray-500">계좌번호</span>
+                  <span className="text-sm font-semibold text-gray-900 font-mono">{issuedVirtualAccount.account_number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs text-gray-500">예금주</span>
+                  <span className="text-sm font-semibold text-gray-900">{issuedVirtualAccount.holder}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs text-gray-500">입금금액</span>
+                  <span className="text-sm font-bold text-blue-600">{fmt(issuedVirtualAccount.amount)}원</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs text-gray-500">입금기한</span>
+                  <span className="text-sm text-red-500">{new Date(issuedVirtualAccount.expires_at).toLocaleString('ko-KR')}</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-400 text-center">입금이 확인되면 자동으로 결제 상태가 업데이트됩니다.</p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={() => setIssuedVirtualAccount(null)}
+                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              >
+                확인
               </button>
             </div>
           </div>
