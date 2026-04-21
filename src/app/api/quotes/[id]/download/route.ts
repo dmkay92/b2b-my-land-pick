@@ -148,8 +148,13 @@ export async function GET(
     { itinerary: draft.itinerary, pricing },
   )
 
-  // Remove pricing sheet if not selected OR summary-only mode
-  if (!isSelected || isSummaryMode) {
+  // Remove pricing sheet:
+  // - summary mode: always remove (no breakdown)
+  // - agency: only show if selected
+  // - landco: always show their own breakdown
+  const isLandco = profile?.role === 'landco'
+  const showPricingSheet = isSummaryMode ? false : (isLandco || isSelected)
+  if (!showPricingSheet) {
     const pricingSheet = workbook.getWorksheet('견적서')
     if (pricingSheet) {
       workbook.removeWorksheet(pricingSheet.id)
