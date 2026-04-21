@@ -7,6 +7,7 @@ interface Props {
   schedule: PaymentSchedule
   installments: PaymentInstallment[]
   onSwitchToImmediate: () => Promise<void>
+  onSwitchToDefault: () => Promise<void>
 }
 
 function fmt(n: number): string {
@@ -36,14 +37,17 @@ function templateLabel(type: string) {
   }
 }
 
-export default function PaymentScheduleCard({ schedule, installments, onSwitchToImmediate }: Props) {
+export default function PaymentScheduleCard({ schedule, installments, onSwitchToImmediate, onSwitchToDefault }: Props) {
   const [switching, setSwitching] = useState(false)
-  const canSwitch = schedule.template_type !== 'immediate'
-    && installments.every(i => i.status === 'pending')
+  const noPaid = installments.every(i => i.status === 'pending')
+  const isImmediate = schedule.template_type === 'immediate'
 
-  const handleSwitch = async () => {
+  const handleSwitch = async (toImmediate: boolean) => {
     setSwitching(true)
-    try { await onSwitchToImmediate() } finally { setSwitching(false) }
+    try {
+      if (toImmediate) await onSwitchToImmediate()
+      else await onSwitchToDefault()
+    } finally { setSwitching(false) }
   }
 
   return (
@@ -55,13 +59,13 @@ export default function PaymentScheduleCard({ schedule, installments, onSwitchTo
             {templateLabel(schedule.template_type)}
           </span>
         </div>
-        {canSwitch && (
+        {noPaid && (
           <button
-            onClick={handleSwitch}
+            onClick={() => handleSwitch(!isImmediate)}
             disabled={switching}
             className="text-xs text-blue-600 border border-blue-300 px-3 py-1 rounded-full hover:bg-blue-50 disabled:opacity-50"
           >
-            {switching ? '변경 중...' : '즉시완납 전환'}
+            {switching ? '변경 중...' : isImmediate ? '분할결제 전환' : '즉시완납 전환'}
           </button>
         )}
       </div>
