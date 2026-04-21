@@ -475,13 +475,15 @@ export default function AgencyRequestDetail() {
             )}
           </div>
           {landcoCount > 0 && (
-            <MarkupInput
-              totalPeople={total}
-              initialPerPerson={globalMarkup.perPerson}
-              initialTotal={globalMarkup.total}
-              onChange={(pp, t) => handleGlobalMarkupChange(pp, t)}
-              disabled={request.status === 'finalized' || request.status === 'payment_pending'}
-            />
+            <div className="-mr-1">
+              <MarkupInput
+                totalPeople={total}
+                initialPerPerson={globalMarkup.perPerson}
+                initialTotal={globalMarkup.total}
+                onChange={(pp, t) => handleGlobalMarkupChange(pp, t)}
+                disabled={request.status === 'finalized' || request.status === 'payment_pending'}
+              />
+            </div>
           )}
         </div>
 
