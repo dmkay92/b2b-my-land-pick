@@ -201,27 +201,6 @@ export function PricingEditor({ request, pricing, onChange, pricingMode, onPrici
 
   return (
     <div className="pb-24">
-      {/* 모드 토글 */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-0.5">
-          <button
-            onClick={() => onPricingModeChange('detailed')}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              pricingMode === 'detailed' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            항목별
-          </button>
-          <button
-            onClick={() => onPricingModeChange('summary')}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              pricingMode === 'summary' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            합계만
-          </button>
-        </div>
-      </div>
 
       {pricingMode === 'summary' ? (() => {
         const summaryCurrency = pricing.currencies?.['summary'] ?? 'KRW'
