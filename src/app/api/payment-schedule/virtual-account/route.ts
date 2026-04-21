@@ -33,10 +33,13 @@ export async function POST(request: NextRequest) {
     expires_at: expiresAt,
   }
 
-  // Create pending transaction
+  // Create pending transaction (가상계좌는 수수료 없음)
   const { data: tx, error } = await supabase
     .from('payment_transactions').insert({
       installment_id: installmentId,
+      base_amount: amount,
+      card_surcharge_rate: 0,
+      card_surcharge: 0,
       amount,
       payment_method: 'virtual_account',
       status: 'pending',

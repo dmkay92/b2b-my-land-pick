@@ -154,20 +154,43 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                     <button
                       key={method.value}
                       onClick={() => setSelectedMethod(method.value)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border text-left transition-colors ${
                         selectedMethod === method.value
                           ? 'border-blue-500 bg-blue-50'
                           : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                       }`}
                     >
-                      <span className="text-lg">{method.icon}</span>
-                      <span className={`text-sm font-medium ${
-                        selectedMethod === method.value ? 'text-blue-700' : 'text-gray-700'
-                      }`}>{method.label}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">{method.icon}</span>
+                        <span className={`text-sm font-medium ${
+                          selectedMethod === method.value ? 'text-blue-700' : 'text-gray-700'
+                        }`}>{method.label}</span>
+                      </div>
+                      {method.value !== 'virtual_account' && (
+                        <span className="text-[10px] text-gray-400">수수료 3%</span>
+                      )}
                     </button>
                   ))}
                 </div>
               </div>
+
+              {/* 카드 수수료 안내 */}
+              {selectedMethod && selectedMethod !== 'virtual_account' && Number(payAmount) > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-600">결제 금액</span>
+                    <span>{fmt(Number(payAmount))}원</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-600">카드 수수료 (3%)</span>
+                    <span className="text-amber-600">+{fmt(Math.round(Number(payAmount) * 0.03))}원</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold border-t border-amber-200 pt-1">
+                    <span>실 결제금액</span>
+                    <span>{fmt(Number(payAmount) + Math.round(Number(payAmount) * 0.03))}원</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
@@ -179,10 +202,13 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
               </button>
               <button
                 onClick={handlePay}
-                disabled={!selectedMethod}
+                disabled={!selectedMethod || !Number(payAmount)}
                 className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
-                {fmt(Number(payAmount) || 0)}원 결제
+                {selectedMethod && selectedMethod !== 'virtual_account'
+                  ? `${fmt(Number(payAmount) + Math.round(Number(payAmount) * 0.03))}원 결제`
+                  : `${fmt(Number(payAmount) || 0)}원 결제`
+                }
               </button>
             </div>
           </div>

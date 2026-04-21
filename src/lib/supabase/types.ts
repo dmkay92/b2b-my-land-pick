@@ -282,11 +282,15 @@ export interface PaymentInstallment {
 export interface PaymentTransaction {
   id: string
   installment_id: string
+  base_amount: number | null
+  card_surcharge_rate: number
+  card_surcharge: number
   amount: number
   payment_method: PaymentMethod
   status: PaymentTransactionStatus
   pg_transaction_id: string | null
   pg_response: Record<string, unknown> | null
+  virtual_account_info: { bank: string; account_number: string; holder: string; expires_at: string } | null
   created_at: string
   updated_at: string
 }

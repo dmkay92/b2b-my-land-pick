@@ -33,10 +33,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: validation.error }, { status: 400 })
   }
 
+  // Calculate card surcharge
+  const isCard = paymentMethod === 'card_link' || paymentMethod === 'card_keyin'
+  const CARD_SURCHARGE_RATE = 0.03
+  const baseAmount = amount
+  const cardSurcharge = isCard ? Math.round(baseAmount * CARD_SURCHARGE_RATE) : 0
+  const totalAmount = baseAmount + cardSurcharge
+
   const { data: tx, error: txError } = await supabase
     .from('payment_transactions').insert({
       installment_id: installmentId,
-      amount,
+      base_amount: baseAmount,
+      card_surcharge_rate: isCard ? CARD_SURCHARGE_RATE : 0,
+      card_surcharge: cardSurcharge,
+      amount: totalAmount,
       payment_method: paymentMethod,
       status: 'success',
       pg_transaction_id: pgTransactionId ?? null,
