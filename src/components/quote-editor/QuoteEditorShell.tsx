@@ -297,9 +297,12 @@ export function QuoteEditorShell({ requestId }: Props) {
     try {
       const res = await fetch(`/api/quotes/${quoteId}/detail`)
       if (!res.ok) { alert('버전 데이터를 불러올 수 없습니다.'); return }
-      const { draft } = await res.json()
-      if (draft?.itinerary) setItinerary(draft.itinerary)
-      if (draft?.pricing) setPricing(draft.pricing)
+      const json = await res.json()
+      if (json.draft?.itinerary) setItinerary(json.draft.itinerary)
+      if (json.draft?.pricing) setPricing(json.draft.pricing)
+      if (json.pricing_mode) setPricingMode(json.pricing_mode)
+      if (json.summary_total) setSummaryTotal(json.summary_total)
+      if (json.summary_per_person) setSummaryPerPerson(json.summary_per_person)
       isDirtyRef.current = true
       setSaveStatus('unsaved')
     } catch {
