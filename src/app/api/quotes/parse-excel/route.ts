@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Call Gemini (with fallback model)
-  const MODELS = ['gemini-3.1-flash', 'gemini-2.5-flash', 'gemini-2.0-flash']
+  const MODELS = ['gemini-3.0-flash', 'gemini-3.1-flash-lite', 'gemini-2.0-flash']
   let text: string | null = null
   let lastError = ''
   for (const modelName of MODELS) {
