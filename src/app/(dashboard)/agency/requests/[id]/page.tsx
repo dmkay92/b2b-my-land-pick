@@ -529,7 +529,7 @@ export default function AgencyRequestDetail() {
                               const params = globalMarkup.total > 0 ? `?markup=${globalMarkup.total}` : ''
                               window.open(`/agency/quotes/${q.id}${params}`, '_blank')
                             }}
-                            className="border border-gray-200 text-gray-600 rounded-md px-2.5 py-1 text-[11px] font-medium hover:bg-gray-50 whitespace-nowrap transition-colors"
+                            className="text-xs text-[#009CF0] border border-[#009CF0] px-2.5 py-1 rounded-md hover:bg-blue-50 transition-colors whitespace-nowrap shrink-0"
                           >
                             미리보기
                           </button>
@@ -546,7 +546,7 @@ export default function AgencyRequestDetail() {
                               a.click()
                               URL.revokeObjectURL(url)
                             }}
-                            className="border border-gray-200 text-gray-600 rounded-md px-2.5 py-1 text-[11px] font-medium hover:bg-gray-50 whitespace-nowrap transition-colors"
+                            className="text-xs text-gray-600 border border-gray-300 px-2.5 py-1 rounded-md hover:bg-gray-100 transition-colors whitespace-nowrap shrink-0"
                           >
                             다운로드
                           </button>
