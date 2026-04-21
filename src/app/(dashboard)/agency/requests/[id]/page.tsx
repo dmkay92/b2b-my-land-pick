@@ -264,33 +264,33 @@ export default function AgencyRequestDetail() {
       </div>
 
       {/* 견적 조건 카드 */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 overflow-hidden">
+      <div className="rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
         {/* 헤더: 목적지 + 마감 */}
-        <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-900 to-gray-800">
           <div className="flex items-center gap-2">
-            <span className="text-base font-bold text-gray-900">{getCountryName(request.destination_country)}</span>
-            <span className="text-gray-300">·</span>
-            <span className="text-base font-semibold text-gray-700">{request.destination_city}</span>
+            <span className="text-sm font-bold text-white">{getCountryName(request.destination_country)}</span>
+            <span className="text-gray-500">·</span>
+            <span className="text-sm font-semibold text-gray-300">{request.destination_city}</span>
             {request.quote_type === 'land' ? (
-              <span className="ml-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">랜드</span>
+              <span className="ml-1 text-[10px] bg-white/15 text-gray-300 px-2 py-0.5 rounded-full font-medium">랜드</span>
             ) : (
-              <span className="ml-1 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">호텔+랜드</span>
+              <span className="ml-1 text-[10px] bg-blue-500/30 text-blue-200 px-2 py-0.5 rounded-full font-medium">호텔+랜드</span>
             )}
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-400">견적 마감</p>
-            <p className="text-sm font-semibold text-red-500">
+            <p className="text-[10px] text-gray-400">견적 마감</p>
+            <p className="text-xs font-semibold text-gray-300">
               {formatDate(request.deadline)}
               {deadlineDays >= 0
-                ? <span className="ml-1.5 text-xs font-medium bg-red-50 text-red-400 px-1.5 py-0.5 rounded-full">D-{deadlineDays}</span>
-                : <span className="ml-1.5 text-xs font-medium bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">마감됨</span>
+                ? <span className="ml-1.5 text-[10px] font-medium bg-red-500/30 text-red-300 px-1.5 py-0.5 rounded-full">D-{deadlineDays}</span>
+                : <span className="ml-1.5 text-[10px] font-medium bg-white/15 text-gray-400 px-1.5 py-0.5 rounded-full">마감됨</span>
               }
             </p>
           </div>
         </div>
 
         {/* 여행 기간 */}
-        <div className="px-6 py-4 border-b border-gray-100">
+        <div className="bg-white px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-4">
             <div className="flex-1 min-w-0">
               <p className="text-xs text-gray-400 mb-0.5">출발</p>
@@ -465,33 +465,38 @@ export default function AgencyRequestDetail() {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">
-          랜드사 견적서
-          <span className="text-gray-400 font-normal text-sm ml-2">{landcoCount}개 랜드사 제출</span>
-        </h2>
-        {landcoCount > 0 && (
-          <MarkupInput
-            totalPeople={total}
-            initialPerPerson={globalMarkup.perPerson}
-            initialTotal={globalMarkup.total}
-            onChange={(pp, t) => handleGlobalMarkupChange(pp, t)}
-            disabled={request.status === 'finalized' || request.status === 'payment_pending'}
-          />
-        )}
-      </div>
+      <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-900 to-gray-800">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-sm font-bold text-white">랜드사 견적서</h2>
+            {landcoCount > 0 && (
+              <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">{landcoCount}개 랜드사</span>
+            )}
+          </div>
+          {landcoCount > 0 && (
+            <MarkupInput
+              totalPeople={total}
+              initialPerPerson={globalMarkup.perPerson}
+              initialTotal={globalMarkup.total}
+              onChange={(pp, t) => handleGlobalMarkupChange(pp, t)}
+              disabled={request.status === 'finalized' || request.status === 'payment_pending'}
+              variant="dark"
+            />
+          )}
+        </div>
 
       {landcoCount === 0 ? (
-        <div className="text-center py-16 text-gray-400 bg-white rounded-lg shadow-sm">
+        <div className="text-center py-16 text-gray-400 bg-white">
           아직 제출된 견적서가 없습니다.
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="bg-white divide-y divide-gray-100">
           {Object.entries(grouped).map(([landcoId, { company_name, quotes }]) => {
             const sortedQuotes = [...quotes].sort((a, b) => b.version - a.version)
             const latestQuote = sortedQuotes[0]
             return (
-              <div key={landcoId} className="bg-white rounded-lg shadow-sm p-5">
+              <div key={landcoId} className="p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold">{company_name}</h3>
                   <div className="flex items-center gap-2">
@@ -525,7 +530,7 @@ export default function AgencyRequestDetail() {
                               const params = globalMarkup.total > 0 ? `?markup=${globalMarkup.total}` : ''
                               window.open(`/agency/quotes/${q.id}${params}`, '_blank')
                             }}
-                            className="border border-gray-300 text-gray-600 rounded-lg px-3 py-1 text-xs font-medium bg-white hover:bg-gray-50 whitespace-nowrap"
+                            className="border border-gray-200 text-gray-600 rounded-md px-2.5 py-1 text-[11px] font-medium hover:bg-gray-50 whitespace-nowrap transition-colors"
                           >
                             미리보기
                           </button>
@@ -542,9 +547,9 @@ export default function AgencyRequestDetail() {
                               a.click()
                               URL.revokeObjectURL(url)
                             }}
-                            className="bg-[#009CF0] text-white rounded-lg px-3 py-1 text-xs font-medium hover:bg-[#0088D9] whitespace-nowrap"
+                            className="border border-gray-200 text-gray-600 rounded-md px-2.5 py-1 text-[11px] font-medium hover:bg-gray-50 whitespace-nowrap transition-colors"
                           >
-                            ↓ 다운로드
+                            다운로드
                           </button>
                         </div>
                       </div>
@@ -593,6 +598,7 @@ export default function AgencyRequestDetail() {
           })}
         </div>
       )}
+      </div>
     </div>
     </>
   )
