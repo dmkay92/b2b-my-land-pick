@@ -42,7 +42,7 @@ export default function MarkupInput({ totalPeople, initialPerPerson, initialTota
 
   return (
     <div className="flex items-center gap-1.5 rounded-md px-2 py-1 bg-white border border-gray-200 shadow-sm ml-auto">
-      <span className="text-xs font-semibold whitespace-nowrap text-blue-700">
+      <span className="text-sm font-bold whitespace-nowrap text-blue-700">
         여행사 커미션
       </span>
       <div className="flex items-center gap-1.5">
@@ -55,7 +55,7 @@ export default function MarkupInput({ totalPeople, initialPerPerson, initialTota
             onBlur={() => setEditingField(null)}
             readOnly={disabled}
             placeholder="1인당"
-            className={`w-24 rounded-md px-2 py-1 text-xs text-right pr-7 focus:outline-none ${
+            className={`w-28 rounded-md px-2 py-1 text-xs text-right pr-7 focus:outline-none ${
               disabled
                 ? 'bg-gray-100 border border-gray-200 text-gray-500 cursor-default'
                 : 'bg-white border border-gray-300 text-gray-900 focus:ring-1 focus:ring-blue-400 focus:border-blue-400'
