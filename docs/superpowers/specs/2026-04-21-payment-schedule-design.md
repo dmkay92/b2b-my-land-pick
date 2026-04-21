@@ -81,7 +81,7 @@ CREATE TABLE payment_schedules (
 );
 ```
 
-### payment_installments
+### payment_installments (결제 단계)
 ```sql
 CREATE TABLE payment_installments (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -89,10 +89,24 @@ CREATE TABLE payment_installments (
   label text NOT NULL,
   rate numeric NOT NULL,
   amount numeric NOT NULL,
+  paid_amount numeric NOT NULL DEFAULT 0,
   due_date date NOT NULL,
-  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'overdue', 'cancelled')),
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'partial', 'paid', 'overdue', 'cancelled')),
+  allow_split boolean NOT NULL DEFAULT false,
   paid_at timestamptz,
-  payment_method text CHECK (payment_method IN ('virtual_account', 'card_link', 'card_keyin')),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+```
+
+### payment_transactions (개별 거래)
+```sql
+CREATE TABLE payment_transactions (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  installment_id uuid REFERENCES payment_installments(id) ON DELETE CASCADE NOT NULL,
+  amount numeric NOT NULL,
+  payment_method text NOT NULL CHECK (payment_method IN ('virtual_account', 'card_link', 'card_keyin')),
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'success', 'failed', 'cancelled')),
   pg_transaction_id text,
   pg_response jsonb,
   created_at timestamptz DEFAULT now(),
@@ -100,8 +114,22 @@ CREATE TABLE payment_installments (
 );
 ```
 
+### 분할결제(혼합결제) 규칙
+
+| 단계 | allow_split | 설명 |
+|------|------------|------|
+| 계약금 | false | 단일 수단으로만 결제 (거래 1건) |
+| 중도금 | true | 현금+카드 혼합 가능 (거래 N건) |
+| 잔금 | true | 현금+카드 혼합 가능 (거래 N건) |
+| 전액 (즉시완납) | true | 현금+카드 혼합 가능 (거래 N건) |
+
+- installment.paid_amount = 해당 단계의 success 거래 합계
+- paid_amount >= amount → status: paid
+- 0 < paid_amount < amount → status: partial
+- installment.paid_at = 마지막 거래로 paid가 된 시각
+
 ### RLS 정책
-- Agency: 자기 request의 schedule/installments 조회 가능
+- Agency: 자기 request의 schedule/installments/transactions 조회 가능
 - Landco: 자기가 관련된 request의 schedule/installments 조회 가능
 - Admin: 전체 관리
 
@@ -112,14 +140,18 @@ CREATE TABLE payment_installments (
 ### 핵심 함수 (export)
 
 ```typescript
-// 결제 완료 시 플랫폼에서 호출
-markAsPaid(installmentId: string, txInfo: {
+// 거래 등록 — 플랫폼에서 결제 성공 시 호출
+// allow_split=false인 installment에 이미 거래가 있으면 에러
+addTransaction(installmentId: string, txInfo: {
+  amount: number
   payment_method: 'virtual_account' | 'card_link' | 'card_keyin'
   pg_transaction_id?: string
   pg_response?: Record<string, unknown>
-}): Promise<{ success: boolean; allPaid: boolean }>
-
-// allPaid = true이면 전체 완납 → finalized 처리됨
+}): Promise<{
+  success: boolean
+  installmentStatus: 'partial' | 'paid'
+  allPaid: boolean  // true이면 전체 완납 → finalized 처리됨
+}>
 ```
 
 ```typescript
