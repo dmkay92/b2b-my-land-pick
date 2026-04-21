@@ -70,7 +70,15 @@ export async function GET(
     (quotes ?? []).map(async q => {
       let pricing
       if (q.pricing_mode === 'summary') {
-        pricing = { total: q.summary_total ?? null, per_person: q.summary_per_person ?? null }
+        // KRW 환산
+        const pricingData = q.pricing as { currencies?: Record<string, string>; exchangeRates?: Record<string, number> } | null
+        const summaryCurrency = pricingData?.currencies?.['summary'] ?? 'KRW'
+        const exRate = pricingData?.exchangeRates?.[summaryCurrency] ?? 0
+        const rawTotal = q.summary_total ?? 0
+        const rawPerPerson = q.summary_per_person ?? 0
+        const total = summaryCurrency === 'KRW' ? rawTotal : (exRate > 0 ? Math.round(rawTotal * exRate) : rawTotal)
+        const per_person = summaryCurrency === 'KRW' ? rawPerPerson : (exRate > 0 ? Math.round(rawPerPerson * exRate) : rawPerPerson)
+        pricing = { total, per_person }
       } else {
         pricing = await extractQuotePricing(q.file_url)
       }
