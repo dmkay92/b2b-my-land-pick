@@ -3,8 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 import ExcelJS from 'exceljs'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
-export const maxDuration = 60 // Gemini 응답 대기 최대 60초
-
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '')
 
 function extractSheetText(workbook: ExcelJS.Workbook): string {
