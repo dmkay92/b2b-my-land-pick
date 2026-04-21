@@ -29,6 +29,7 @@ export default function LandcoRequestDetail() {
   const [paymentConfirmed, setPaymentConfirmed] = useState(false)
   const [savedMemo, setSavedMemo] = useState<string | null>(null)
   const [attachmentPreview, setAttachmentPreview] = useState<{ url: string; name: string } | null>(null)
+  const [savingTemplateId, setSavingTemplateId] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -563,7 +564,7 @@ export default function LandcoRequestDetail() {
                     <span className="text-xs text-gray-400 whitespace-nowrap">{new Date(q.submitted_at).toLocaleString('ko-KR')}</span>
                     <button
                       onClick={() => window.open(`/landco/quotes/${q.id}`, '_blank')}
-                      className="border border-gray-300 text-gray-600 rounded-lg px-3 py-1 text-xs font-medium bg-white hover:bg-gray-50 whitespace-nowrap"
+                      className="text-xs text-[#009CF0] border border-[#009CF0] px-2.5 py-1 rounded-md hover:bg-blue-50 transition-colors whitespace-nowrap shrink-0"
                     >
                       미리보기
                     </button>
@@ -571,10 +572,34 @@ export default function LandcoRequestDetail() {
                       href={q.file_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="bg-[#009CF0] text-white rounded-lg px-3 py-1 text-xs font-medium hover:bg-[#0088D9] whitespace-nowrap"
+                      className="text-xs text-gray-600 border border-gray-300 px-2.5 py-1 rounded-md hover:bg-gray-100 transition-colors whitespace-nowrap shrink-0"
                     >
-                      ↓ 다운로드
+                      다운로드
                     </a>
+                    <button
+                      disabled={savingTemplateId === q.id}
+                      onClick={async () => {
+                        setSavingTemplateId(q.id)
+                        try {
+                          // quotes 테이블에서 itinerary/pricing 가져오기
+                          const detailRes = await fetch(`/api/quotes/${q.id}/detail`)
+                          if (!detailRes.ok) { alert('견적 데이터를 불러올 수 없습니다.'); return }
+                          const detail = await detailRes.json()
+                          const name = prompt('템플릿 이름을 입력하세요', q.file_name.replace('.xlsx', ''))
+                          if (!name) return
+                          const saveRes = await fetch('/api/templates', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name, itinerary: detail.draft.itinerary, pricing: detail.draft.pricing }),
+                          })
+                          if (saveRes.ok) alert('템플릿이 저장되었습니다.')
+                          else alert('템플릿 저장에 실패했습니다.')
+                        } finally { setSavingTemplateId(null) }
+                      }}
+                      className="text-xs text-purple-600 border border-purple-300 px-2.5 py-1 rounded-md hover:bg-purple-50 transition-colors whitespace-nowrap shrink-0 disabled:opacity-50"
+                    >
+                      {savingTemplateId === q.id ? '저장 중...' : '템플릿 저장'}
+                    </button>
                   </div>
                 </div>
                 <div className="flex items-center justify-between mt-1.5">
