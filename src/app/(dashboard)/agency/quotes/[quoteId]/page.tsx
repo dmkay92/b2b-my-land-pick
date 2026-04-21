@@ -165,7 +165,7 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
           >
             일정표
           </button>
-          {data.isSelected && data.pricing_mode !== 'summary' ? (
+          {data.isSelected && data.pricing_mode !== 'summary' && (
             <button
               onClick={() => setActiveTab('pricing')}
               className={`pb-2 text-sm font-medium border-b-2 ${
@@ -176,8 +176,9 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
             >
               견적서
             </button>
-          ) : (
-            <span className="pb-2 text-sm font-medium text-gray-300 border-b-2 border-transparent cursor-default" title="항목별 내역이 포함되지 않은 견적입니다">
+          )}
+          {data.isSelected && data.pricing_mode === 'summary' && (
+            <span className="pb-2 text-sm font-medium text-gray-300 border-b-2 border-transparent cursor-default">
               견적서
             </span>
           )}
