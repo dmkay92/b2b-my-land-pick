@@ -267,26 +267,26 @@ export default function AgencyRequestDetail() {
       <div className="rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
         {/* 헤더: 목적지 + 마감 */}
         <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-gray-900 to-gray-800">
+          <h3 className="text-sm font-bold text-white">견적 정보</h3>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-white">{getCountryName(request.destination_country)}</span>
-            <span className="text-gray-500">·</span>
-            <span className="text-sm font-semibold text-gray-300">{request.destination_city}</span>
-            {request.quote_type === 'land' ? (
-              <span className="ml-1 text-[10px] bg-white/15 text-gray-300 px-2 py-0.5 rounded-full font-medium">랜드</span>
-            ) : (
-              <span className="ml-1 text-[10px] bg-blue-500/30 text-blue-200 px-2 py-0.5 rounded-full font-medium">호텔+랜드</span>
-            )}
+            <span className="text-xs text-gray-300">{formatDate(request.deadline)}</span>
+            {deadlineDays >= 0
+              ? <span className="text-[10px] font-medium bg-red-500/30 text-red-300 px-2 py-0.5 rounded-full">D-{deadlineDays}</span>
+              : <span className="text-[10px] font-medium bg-white/20 text-gray-300 px-2 py-0.5 rounded-full">마감됨</span>
+            }
           </div>
-          <div className="text-right">
-            <p className="text-[10px] text-gray-500">견적 마감</p>
-            <p className="text-sm font-semibold text-white">
-              {formatDate(request.deadline)}
-              {deadlineDays >= 0
-                ? <span className="ml-1.5 text-[10px] font-medium bg-red-500/30 text-red-300 px-1.5 py-0.5 rounded-full">D-{deadlineDays}</span>
-                : <span className="ml-1.5 text-[10px] font-medium bg-white/20 text-gray-300 px-1.5 py-0.5 rounded-full">마감됨</span>
-              }
-            </p>
-          </div>
+        </div>
+
+        {/* 목적지 */}
+        <div className="bg-white px-6 py-3 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-sm font-bold text-gray-900">{getCountryName(request.destination_country)}</span>
+          <span className="text-gray-300">·</span>
+          <span className="text-sm font-semibold text-gray-700">{request.destination_city}</span>
+          {request.quote_type === 'land' ? (
+            <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">랜드</span>
+          ) : (
+            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">호텔+랜드</span>
+          )}
         </div>
 
         {/* 여행 기간 */}
