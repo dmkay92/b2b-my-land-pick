@@ -238,33 +238,33 @@ export default function LandcoRequestDetail() {
       )}
 
       {/* 견적 조건 카드 */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 overflow-hidden">
-        {/* 헤더: 목적지 + 마감 */}
-        <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-100">
+      <div className="rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
+          <h3 className="text-sm font-bold text-white">견적 정보</h3>
           <div className="flex items-center gap-2">
-            <span className="text-base font-bold text-gray-900">{getCountryName(request.destination_country)}</span>
-            <span className="text-gray-300">·</span>
-            <span className="text-base font-semibold text-gray-700">{request.destination_city}</span>
-            {request.quote_type === 'land' ? (
-              <span className="ml-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">랜드</span>
-            ) : (
-              <span className="ml-1 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">호텔+랜드</span>
-            )}
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-400">견적 마감</p>
-            <p className="text-sm font-semibold text-red-500">
-              {formatDate(request.deadline)}
-              {deadlineDays >= 0
-                ? <span className="ml-1.5 text-xs font-medium bg-red-50 text-red-400 px-1.5 py-0.5 rounded-full">D-{deadlineDays}</span>
-                : <span className="ml-1.5 text-xs font-medium bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">마감됨</span>
-              }
-            </p>
+            <span className="text-xs text-gray-300">{formatDate(request.deadline)}</span>
+            {deadlineDays >= 0
+              ? <span className="text-[10px] font-medium bg-red-500/30 text-red-300 px-2 py-0.5 rounded-full">D-{deadlineDays}</span>
+              : <span className="text-[10px] font-medium bg-white/20 text-gray-300 px-2 py-0.5 rounded-full">마감됨</span>
+            }
           </div>
         </div>
 
+        {/* 목적지 */}
+        <div className="bg-white px-6 py-3 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-sm font-bold text-gray-900">{getCountryName(request.destination_country)}</span>
+          <span className="text-gray-300">·</span>
+          <span className="text-sm font-semibold text-gray-700">{request.destination_city}</span>
+          {request.quote_type === 'land' ? (
+            <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">랜드</span>
+          ) : (
+            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">호텔+랜드</span>
+          )}
+        </div>
+
         {/* 여행 기간 */}
-        <div className="px-6 py-4 border-b border-gray-100">
+        <div className="bg-white px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-4">
             <div className="flex-1 min-w-0">
               <p className="text-xs text-gray-400 mb-0.5">출발</p>
@@ -283,7 +283,7 @@ export default function LandcoRequestDetail() {
 
         {/* 항공 스케줄 */}
         {request.flight_schedule && (request.flight_schedule.outbound || request.flight_schedule.inbound) && (
-          <div className="px-6 py-4 border-b border-gray-100">
+          <div className="bg-white px-6 py-4 border-b border-gray-100">
             <p className="text-xs text-gray-400 mb-2">항공 스케줄</p>
             <div className="space-y-2">
               {(['outbound', 'inbound'] as const).map(dir => {
@@ -308,7 +308,7 @@ export default function LandcoRequestDetail() {
         )}
 
         {/* 인원 + 호텔 */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-start gap-8">
+        <div className="bg-white px-6 py-4 border-b border-gray-100 flex items-start gap-8">
           <div>
             <p className="text-xs text-gray-400 mb-1">인원</p>
             <p className="text-lg font-bold text-gray-900">{total}<span className="text-sm font-normal text-gray-500 ml-0.5">명</span></p>
@@ -324,7 +324,7 @@ export default function LandcoRequestDetail() {
         </div>
 
         {/* 옵션 행 */}
-        <div className="px-6 py-3 space-y-2">
+        <div className="bg-white px-6 py-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-400">쇼핑 옵션</span>
             {request.shopping_option === true
@@ -352,18 +352,27 @@ export default function LandcoRequestDetail() {
                 : <span className="text-xs px-3 py-1 rounded-full bg-gray-50 text-gray-300 font-medium border border-gray-100">미지정</span>
             }
           </div>
+          {request.travel_type && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400">여행 유형</span>
+              <span className="text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-100">
+                {({ corporate_incentive: '기업 인센티브', corporate_workshop: '기업 워크숍/연수', academic_government: '학술/관공서', association: '협회/단체', family: '가족/친목', mice: 'MICE', religion: '종교', other: '기타' })[request.travel_type] ?? request.travel_type}
+                {request.religion_type && ` (${({ protestant: '기독교', catholic: '천주교', buddhist: '불교', other: '기타' })[request.religion_type] ?? request.religion_type})`}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* 요청사항 */}
         {request.notes && (
-          <div className="px-6 py-4 border-t border-gray-100">
+          <div className="bg-white px-6 py-4 border-t border-gray-100">
             <p className="text-xs text-gray-400 mb-1">요청사항</p>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{request.notes}</p>
           </div>
         )}
         {/* 첨부파일 */}
         {(request as QuoteRequest & { attachment_url?: string; attachment_name?: string }).attachment_url && (
-          <div className="px-6 py-4 border-t border-gray-100">
+          <div className="bg-white px-6 py-4 border-t border-gray-100">
             <p className="text-xs text-gray-400 mb-2">첨부파일</p>
             <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
               <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -404,8 +413,11 @@ export default function LandcoRequestDetail() {
       </div>
 
       {/* 견적서 제출 */}
-      <div className={`bg-white rounded-lg shadow-sm p-6 mb-6 ${isUploadDisabled ? 'opacity-60' : ''}`}>
-        <h2 className="font-semibold text-lg mb-4">견적서 제출</h2>
+      <div className={`rounded-xl border border-gray-200 shadow-sm mb-6 overflow-hidden ${isUploadDisabled ? 'opacity-60' : ''}`}>
+        <div className="flex items-center px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
+          <h2 className="text-sm font-bold text-white">견적서 제출</h2>
+        </div>
+        <div className="bg-white p-6">
 
         {!isUploadDisabled && hasDraft && (
           <div className="flex items-center justify-between mb-4 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
@@ -515,13 +527,16 @@ export default function LandcoRequestDetail() {
           </button>
         </div>
         {!isUploadDisabled && uploadError && <p className="text-red-500 text-sm mt-3">{uploadError}</p>}
+        </div>
       </div>
 
       {/* 제출 이력 */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="font-semibold text-lg mb-4">
-          제출 이력 <span className="text-gray-400 font-normal text-sm">({myQuotes.length}개 버전)</span>
-        </h2>
+      <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
+          <h2 className="text-sm font-bold text-white">제출 이력</h2>
+          <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">{myQuotes.length}개 버전</span>
+        </div>
+        <div className="bg-white p-6">
         {myQuotes.length === 0 ? (
           <p className="text-gray-400 text-sm">아직 제출된 견적서가 없습니다.</p>
         ) : (
@@ -578,6 +593,7 @@ export default function LandcoRequestDetail() {
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
     </>
