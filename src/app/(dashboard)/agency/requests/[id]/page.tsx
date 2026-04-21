@@ -17,7 +17,7 @@ interface QuoteWithLandco extends Quote {
   pricing?: { total: number | null; per_person: number | null }
 }
 
-type QuoteWithPricing = Quote & { pricing?: { total: number | null; per_person: number | null } }
+type QuoteWithPricing = Quote & { pricing?: { total: number | null; per_person: number | null }; pricing_mode?: 'detailed' | 'summary' }
 
 interface GroupedQuotes {
   [landcoId: string]: {
@@ -547,6 +547,9 @@ export default function AgencyRequestDetail() {
                         }`}>
                           v{q.version}
                         </span>
+                        {q.pricing_mode === 'summary' && (
+                          <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">합계만</span>
+                        )}
                         <span className="text-sm text-gray-600 truncate min-w-0 flex-1">{q.file_name}</span>
                         <div className="flex items-center gap-2 shrink-0 ml-auto">
                           <span className="text-xs text-gray-400 whitespace-nowrap">
@@ -591,6 +594,11 @@ export default function AgencyRequestDetail() {
                             <span className="text-xs text-gray-500">
                               1인당 <span className="font-semibold text-blue-600">{Math.ceil(q.pricing.per_person).toLocaleString('ko-KR')}원</span>
                             </span>
+                          )}
+                          {q.pricing_mode === 'summary' ? (
+                            <span className="text-[10px] text-amber-500">항목별 내역 없음</span>
+                          ) : (
+                            <span className="text-[10px] text-emerald-500">항목별 내역 포함</span>
                           )}
                         </div>
                         <div>

@@ -44,6 +44,9 @@ export function QuoteEditorShell({ requestId }: Props) {
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [showTemplateSaveAfterSubmit, setShowTemplateSaveAfterSubmit] = useState(false)
   const [templateMode, setTemplateMode] = useState<'save' | 'load' | null>(null)
+  const [pricingMode, setPricingMode] = useState<'detailed' | 'summary'>('detailed')
+  const [summaryTotal, setSummaryTotal] = useState(0)
+  const [summaryPerPerson, setSummaryPerPerson] = useState(0)
   const [isParsingExcel, setIsParsingExcel] = useState(false)
   const [previousVersions, setPreviousVersions] = useState<{ id: string; version: number; submitted_at: string }[]>([])
   const [showVersionDropdown, setShowVersionDropdown] = useState(false)
@@ -54,10 +57,16 @@ export function QuoteEditorShell({ requestId }: Props) {
   const isDirtyRef = useRef(false)
   const itineraryRef = useRef(itinerary)
   const pricingRef = useRef(pricing)
+  const pricingModeRef = useRef(pricingMode)
+  const summaryTotalRef = useRef(summaryTotal)
+  const summaryPerPersonRef = useRef(summaryPerPerson)
 
   // keep refs in sync
   useEffect(() => { itineraryRef.current = itinerary }, [itinerary])
   useEffect(() => { pricingRef.current = pricing }, [pricing])
+  useEffect(() => { pricingModeRef.current = pricingMode }, [pricingMode])
+  useEffect(() => { summaryTotalRef.current = summaryTotal }, [summaryTotal])
+  useEffect(() => { summaryPerPersonRef.current = summaryPerPerson }, [summaryPerPerson])
 
   // request + draft 로드
   useEffect(() => {
@@ -82,6 +91,9 @@ export function QuoteEditorShell({ requestId }: Props) {
             } else {
               if (draft.itinerary?.length > 0) setItinerary(draft.itinerary)
               if (draft.pricing) setPricing(draft.pricing)
+              if (draft.pricing_mode) setPricingMode(draft.pricing_mode)
+              if (draft.summary_total) setSummaryTotal(draft.summary_total)
+              if (draft.summary_per_person) setSummaryPerPerson(draft.summary_per_person)
               return
             }
           }
@@ -141,6 +153,9 @@ export function QuoteEditorShell({ requestId }: Props) {
           requestId,
           itinerary: itineraryRef.current,
           pricing: pricingRef.current,
+          pricing_mode: pricingModeRef.current,
+          summary_total: summaryTotalRef.current,
+          summary_per_person: summaryPerPersonRef.current,
         }),
       })
     } finally {
@@ -577,6 +592,12 @@ export function QuoteEditorShell({ requestId }: Props) {
               request={request}
               pricing={pricing}
               onChange={handlePricingChange}
+              pricingMode={pricingMode}
+              onPricingModeChange={mode => { setPricingMode(mode); isDirtyRef.current = true; setSaveStatus('unsaved') }}
+              summaryTotal={summaryTotal}
+              summaryPerPerson={summaryPerPerson}
+              onSummaryTotalChange={v => { setSummaryTotal(v); isDirtyRef.current = true; setSaveStatus('unsaved') }}
+              onSummaryPerPersonChange={v => { setSummaryPerPerson(v); isDirtyRef.current = true; setSaveStatus('unsaved') }}
             />
           )}
 

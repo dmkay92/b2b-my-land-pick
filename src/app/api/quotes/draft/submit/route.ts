@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   // 2. draft 조회
   const { data: draft, error: draftError } = await supabase
     .from('quote_drafts')
-    .select('itinerary, pricing')
+    .select('itinerary, pricing, pricing_mode, summary_total, summary_per_person')
     .eq('request_id', requestId)
     .eq('landco_id', user!.id)
     .single()
@@ -117,6 +117,9 @@ export async function POST(request: NextRequest) {
       file_name: fileName,
       itinerary: draft.itinerary,
       pricing: draft.pricing,
+      pricing_mode: draft.pricing_mode ?? 'detailed',
+      summary_total: draft.summary_total ?? 0,
+      summary_per_person: draft.summary_per_person ?? 0,
     })
     .select()
     .single()

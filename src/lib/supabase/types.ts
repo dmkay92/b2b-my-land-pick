@@ -77,6 +77,9 @@ export interface Quote {
   submitted_at: string
   itinerary?: unknown  // ItineraryDay[] JSON
   pricing?: unknown    // PricingData JSON
+  pricing_mode?: 'detailed' | 'summary'
+  summary_total?: number
+  summary_per_person?: number
 }
 
 export interface QuoteSelection {
@@ -166,6 +169,9 @@ export interface QuoteDraft {
   pricing: PricingData
   created_at: string
   updated_at: string
+  pricing_mode?: 'detailed' | 'summary'
+  summary_total?: number
+  summary_per_person?: number
 }
 
 export interface Notification {

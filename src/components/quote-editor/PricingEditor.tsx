@@ -13,6 +13,12 @@ interface Props {
   request: QuoteRequest
   pricing: PricingData
   onChange: (pricing: PricingData) => void
+  pricingMode: 'detailed' | 'summary'
+  onPricingModeChange: (mode: 'detailed' | 'summary') => void
+  summaryTotal: number
+  summaryPerPerson: number
+  onSummaryTotalChange: (total: number) => void
+  onSummaryPerPersonChange: (perPerson: number) => void
 }
 
 type PricingCategory = Exclude<keyof PricingData, 'currencies' | 'exchangeRates'>
@@ -59,7 +65,7 @@ function grandTotal(pricing: PricingData): number {
   return CATEGORIES.reduce((sum, cat) => sum + categoryTotal(pricing[cat]), 0)
 }
 
-export function PricingEditor({ request, pricing, onChange }: Props) {
+export function PricingEditor({ request, pricing, onChange, pricingMode, onPricingModeChange, summaryTotal, summaryPerPerson, onSummaryTotalChange, onSummaryPerPersonChange }: Props) {
   const [dragState, setDragState] = useState<DragState | null>(null)
   const dragStateRef = useRef<DragState | null>(null)
   const [openCurrencyMenu, setOpenCurrencyMenu] = useState<string | null>(null)
@@ -195,6 +201,73 @@ export function PricingEditor({ request, pricing, onChange }: Props) {
 
   return (
     <div className="pb-24">
+      {/* 모드 토글 */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-0.5">
+          <button
+            onClick={() => onPricingModeChange('detailed')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              pricingMode === 'detailed' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            항목별
+          </button>
+          <button
+            onClick={() => onPricingModeChange('summary')}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              pricingMode === 'summary' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            합계만
+          </button>
+        </div>
+      </div>
+
+      {pricingMode === 'summary' ? (
+        <div className="bg-white border border-gray-900 rounded-lg p-8">
+          <div className="max-w-md mx-auto space-y-5">
+            <p className="text-sm text-gray-500 text-center mb-6">세부 항목 없이 견적 총액만 제출합니다.<br /><span className="text-xs text-gray-400">여행사에는 &apos;상세 견적 미포함&apos;으로 표시됩니다.</span></p>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1.5 block">총 합계</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={summaryTotal ? summaryTotal.toLocaleString('ko-KR') : ''}
+                  onChange={e => {
+                    const v = Number(e.target.value.replace(/,/g, '')) || 0
+                    onSummaryTotalChange(v)
+                    if (totalPeople > 0) onSummaryPerPersonChange(Math.round(v / totalPeople))
+                  }}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg text-right pr-10 focus:outline-none focus:ring-1 focus:ring-blue-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  placeholder="0"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">원</span>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 mb-1.5 block">1인당 금액</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={summaryPerPerson ? summaryPerPerson.toLocaleString('ko-KR') : ''}
+                  onChange={e => {
+                    const v = Number(e.target.value.replace(/,/g, '')) || 0
+                    onSummaryPerPersonChange(v)
+                    if (totalPeople > 0) onSummaryTotalChange(v * totalPeople)
+                  }}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-lg text-right pr-10 focus:outline-none focus:ring-1 focus:ring-blue-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  placeholder="0"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">원</span>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1">총 {totalPeople}명 기준 · 총 합계와 자동 연동</p>
+            </div>
+          </div>
+        </div>
+      ) : (
+      <>
       <div className="border border-gray-900 divide-y divide-gray-900">
       {CATEGORIES.map(cat => {
         const rows = pricing[cat]
@@ -561,6 +634,8 @@ export function PricingEditor({ request, pricing, onChange }: Props) {
         </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   )
 }

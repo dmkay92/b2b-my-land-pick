@@ -55,6 +55,9 @@ export default function StandaloneQuoteEditor() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('itinerary')
   const [itinerary, setItinerary] = useState<ItineraryDay[]>([])
   const [pricing, setPricing] = useState<PricingData>(defaultPricing)
+  const [pricingMode, setPricingMode] = useState<'detailed' | 'summary'>('detailed')
+  const [summaryTotal, setSummaryTotal] = useState(0)
+  const [summaryPerPerson, setSummaryPerPerson] = useState(0)
   const [templateMode, setTemplateMode] = useState<'save' | 'load' | null>(null)
   const [templateName, setTemplateName] = useState('')
   const [isSaving, setIsSaving] = useState(false)
@@ -313,6 +316,12 @@ export default function StandaloneQuoteEditor() {
               request={mockRequest}
               pricing={pricing}
               onChange={setPricing}
+              pricingMode={pricingMode}
+              onPricingModeChange={setPricingMode}
+              summaryTotal={summaryTotal}
+              summaryPerPerson={summaryPerPerson}
+              onSummaryTotalChange={setSummaryTotal}
+              onSummaryPerPersonChange={setSummaryPerPerson}
             />
           )}
         </div>
