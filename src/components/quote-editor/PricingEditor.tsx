@@ -189,8 +189,9 @@ export function PricingEditor({ request, pricing, onChange }: Props) {
     return acc
   }, {})
   const currencyList = Object.entries(totalsByCurrency).filter(([, v]) => v > 0)
-  const isSingleCurrency = currencyList.length <= 1
-  const singleCurrency = isSingleCurrency ? (currencyList[0]?.[0] ?? 'KRW') : null
+  const isAllKrw = currencyList.length <= 1 && (currencyList[0]?.[0] ?? 'KRW') === 'KRW'
+  const isSingleCurrency = isAllKrw
+  const singleCurrency = isAllKrw ? 'KRW' : null
 
   return (
     <div className="pb-24">
