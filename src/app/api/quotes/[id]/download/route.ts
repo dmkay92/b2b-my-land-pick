@@ -90,7 +90,21 @@ export async function GET(
       기타: [{ date: '', detail: '견적 합계', price: finalTotal, count: 1, quantity: 1, currency: 'KRW' }],
     }
   } else if (markupTotal > 0) {
-    pricing = distributeMealExcludedMarkup(pricing, markupTotal)
+    // 모든 항목이 KRW인지 확인
+    const categories = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타'] as const
+    const allKrw = categories.every(cat =>
+      (draft.pricing[cat] ?? []).every((r: { currency?: string }) => (r.currency ?? 'KRW') === 'KRW')
+    )
+
+    if (allKrw) {
+      // KRW만 사용: 기존처럼 pricing에 마크업 녹임
+      pricing = distributeMealExcludedMarkup(pricing, markupTotal)
+    } else {
+      // 외화 포함: 마크업은 pricing에 녹이지 않음 (환율 이중 적용 방지)
+      // template.ts의 일정표 합계는 원본 pricing 기준으로 계산됨
+      // 마크업은 일정표 합계 계산 후 별도 처리 필요 → markup 정보를 opts로 전달
+      pricing = draft.pricing
+    }
   }
 
   // Check if quote is selected (determines whether to include pricing sheet)
@@ -109,6 +123,13 @@ export async function GET(
     infants: req.infants, leaders: req.leaders,
   })
 
+  // 외화 + 마크업일 때 markup_krw를 opts로 전달
+  const allKrwCheck = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타'] as const
+  const isAllKrw = !isSummaryMode && allKrwCheck.every(cat =>
+    (draft.pricing[cat] ?? []).every((r: { currency?: string }) => (r.currency ?? 'KRW') === 'KRW')
+  )
+  const markupForTemplate = (!isAllKrw && !isSummaryMode && markupTotal > 0) ? markupTotal : 0
+
   const workbook = await generateFilledQuoteTemplate(
     {
       event_name: req.event_name,
@@ -122,6 +143,7 @@ export async function GET(
       leaders: req.leaders,
       hotel_grade: req.hotel_grade,
       landco_name: landcoProfile?.company_name ?? '',
+      markup_krw: markupForTemplate,
     },
     { itinerary: draft.itinerary, pricing },
   )

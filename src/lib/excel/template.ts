@@ -15,6 +15,7 @@ interface TemplateOptions {
   leaders?: number
   includes?: string
   excludes?: string
+  markup_krw?: number  // KRW 기준 여행사 마크업 (일정표 합계에 추가)
 }
 
 const HEADER_BLACK = 'FF000000'  // 검정 (헤더)
@@ -479,7 +480,7 @@ export async function generateFilledQuoteTemplate(
       pricingGrandTotal += scheduleToKrw(rowTotal, cur)
     }
   }
-  pricingGrandTotal = Math.round(pricingGrandTotal)
+  pricingGrandTotal = Math.round(pricingGrandTotal) + (opts.markup_krw ?? 0)
 
   // 빈 행 하나
   scheduleSheet.addRow([])
