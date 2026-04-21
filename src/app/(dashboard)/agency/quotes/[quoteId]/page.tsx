@@ -49,14 +49,15 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
     infants: data.request.infants, leaders: data.request.leaders,
   })
 
-  // Agency markup (URL param takes priority over DB)
+  const isSummaryMode = data.pricing_mode === 'summary'
+
+  // Agency markup (URL param takes priority over DB) — skip for summary mode
   let pricing = data.draft.pricing
-  const markupTotal = urlMarkup > 0 ? urlMarkup : (data.markup?.markup_total ?? 0)
+  const markupTotal = isSummaryMode ? 0 : (urlMarkup > 0 ? urlMarkup : (data.markup?.markup_total ?? 0))
   if (markupTotal > 0) {
     pricing = distributeMealExcludedMarkup(pricing, markupTotal)
   }
 
-  const isSummaryMode = data.pricing_mode === 'summary'
   const totals = isSummaryMode
     ? { total: data.summary_total || 0, categoryTotals: {} }
     : calculatePricingTotals(pricing)
