@@ -18,6 +18,7 @@ describe('getDefaultTemplateType', () => {
 
 describe('buildInstallments', () => {
   const departDate = '2026-06-15'
+  const sevenDaysLater = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
 
   it('builds standard (2-step) installments', () => {
     const result = buildInstallments('standard', 10000000, departDate)
@@ -25,6 +26,7 @@ describe('buildInstallments', () => {
     expect(result[0].label).toBe('계약금')
     expect(result[0].rate).toBe(0.1)
     expect(result[0].amount).toBe(1000000)
+    expect(result[0].due_date).toBe(sevenDaysLater) // 확정 후 7일 이내
     expect(result[0].allow_split).toBe(false)
     expect(result[1].label).toBe('잔금')
     expect(result[1].rate).toBe(0.9)
@@ -38,6 +40,7 @@ describe('buildInstallments', () => {
     expect(result).toHaveLength(3)
     expect(result[0].label).toBe('계약금')
     expect(result[0].amount).toBe(1000000)
+    expect(result[0].due_date).toBe(sevenDaysLater)
     expect(result[0].allow_split).toBe(false)
     expect(result[1].label).toBe('중도금')
     expect(result[1].rate).toBe(0.4)
@@ -49,6 +52,14 @@ describe('buildInstallments', () => {
     expect(result[2].amount).toBe(5000000)
     expect(result[2].due_date).toBe('2026-06-08')
     expect(result[2].allow_split).toBe(true)
+  })
+
+  it('deposit due_date falls back to today when departure is too close', () => {
+    const closeDepartDate = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10)
+    const result = buildInstallments('standard', 10000000, closeDepartDate)
+    const today = new Date().toISOString().slice(0, 10)
+    // 출발 10일 전, 7일 후 = 출발 3일 전 → 출발 7일 전보다 이후이므로 즉시
+    expect(result[0].due_date).toBe(today)
   })
 
   it('builds immediate (1-step) installment', () => {
