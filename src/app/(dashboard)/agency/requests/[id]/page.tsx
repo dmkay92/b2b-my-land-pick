@@ -266,7 +266,7 @@ export default function AgencyRequestDetail() {
       {/* 견적 조건 카드 */}
       <div className="rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
         {/* 헤더: 목적지 + 마감 */}
-        <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-900 to-gray-800">
+        <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-gray-900 to-gray-800">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-white">{getCountryName(request.destination_country)}</span>
             <span className="text-gray-500">·</span>
@@ -278,12 +278,12 @@ export default function AgencyRequestDetail() {
             )}
           </div>
           <div className="text-right">
-            <p className="text-[10px] text-gray-400">견적 마감</p>
-            <p className="text-xs font-semibold text-gray-300">
+            <p className="text-[10px] text-gray-500">견적 마감</p>
+            <p className="text-sm font-semibold text-white">
               {formatDate(request.deadline)}
               {deadlineDays >= 0
                 ? <span className="ml-1.5 text-[10px] font-medium bg-red-500/30 text-red-300 px-1.5 py-0.5 rounded-full">D-{deadlineDays}</span>
-                : <span className="ml-1.5 text-[10px] font-medium bg-white/15 text-gray-400 px-1.5 py-0.5 rounded-full">마감됨</span>
+                : <span className="ml-1.5 text-[10px] font-medium bg-white/20 text-gray-300 px-1.5 py-0.5 rounded-full">마감됨</span>
               }
             </p>
           </div>
@@ -467,7 +467,7 @@ export default function AgencyRequestDetail() {
 
       <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-900 to-gray-800">
+        <div className="flex items-center justify-between px-5 py-3.5 bg-gradient-to-r from-gray-900 to-gray-800">
           <div className="flex items-center gap-2.5">
             <h2 className="text-sm font-bold text-white">랜드사 견적서</h2>
             {landcoCount > 0 && (
