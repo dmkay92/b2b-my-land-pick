@@ -309,7 +309,7 @@ export default function AgencyRequestDetail() {
 
         {/* 항공 스케줄 */}
         {request.flight_schedule && (request.flight_schedule.outbound || request.flight_schedule.inbound) && (
-          <div className="px-6 py-4 border-b border-gray-100">
+          <div className="bg-white px-6 py-4 border-b border-gray-100">
             <p className="text-xs text-gray-400 mb-2">항공 스케줄</p>
             <div className="space-y-2">
               {(['outbound', 'inbound'] as const).map(dir => {
@@ -334,7 +334,7 @@ export default function AgencyRequestDetail() {
         )}
 
         {/* 인원 + 호텔 */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-start gap-8">
+        <div className="bg-white px-6 py-4 border-b border-gray-100 flex items-start gap-8">
           <div>
             <p className="text-xs text-gray-400 mb-1">인원</p>
             <p className="text-lg font-bold text-gray-900">{total}<span className="text-sm font-normal text-gray-500 ml-0.5">명</span></p>
@@ -350,7 +350,7 @@ export default function AgencyRequestDetail() {
         </div>
 
         {/* 옵션 행 */}
-        <div className="px-6 py-3 space-y-2">
+        <div className="bg-white px-6 py-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-400">쇼핑 옵션</span>
             {request.shopping_option === true
@@ -382,14 +382,14 @@ export default function AgencyRequestDetail() {
 
         {/* 요청사항 */}
         {request.notes && (
-          <div className="px-6 py-4 border-t border-gray-100">
+          <div className="bg-white px-6 py-4 border-t border-gray-100">
             <p className="text-xs text-gray-400 mb-1">요청사항</p>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{request.notes}</p>
           </div>
         )}
         {/* 첨부파일 */}
         {(request as QuoteRequest & { attachment_url?: string; attachment_name?: string }).attachment_url && (
-          <div className="px-6 py-4 border-t border-gray-100">
+          <div className="bg-white px-6 py-4 border-t border-gray-100">
             <p className="text-xs text-gray-400 mb-2">첨부파일</p>
             <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
               <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
