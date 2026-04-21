@@ -59,6 +59,8 @@ export interface QuoteRequest {
   local_option: boolean | null
   deadline: string
   notes: string | null
+  travel_type: string | null
+  religion_type: string | null
   status: QuoteRequestStatus
   created_at: string
   flight_schedule: FlightSchedule | null

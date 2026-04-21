@@ -118,6 +118,8 @@ export async function PATCH(
     attachment_url: body.attachment_url ?? null,
     attachment_name: body.attachment_name ?? null,
     flight_schedule: body.flight_schedule ?? null,
+    travel_type: body.travel_type || null,
+    religion_type: body.travel_type === 'religion' ? (body.religion_type || null) : null,
   }).eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

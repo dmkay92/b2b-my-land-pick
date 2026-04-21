@@ -36,6 +36,8 @@ function makeMockRequest(days: number): QuoteRequest {
     local_option: null,
     deadline: '',
     notes: null,
+    travel_type: null,
+    religion_type: null,
     status: 'open',
     created_at: '',
     flight_schedule: null,

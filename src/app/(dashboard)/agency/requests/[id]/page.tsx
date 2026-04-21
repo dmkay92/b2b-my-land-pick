@@ -32,6 +32,23 @@ interface Selection {
   finalized_at: string | null
 }
 
+const TRAVEL_TYPE_LABELS: Record<string, string> = {
+  corporate_incentive: '기업 인센티브',
+  corporate_workshop: '기업 워크숍/연수',
+  academic_government: '학술/관공서',
+  association: '협회/단체',
+  family: '가족/친목',
+  mice: 'MICE',
+  religion: '종교',
+  other: '기타',
+}
+const RELIGION_TYPE_LABELS: Record<string, string> = {
+  protestant: '기독교',
+  catholic: '천주교',
+  buddhist: '불교',
+  other: '기타',
+}
+
 export default function AgencyRequestDetail() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
@@ -378,6 +395,15 @@ export default function AgencyRequestDetail() {
                 : <span className="text-xs px-3 py-1 rounded-full bg-gray-50 text-gray-300 font-medium border border-gray-100">미지정</span>
             }
           </div>
+          {request.travel_type && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400">여행 유형</span>
+              <span className="text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-100">
+                {TRAVEL_TYPE_LABELS[request.travel_type] ?? request.travel_type}
+                {request.religion_type && ` (${RELIGION_TYPE_LABELS[request.religion_type] ?? request.religion_type})`}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* 요청사항 */}
