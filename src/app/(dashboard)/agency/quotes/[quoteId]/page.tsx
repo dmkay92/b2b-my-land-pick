@@ -178,8 +178,11 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
             </button>
           )}
           {data.isSelected && data.pricing_mode === 'summary' && (
-            <span className="pb-2 text-sm font-medium text-gray-300 border-b-2 border-transparent cursor-default">
+            <span className="pb-2 text-sm font-medium text-gray-300 border-b-2 border-transparent cursor-default relative group">
               견적서
+              <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 bg-gray-900 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-0 pointer-events-none z-10">
+                항목별 내역이 포함되지 않은 견적입니다
+              </span>
             </span>
           )}
         </nav>
