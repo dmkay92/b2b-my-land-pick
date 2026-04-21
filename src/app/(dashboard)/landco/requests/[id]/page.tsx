@@ -30,6 +30,7 @@ export default function LandcoRequestDetail() {
   const [savedMemo, setSavedMemo] = useState<string | null>(null)
   const [attachmentPreview, setAttachmentPreview] = useState<{ url: string; name: string } | null>(null)
   const [savingTemplateId, setSavingTemplateId] = useState<string | null>(null)
+  const [excelParsed, setExcelParsed] = useState(false)
   const [templateModal, setTemplateModal] = useState<{ quoteId: string; defaultName: string } | null>(null)
   const [templateName, setTemplateName] = useState('')
 
@@ -106,8 +107,9 @@ export default function LandcoRequestDetail() {
         body: JSON.stringify({ requestId: id, itinerary, pricing }),
       })
 
-      // 3. 웹 에디터 열기
-      window.open(`/landco/requests/${id}/quote/new`, '_blank')
+      // 3. 파싱 완료 표시 — 버튼으로 에디터 열기 유도
+      setExcelParsed(true)
+      setHasDraft(true)
     } catch {
       setUploadError('엑셀 분석 중 오류가 발생했습니다.')
     } finally {
@@ -521,6 +523,18 @@ export default function LandcoRequestDetail() {
               </svg>
               <p className="text-sm text-blue-600 font-medium">AI가 엑셀을 분석 중입니다...</p>
               <p className="text-xs text-gray-400 mt-1">파일 크기에 따라 최대 2분까지 소요될 수 있습니다</p>
+            </div>
+          ) : excelParsed ? (
+            <div className="py-4">
+              <div className="text-3xl mb-2">✅</div>
+              <p className="text-sm text-emerald-600 font-medium">엑셀 분석이 완료되었습니다!</p>
+              <p className="text-xs text-gray-400 mt-1">아래 버튼을 눌러 에디터에서 확인하세요</p>
+              <button
+                onClick={() => window.open(`/landco/requests/${id}/quote/new`, '_blank')}
+                className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                견적서 에디터 열기 ↗
+              </button>
             </div>
           ) : isDragging ? (
             <>
