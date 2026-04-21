@@ -19,6 +19,7 @@ function makeMockRequest(days: number): QuoteRequest {
   return {
     id: '__standalone__',
     agency_id: '',
+    event_number: null,
     event_name: '',
     destination_country: '',
     destination_city: '',

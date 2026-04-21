@@ -252,6 +252,7 @@ export default function AgencyRequestDetail() {
       )}
       <div className="p-8 max-w-4xl mx-auto">
       <BackButton href="/agency" />
+      {request.event_number && <p className="text-xs text-gray-400 mb-1">{request.event_number}</p>}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">{request.event_name}</h1>
         <div className="flex gap-2">
