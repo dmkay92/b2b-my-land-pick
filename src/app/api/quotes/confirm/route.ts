@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendQuoteSelectedEmail } from '@/lib/email/notifications'
-import { extractQuotePricing } from '@/lib/excel/parse'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -65,10 +64,35 @@ export async function POST(request: NextRequest) {
   const agencyMarkup = markup?.markup_total ?? 0
 
   const { data: quoteData } = await supabase
-    .from('quotes').select('file_url').eq('id', quoteId).single()
-  const pricingResult = await extractQuotePricing(quoteData!.file_url)
+    .from('quotes').select('file_url, pricing_mode, summary_total, summary_per_person, pricing').eq('id', quoteId).single()
 
-  const landcoQuoteTotal = pricingResult.total ?? 0
+  // KRW 환산된 랜드사 견적 총액
+  let landcoQuoteTotal: number
+  if (quoteData?.pricing_mode === 'summary') {
+    const pricingJson = quoteData.pricing as { currencies?: Record<string, string>; exchangeRates?: Record<string, number> } | null
+    const summaryCurrency = pricingJson?.currencies?.['summary'] ?? 'KRW'
+    const exRate = pricingJson?.exchangeRates?.[summaryCurrency] ?? 0
+    const rawTotal = quoteData.summary_total ?? 0
+    landcoQuoteTotal = summaryCurrency === 'KRW' ? rawTotal : (exRate > 0 ? Math.round(rawTotal * exRate) : rawTotal)
+  } else {
+    // 항목별: pricing JSON에서 KRW 환산
+    const pricingJson = quoteData?.pricing as { 호텔?: { price: number; count: number; quantity: number; currency?: string }[]; 차량?: { price: number; count: number; quantity: number; currency?: string }[]; 식사?: { price: number; count: number; quantity: number; currency?: string }[]; 입장료?: { price: number; count: number; quantity: number; currency?: string }[]; 가이드비용?: { price: number; count: number; quantity: number; currency?: string }[]; 기타?: { price: number; count: number; quantity: number; currency?: string }[]; exchangeRates?: Record<string, number> } | null
+    const exchangeRates = pricingJson?.exchangeRates ?? {}
+    const categories = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타'] as const
+    let krwTotal = 0
+    for (const cat of categories) {
+      for (const r of (pricingJson?.[cat] ?? [])) {
+        const cur = r.currency ?? 'KRW'
+        const rowTotal = (r.price ?? 0) * (r.count ?? 0) * (r.quantity ?? 0)
+        if (cur === 'KRW') krwTotal += rowTotal
+        else {
+          const rate = exchangeRates[cur] ?? 0
+          krwTotal += rate > 0 ? Math.round(rowTotal * rate) : 0
+        }
+      }
+    }
+    landcoQuoteTotal = krwTotal
+  }
   const platformFee = Math.round(landcoQuoteTotal * platformFeeRate)
   const agencyCommissionRate = 1.0
   const platformGrossRevenue = platformFee + agencyMarkup
