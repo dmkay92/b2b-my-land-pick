@@ -94,5 +94,43 @@ export async function POST(request: NextRequest) {
     gmv,
   }, { onConflict: 'request_id' })
 
+  // Create payment schedule
+  const { getDefaultTemplateType, buildInstallments } = await import('@/lib/payment/schedule')
+  const { calculateTotalPeople } = await import('@/lib/utils')
+
+  const { data: fullRequest } = await supabase
+    .from('quote_requests').select('depart_date, adults, children, infants, leaders')
+    .eq('id', requestId).single()
+
+  const totalPeople = calculateTotalPeople({
+    adults: fullRequest?.adults ?? 0, children: fullRequest?.children ?? 0,
+    infants: fullRequest?.infants ?? 0, leaders: fullRequest?.leaders ?? 0,
+  })
+
+  const templateType = getDefaultTemplateType(totalPeople)
+  const installmentDrafts = buildInstallments(templateType, gmv, fullRequest!.depart_date)
+
+  const { data: settlement } = await supabase
+    .from('quote_settlements').select('id').eq('request_id', requestId).single()
+
+  const { data: schedule } = await supabase
+    .from('payment_schedules').upsert({
+      request_id: requestId,
+      settlement_id: settlement?.id ?? null,
+      template_type: templateType,
+      total_amount: gmv,
+      total_people: totalPeople,
+    }, { onConflict: 'request_id' }).select().single()
+
+  if (schedule) {
+    await supabase.from('payment_installments').delete().eq('schedule_id', schedule.id)
+    for (const inst of installmentDrafts) {
+      await supabase.from('payment_installments').insert({
+        schedule_id: schedule.id,
+        ...inst,
+      })
+    }
+  }
+
   return NextResponse.json({ success: true })
 }
