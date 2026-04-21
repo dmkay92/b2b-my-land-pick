@@ -21,6 +21,7 @@ export default function LandcoQuoteDetailPage({ params }: { params: Promise<{ qu
   const router = useRouter()
   const [data, setData] = useState<QuoteDetailData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
   const [activeTab, setActiveTab] = useState<'itinerary' | 'pricing'>('itinerary')
 
   useEffect(() => {
@@ -46,15 +47,57 @@ export default function LandcoQuoteDetailPage({ params }: { params: Promise<{ qu
   const totals = calculatePricingTotals(pricing)
   const perPerson = totalPeople > 0 ? Math.round(totals.total / totalPeople) : 0
 
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}/download`)
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = data.quote.file_name || 'quote.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-gray-700 mb-2">
-            &larr; 뒤로가기
-          </button>
           <h1 className="text-xl font-bold">{data.request.event_name}</h1>
           <p className="text-sm text-gray-500">{data.landcoName}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className={`px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200 ${
+              downloading
+                ? 'bg-gray-400 text-gray-200 cursor-wait'
+                : 'bg-gray-900 text-white hover:bg-gray-800 active:scale-95'
+            }`}
+          >
+            {downloading ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                다운로드 중...
+              </span>
+            ) : '엑셀 다운로드'}
+          </button>
+          <button
+            onClick={() => window.close()}
+            className="px-4 py-2 text-sm rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 active:scale-95 transition-all duration-200"
+          >
+            닫기
+          </button>
         </div>
       </div>
 
