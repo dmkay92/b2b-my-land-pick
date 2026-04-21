@@ -66,7 +66,23 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
     const rawTotal = data.summary_total || 0
     baseTotal = summaryCurrency === 'KRW' ? rawTotal : (summaryExRate > 0 ? Math.round(rawTotal * summaryExRate) : rawTotal)
   } else {
-    baseTotal = calculatePricingTotals(pricing).total
+    // KRW 환산 — 외화 항목은 환율 적용
+    const exchangeRates = data.draft.pricing.exchangeRates ?? {}
+    const categories = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타'] as const
+    let krwTotal = 0
+    for (const cat of categories) {
+      for (const r of (pricing[cat] ?? [])) {
+        const cur = r.currency ?? 'KRW'
+        const rowTotal = r.price * r.count * r.quantity
+        if (cur === 'KRW') {
+          krwTotal += rowTotal
+        } else {
+          const rate = exchangeRates[cur] ?? 0
+          krwTotal += rate > 0 ? Math.round(rowTotal * rate) : 0
+        }
+      }
+    }
+    baseTotal = krwTotal
   }
 
   const totals = { total: baseTotal + markupTotal, categoryTotals: {} }
