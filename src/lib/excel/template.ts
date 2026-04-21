@@ -620,6 +620,7 @@ export async function generateFilledQuoteTemplate(
     const rows = draft.pricing[cat] ?? []
     const catStartRow = rowIndex
     let catTotalKrw = 0
+    let catTotalRaw = 0  // 원본 통화 합계 (소계 표시용)
 
     // 카테고리 내 통화 단일 여부 판별
     const catCurrencies = rows.length > 0 ? [...new Set(rows.map(r => r.currency ?? 'KRW'))] : []
@@ -655,6 +656,7 @@ export async function generateFilledQuoteTemplate(
         const cur = pRow.currency ?? 'KRW'
         const rowTotal = (pRow.price ?? 0) * (pRow.count ?? 1) * (pRow.quantity ?? 1)
         catTotalKrw += toKrw(rowTotal, cur)
+        catTotalRaw += rowTotal
         currencyTotals[cur] = (currencyTotals[cur] ?? 0) + rowTotal
         const row = quoteSheet.getRow(rowIndex)
         row.getCell(1).value = ri === 0 ? cat : ''
@@ -698,7 +700,7 @@ export async function generateFilledQuoteTemplate(
     subtotalRow.getCell(4).value = catCurrency
     subtotalRow.getCell(4).font = { bold: true, size: 10 }
     subtotalRow.getCell(4).alignment = { vertical: 'middle', horizontal: 'center' }
-    subtotalRow.getCell(8).value = { formula: `SUM(H${catStartRow}:H${rowIndex - 1})`, result: catTotalKrw }
+    subtotalRow.getCell(8).value = { formula: `SUM(H${catStartRow}:H${rowIndex - 1})`, result: catTotalRaw }
     subtotalRow.getCell(8).numFmt = '#,##0'
     subtotalRow.getCell(8).font = { bold: true, size: 10 }
     subtotalRow.getCell(8).alignment = { vertical: 'middle', horizontal: 'right' }
