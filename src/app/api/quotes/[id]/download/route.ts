@@ -73,8 +73,23 @@ export async function GET(
   }
 
   // Apply agency markup if exists
+  const isSummaryMode = quote.pricing_mode === 'summary'
   let pricing = draft.pricing
-  if (markupTotal > 0) {
+
+  if (isSummaryMode) {
+    // 합계만 모드: pricing을 빈 데이터로 교체하고 KRW 환산된 총액을 넣음
+    const summaryCurrency = (draft.pricing as { currencies?: Record<string, string> })?.currencies?.['summary'] ?? 'KRW'
+    const exRate = (draft.pricing as { exchangeRates?: Record<string, number> })?.exchangeRates?.[summaryCurrency] ?? 0
+    const rawTotal = quote.summary_total ?? 0
+    const krwTotal = summaryCurrency === 'KRW' ? rawTotal : (exRate > 0 ? Math.round(rawTotal * exRate) : rawTotal)
+    const finalTotal = krwTotal + markupTotal
+
+    // 기타 카테고리에 총액을 하나의 row로 넣어서 일정표 합계가 정확하게 나오도록
+    pricing = {
+      호텔: [], 차량: [], 식사: [], 입장료: [], 가이드비용: [],
+      기타: [{ date: '', detail: '견적 합계', price: finalTotal, count: 1, quantity: 1, currency: 'KRW' }],
+    }
+  } else if (markupTotal > 0) {
     pricing = distributeMealExcludedMarkup(pricing, markupTotal)
   }
 
@@ -112,7 +127,6 @@ export async function GET(
   )
 
   // Remove pricing sheet if not selected OR summary-only mode
-  const isSummaryMode = quote.pricing_mode === 'summary'
   if (!isSelected || isSummaryMode) {
     const pricingSheet = workbook.getWorksheet('견적서')
     if (pricingSheet) {
@@ -120,28 +134,6 @@ export async function GET(
     }
   }
 
-  // For summary mode, override itinerary sheet totals with summary values (KRW converted)
-  if (isSummaryMode) {
-    const summaryCurrency = (draft.pricing as { currencies?: Record<string, string> })?.currencies?.['summary'] ?? 'KRW'
-    const exRate = (draft.pricing as { exchangeRates?: Record<string, number> })?.exchangeRates?.[summaryCurrency] ?? 0
-    const rawTotal = quote.summary_total ?? 0
-    const krwTotal = summaryCurrency === 'KRW' ? rawTotal : (exRate > 0 ? Math.round(rawTotal * exRate) : rawTotal)
-    const krwPerPerson = totalPeople > 0 ? Math.round(krwTotal / totalPeople) : 0
-
-    // Find and overwrite summary rows in itinerary sheet
-    const itinerarySheet = workbook.getWorksheet('일정표')
-    if (itinerarySheet) {
-      itinerarySheet.eachRow((row, rowNum) => {
-        const cellA = row.getCell(1)
-        if (cellA.value === '총 합계') {
-          row.getCell(5).value = krwTotal + markupTotal
-        }
-        if (cellA.value === '1인당') {
-          row.getCell(5).value = totalPeople > 0 ? Math.round((krwTotal + markupTotal) / totalPeople) : 0
-        }
-      })
-    }
-  }
 
   const buffer = await workbook.xlsx.writeBuffer()
   const filename = encodeURIComponent(quote.file_name || 'quote.xlsx')
