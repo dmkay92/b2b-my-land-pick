@@ -6,6 +6,7 @@ import type { PaymentSchedule, PaymentInstallment } from '@/lib/supabase/types'
 interface Props {
   schedule: PaymentSchedule
   installments: PaymentInstallment[]
+  departDate?: string
   onSwitchToImmediate: () => Promise<void>
   onSwitchToDefault: () => Promise<void>
 }
@@ -37,10 +38,12 @@ function templateLabel(type: string) {
   }
 }
 
-export default function PaymentScheduleCard({ schedule, installments, onSwitchToImmediate, onSwitchToDefault }: Props) {
+export default function PaymentScheduleCard({ schedule, installments, departDate, onSwitchToImmediate, onSwitchToDefault }: Props) {
   const [switching, setSwitching] = useState(false)
   const noPaid = installments.every(i => i.status === 'pending')
   const isImmediate = schedule.template_type === 'immediate'
+  const daysUntilDepart = departDate ? Math.ceil((new Date(departDate).getTime() - Date.now()) / 86400000) : 999
+  const forceImmediate = daysUntilDepart <= 7
 
   const handleSwitch = async (toImmediate: boolean) => {
     setSwitching(true)
@@ -59,7 +62,7 @@ export default function PaymentScheduleCard({ schedule, installments, onSwitchTo
             {templateLabel(schedule.template_type)}
           </span>
         </div>
-        {noPaid && (
+        {noPaid && !forceImmediate && (
           <button
             onClick={() => handleSwitch(!isImmediate)}
             disabled={switching}

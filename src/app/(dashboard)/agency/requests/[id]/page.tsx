@@ -434,6 +434,7 @@ export default function AgencyRequestDetail() {
           <PaymentScheduleCard
             schedule={paymentSchedule}
             installments={paymentInstallments}
+            departDate={request.depart_date}
             onSwitchToImmediate={async () => {
               await fetch('/api/payment-schedule', {
                 method: 'PUT',

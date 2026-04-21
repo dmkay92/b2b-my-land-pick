@@ -40,6 +40,18 @@ export function buildInstallments(
 ): InstallmentDraft[] {
   const today = new Date().toISOString().slice(0, 10)
 
+  // 출발 7일 이내면 무조건 즉시완납
+  const daysUntilDepart = Math.ceil((new Date(departDate).getTime() - Date.now()) / 86400000)
+  if (daysUntilDepart <= 7) {
+    return [{
+      label: '전액',
+      rate: 1.0,
+      amount: totalAmount,
+      due_date: today,
+      allow_split: true,
+    }]
+  }
+
   if (templateType === 'immediate') {
     return [{
       label: '전액',

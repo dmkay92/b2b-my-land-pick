@@ -58,8 +58,23 @@ describe('buildInstallments', () => {
     const closeDepartDate = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10)
     const result = buildInstallments('standard', 10000000, closeDepartDate)
     const today = new Date().toISOString().slice(0, 10)
-    // 출발 10일 전, 7일 후 = 출발 3일 전 → 출발 7일 전보다 이후이므로 즉시
     expect(result[0].due_date).toBe(today)
+  })
+
+  it('forces immediate when departure is within 7 days', () => {
+    const soonDepartDate = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10)
+    const result = buildInstallments('standard', 10000000, soonDepartDate)
+    expect(result).toHaveLength(1)
+    expect(result[0].label).toBe('전액')
+    expect(result[0].amount).toBe(10000000)
+    expect(result[0].allow_split).toBe(true)
+  })
+
+  it('forces immediate for large_event when departure is within 7 days', () => {
+    const soonDepartDate = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
+    const result = buildInstallments('large_event', 10000000, soonDepartDate)
+    expect(result).toHaveLength(1)
+    expect(result[0].label).toBe('전액')
   })
 
   it('builds immediate (1-step) installment', () => {
