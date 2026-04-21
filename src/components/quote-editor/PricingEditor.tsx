@@ -88,7 +88,7 @@ function SummaryPricingMode({ pricing, onChange, summaryTotal, summaryPerPerson,
   return (
     <div className="bg-white border border-gray-900 rounded-lg p-8">
       <div className="max-w-md mx-auto space-y-5">
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-2 text-center">
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-6 text-center">
           <p className="text-sm font-medium text-amber-800">세부 항목 없이 견적 합계만 제출합니다</p>
           <p className="text-xs text-amber-600 mt-0.5">여행사에는 &apos;상세 견적 미포함&apos;으로 표시됩니다</p>
         </div>
