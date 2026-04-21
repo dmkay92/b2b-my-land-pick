@@ -591,7 +591,7 @@ export function QuoteEditorShell({ requestId }: Props) {
                     : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                 }`}
               >
-                항목별 내역
+                항목별
               </button>
               <button
                 onClick={() => { setPricingMode('summary'); isDirtyRef.current = true; setSaveStatus('unsaved') }}
