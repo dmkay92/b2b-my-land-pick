@@ -44,7 +44,9 @@ export function QuoteEditorShell({ requestId }: Props) {
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [showTemplateSaveAfterSubmit, setShowTemplateSaveAfterSubmit] = useState(false)
   const [templateMode, setTemplateMode] = useState<'save' | 'load' | null>(null)
+  const [isParsingExcel, setIsParsingExcel] = useState(false)
   const closeAfterTemplateSaveRef = useRef(false)
+  const excelInputRef = useRef<HTMLInputElement>(null)
 
   const isDirtyRef = useRef(false)
   const itineraryRef = useRef(itinerary)
@@ -234,6 +236,29 @@ export function QuoteEditorShell({ requestId }: Props) {
     )
   }
 
+  async function handleExcelImport(file: File) {
+    setIsParsingExcel(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/quotes/parse-excel', { method: 'POST', body: formData })
+      if (!res.ok) {
+        const err = await res.json()
+        alert(err.error || '엑셀 파싱에 실패했습니다.')
+        return
+      }
+      const { itinerary: newItinerary, pricing: newPricing } = await res.json()
+      setItinerary(newItinerary)
+      setPricing(newPricing)
+      isDirtyRef.current = true
+      setSaveStatus('unsaved')
+    } catch {
+      alert('엑셀 파싱 중 오류가 발생했습니다.')
+    } finally {
+      setIsParsingExcel(false)
+    }
+  }
+
   function handleTemplateLoad(newItinerary: ItineraryDay[], newPricing: PricingData) {
     setItinerary(newItinerary)
     setPricing(newPricing)
@@ -243,6 +268,17 @@ export function QuoteEditorShell({ requestId }: Props) {
 
   return (
     <>
+      <input
+        ref={excelInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={e => {
+          const file = e.target.files?.[0]
+          if (file) handleExcelImport(file)
+          e.target.value = ''
+        }}
+      />
       {showTemplateSaveAfterSubmit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setShowTemplateSaveAfterSubmit(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
@@ -421,6 +457,13 @@ export function QuoteEditorShell({ requestId }: Props) {
               className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
             >
               나가기
+            </button>
+            <button
+              onClick={() => excelInputRef.current?.click()}
+              disabled={isParsingExcel}
+              className="border border-gray-300 bg-white text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {isParsingExcel ? '분석 중...' : '📄 엑셀 불러오기'}
             </button>
             <button
               onClick={() => setTemplateMode('load')}
