@@ -83,6 +83,7 @@ export function QuoteEditorShell({ requestId }: Props) {
           req = json.request
           setRequest(req)
         }
+        let draftLoaded = false
         if (draftRes.ok) {
           const { draft } = await draftRes.json()
           if (draft) {
@@ -95,12 +96,12 @@ export function QuoteEditorShell({ requestId }: Props) {
               if (draft.pricing_mode) setPricingMode(draft.pricing_mode)
               if (draft.summary_total) setSummaryTotal(draft.summary_total)
               if (draft.summary_per_person) setSummaryPerPerson(draft.summary_per_person)
-              return
+              draftLoaded = true
             }
           }
         }
         // draft 없음(또는 reset): 날짜 범위로 기본 일정 생성 (각 날짜에 빈 row 1개)
-        if (req) {
+        if (req && !draftLoaded) {
           const [dy, dm, dd] = req.depart_date.split('-').map(Number)
           const [ry, rm, rd] = req.return_date.split('-').map(Number)
           const departMs = Date.UTC(dy, dm - 1, dd)
