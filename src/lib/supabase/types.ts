@@ -105,6 +105,8 @@ export interface Message {
   room_id: string
   sender_id: string
   content: string
+  message_type?: ChatMessageType
+  metadata?: Record<string, unknown>
   created_at: string
 }
 
@@ -257,7 +259,9 @@ export interface PlatformSetting {
   updated_at: string
 }
 
-export type PaymentTemplateType = 'standard' | 'large_event' | 'immediate'
+export type PaymentTemplateType = 'standard' | 'large_event' | 'immediate' | 'post_travel'
+export type ApprovalStatus = 'approved' | 'pending' | 'rejected'
+export type ChatMessageType = 'text' | 'file' | 'system' | 'approval_request' | 'approval_result'
 export type PaymentInstallmentStatus = 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled'
 export type PaymentTransactionStatus = 'pending' | 'success' | 'failed' | 'cancelled'
 export type PaymentMethod = 'virtual_account' | 'card_link' | 'card_keyin'
@@ -267,6 +271,7 @@ export interface PaymentSchedule {
   request_id: string
   settlement_id: string | null
   template_type: PaymentTemplateType
+  approval_status: ApprovalStatus
   total_amount: number
   total_people: number
   created_at: string
