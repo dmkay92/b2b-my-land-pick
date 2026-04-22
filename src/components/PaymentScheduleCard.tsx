@@ -337,7 +337,6 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-white">{fmt(schedule.total_amount)}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></span>
             {isPending && (
               <span className="text-[10px] font-medium text-amber-300 bg-amber-500/20 border border-amber-400/30 px-2 py-0.5 rounded-full">
                 랜드사 승인 대기중
@@ -460,6 +459,33 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
             )
           })}
         </div>
+
+        {/* 결제 요약 */}
+        {(() => {
+          const totalPaid = installments.reduce((sum, i) => sum + i.paid_amount, 0)
+          const totalRemaining = schedule.total_amount - totalPaid
+          const paidPct = schedule.total_amount > 0 ? Math.round((totalPaid / schedule.total_amount) * 100) : 0
+          return (
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-gray-500">총 결제금액</span>
+                <span className="text-xs text-gray-500">{fmt(schedule.total_amount)}원</span>
+              </div>
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
+                <div
+                  className="h-full bg-emerald-500 rounded-full transition-all"
+                  style={{ width: `${paidPct}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">결제완료 {fmt(totalPaid)}원 ({paidPct}%)</span>
+                <span className={`text-sm font-bold ${totalRemaining > 0 ? 'text-gray-900' : 'text-emerald-600'}`}>
+                  {totalRemaining > 0 ? `잔여 ${fmt(totalRemaining)}원` : '전액 결제완료'}
+                </span>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* 승인 상태 안내 */}
         {isPending && (
