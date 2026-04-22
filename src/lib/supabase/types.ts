@@ -42,6 +42,7 @@ export interface FlightSchedule {
 export interface QuoteRequest {
   id: string
   agency_id: string
+  event_number: string | null
   event_name: string
   destination_country: string
   destination_city: string
@@ -59,6 +60,8 @@ export interface QuoteRequest {
   local_option: boolean | null
   deadline: string
   notes: string | null
+  travel_type: string | null
+  religion_type: string | null
   status: QuoteRequestStatus
   created_at: string
   flight_schedule: FlightSchedule | null
@@ -73,6 +76,11 @@ export interface Quote {
   file_name: string
   status: QuoteStatus
   submitted_at: string
+  itinerary?: unknown  // ItineraryDay[] JSON
+  pricing?: unknown    // PricingData JSON
+  pricing_mode?: 'detailed' | 'summary'
+  summary_total?: number
+  summary_per_person?: number
 }
 
 export interface QuoteSelection {
@@ -162,6 +170,9 @@ export interface QuoteDraft {
   pricing: PricingData
   created_at: string
   updated_at: string
+  pricing_mode?: 'detailed' | 'summary'
+  summary_total?: number
+  summary_per_person?: number
 }
 
 export interface Notification {
@@ -207,4 +218,88 @@ export interface SignupDraft {
     bank_holder: string
   } | null
   countries: string[]
+}
+
+export interface AgencyMarkup {
+  id: string
+  quote_id: string
+  agency_id: string
+  markup_per_person: number
+  markup_total: number
+  created_at: string
+  updated_at: string
+}
+
+export interface QuoteSettlement {
+  id: string
+  request_id: string
+  quote_id: string
+  landco_id: string
+  agency_id: string
+  landco_quote_total: number
+  platform_fee_rate: number
+  platform_fee: number
+  agency_markup: number
+  agency_commission_rate: number
+  platform_gross_revenue: number
+  agency_payout: number
+  platform_net_revenue: number
+  landco_payout: number
+  gmv: number
+  landco_settled: boolean
+  agency_settled: boolean
+  created_at: string
+}
+
+export interface PlatformSetting {
+  key: string
+  value: unknown
+  updated_at: string
+}
+
+export type PaymentTemplateType = 'standard' | 'large_event' | 'immediate'
+export type PaymentInstallmentStatus = 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled'
+export type PaymentTransactionStatus = 'pending' | 'success' | 'failed' | 'cancelled'
+export type PaymentMethod = 'virtual_account' | 'card_link' | 'card_keyin'
+
+export interface PaymentSchedule {
+  id: string
+  request_id: string
+  settlement_id: string | null
+  template_type: PaymentTemplateType
+  total_amount: number
+  total_people: number
+  created_at: string
+  updated_at: string
+}
+
+export interface PaymentInstallment {
+  id: string
+  schedule_id: string
+  label: string
+  rate: number
+  amount: number
+  paid_amount: number
+  due_date: string
+  status: PaymentInstallmentStatus
+  allow_split: boolean
+  paid_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PaymentTransaction {
+  id: string
+  installment_id: string
+  base_amount: number | null
+  card_surcharge_rate: number
+  card_surcharge: number
+  amount: number
+  payment_method: PaymentMethod
+  status: PaymentTransactionStatus
+  pg_transaction_id: string | null
+  pg_response: Record<string, unknown> | null
+  virtual_account_info: { bank: string; account_number: string; holder: string; expires_at: string } | null
+  created_at: string
+  updated_at: string
 }

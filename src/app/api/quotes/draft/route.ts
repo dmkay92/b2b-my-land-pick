@@ -63,8 +63,11 @@ export async function PUT(request: NextRequest) {
     requestId: string
     itinerary: ItineraryDay[]
     pricing: PricingData
+    pricing_mode?: 'detailed' | 'summary'
+    summary_total?: number
+    summary_per_person?: number
   }
-  const { requestId, itinerary, pricing } = body
+  const { requestId, itinerary, pricing, pricing_mode, summary_total, summary_per_person } = body
 
   if (!requestId || !itinerary || !pricing) {
     return NextResponse.json({ error: 'requestId, itinerary, pricing이 모두 필요합니다.' }, { status: 400 })
@@ -78,6 +81,9 @@ export async function PUT(request: NextRequest) {
         landco_id: user!.id,
         itinerary,
         pricing,
+        pricing_mode: pricing_mode ?? 'detailed',
+        summary_total: summary_total ?? 0,
+        summary_per_person: summary_per_person ?? 0,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'request_id,landco_id' },

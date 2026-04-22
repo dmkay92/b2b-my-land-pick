@@ -44,15 +44,29 @@ export function QuoteEditorShell({ requestId }: Props) {
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [showTemplateSaveAfterSubmit, setShowTemplateSaveAfterSubmit] = useState(false)
   const [templateMode, setTemplateMode] = useState<'save' | 'load' | null>(null)
+  const [pricingMode, setPricingMode] = useState<'detailed' | 'summary'>('detailed')
+  const [summaryTotal, setSummaryTotal] = useState(0)
+  const [summaryPerPerson, setSummaryPerPerson] = useState(0)
+  const [isParsingExcel, setIsParsingExcel] = useState(false)
+  const [previousVersions, setPreviousVersions] = useState<{ id: string; version: number; submitted_at: string }[]>([])
+  const [showVersionDropdown, setShowVersionDropdown] = useState(false)
+  const [loadingVersion, setLoadingVersion] = useState(false)
   const closeAfterTemplateSaveRef = useRef(false)
+  const excelInputRef = useRef<HTMLInputElement>(null)
 
   const isDirtyRef = useRef(false)
   const itineraryRef = useRef(itinerary)
   const pricingRef = useRef(pricing)
+  const pricingModeRef = useRef(pricingMode)
+  const summaryTotalRef = useRef(summaryTotal)
+  const summaryPerPersonRef = useRef(summaryPerPerson)
 
   // keep refs in sync
   useEffect(() => { itineraryRef.current = itinerary }, [itinerary])
   useEffect(() => { pricingRef.current = pricing }, [pricing])
+  useEffect(() => { pricingModeRef.current = pricingMode }, [pricingMode])
+  useEffect(() => { summaryTotalRef.current = summaryTotal }, [summaryTotal])
+  useEffect(() => { summaryPerPersonRef.current = summaryPerPerson }, [summaryPerPerson])
 
   // request + draft 로드
   useEffect(() => {
@@ -77,6 +91,9 @@ export function QuoteEditorShell({ requestId }: Props) {
             } else {
               if (draft.itinerary?.length > 0) setItinerary(draft.itinerary)
               if (draft.pricing) setPricing(draft.pricing)
+              if (draft.pricing_mode) setPricingMode(draft.pricing_mode)
+              if (draft.summary_total) setSummaryTotal(draft.summary_total)
+              if (draft.summary_per_person) setSummaryPerPerson(draft.summary_per_person)
               return
             }
           }
@@ -107,6 +124,20 @@ export function QuoteEditorShell({ requestId }: Props) {
       } catch {
         // 로드 실패 시 무시
       }
+
+      // 이전 제출 버전 목록 로드
+      try {
+        const versionsRes = await fetch(`/api/requests/${requestId}`)
+        if (versionsRes.ok) {
+          const { quotes } = await versionsRes.json()
+          const myQuotes = (quotes ?? [])
+            .map((q: { id: string; version: number; submitted_at: string }) => ({
+              id: q.id, version: q.version, submitted_at: q.submitted_at,
+            }))
+            .sort((a: { version: number }, b: { version: number }) => b.version - a.version)
+          setPreviousVersions(myQuotes)
+        }
+      } catch { /* ignore */ }
     }
     load()
   }, [requestId])
@@ -121,6 +152,9 @@ export function QuoteEditorShell({ requestId }: Props) {
           requestId,
           itinerary: itineraryRef.current,
           pricing: pricingRef.current,
+          pricing_mode: pricingModeRef.current,
+          summary_total: summaryTotalRef.current,
+          summary_per_person: summaryPerPersonRef.current,
         }),
       })
     } finally {
@@ -234,6 +268,50 @@ export function QuoteEditorShell({ requestId }: Props) {
     )
   }
 
+  async function handleExcelImport(file: File) {
+    setIsParsingExcel(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/quotes/parse-excel', { method: 'POST', body: formData })
+      if (!res.ok) {
+        const err = await res.json()
+        alert(err.error || '엑셀 파싱에 실패했습니다.')
+        return
+      }
+      const { itinerary: newItinerary, pricing: newPricing } = await res.json()
+      setItinerary(newItinerary)
+      setPricing(newPricing)
+      isDirtyRef.current = true
+      setSaveStatus('unsaved')
+    } catch {
+      alert('엑셀 파싱 중 오류가 발생했습니다.')
+    } finally {
+      setIsParsingExcel(false)
+    }
+  }
+
+  async function handleLoadVersion(quoteId: string) {
+    setLoadingVersion(true)
+    setShowVersionDropdown(false)
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}/detail`)
+      if (!res.ok) { alert('버전 데이터를 불러올 수 없습니다.'); return }
+      const json = await res.json()
+      if (json.draft?.itinerary) setItinerary(json.draft.itinerary)
+      if (json.draft?.pricing) setPricing(json.draft.pricing)
+      if (json.pricing_mode) setPricingMode(json.pricing_mode)
+      if (json.summary_total) setSummaryTotal(json.summary_total)
+      if (json.summary_per_person) setSummaryPerPerson(json.summary_per_person)
+      isDirtyRef.current = true
+      setSaveStatus('unsaved')
+    } catch {
+      alert('버전 불러오기에 실패했습니다.')
+    } finally {
+      setLoadingVersion(false)
+    }
+  }
+
   function handleTemplateLoad(newItinerary: ItineraryDay[], newPricing: PricingData) {
     setItinerary(newItinerary)
     setPricing(newPricing)
@@ -243,6 +321,17 @@ export function QuoteEditorShell({ requestId }: Props) {
 
   return (
     <>
+      <input
+        ref={excelInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={e => {
+          const file = e.target.files?.[0]
+          if (file) handleExcelImport(file)
+          e.target.value = ''
+        }}
+      />
       {showTemplateSaveAfterSubmit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setShowTemplateSaveAfterSubmit(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
@@ -423,6 +512,41 @@ export function QuoteEditorShell({ requestId }: Props) {
               나가기
             </button>
             <button
+              onClick={() => excelInputRef.current?.click()}
+              disabled={isParsingExcel}
+              className="border border-gray-300 bg-white text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {isParsingExcel ? '분석 중...' : '📄 엑셀 불러오기'}
+            </button>
+            {previousVersions.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowVersionDropdown(!showVersionDropdown)}
+                  disabled={loadingVersion}
+                  className="flex items-center gap-1.5 border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  {loadingVersion ? '불러오는 중...' : '이전 버전 ▼'}
+                </button>
+                {showVersionDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowVersionDropdown(false)} />
+                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[220px] py-1">
+                      {previousVersions.map(v => (
+                        <button
+                          key={v.id}
+                          onClick={() => handleLoadVersion(v.id)}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
+                        >
+                          <span className="font-medium text-gray-900">v{v.version}</span>
+                          <span className="text-xs text-gray-400">{new Date(v.submitted_at).toLocaleString('ko-KR')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            <button
               onClick={() => setTemplateMode('load')}
               className="flex items-center gap-1.5 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
             >
@@ -457,6 +581,34 @@ export function QuoteEditorShell({ requestId }: Props) {
           </div>
         </div>
 
+        {/* 견적서 서브탭 */}
+        {activeTab === 'pricing' && (
+          <div className="bg-gray-50 border-b border-gray-200 px-6 py-2 flex-shrink-0">
+            <div className="flex gap-1 bg-white rounded-lg border border-gray-200 p-1 w-fit">
+              <button
+                onClick={() => { setPricingMode('detailed'); isDirtyRef.current = true; setSaveStatus('unsaved') }}
+                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  pricingMode === 'detailed'
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                항목별
+              </button>
+              <button
+                onClick={() => { setPricingMode('summary'); isDirtyRef.current = true; setSaveStatus('unsaved') }}
+                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  pricingMode === 'summary'
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                합계만
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 탭 컨텐츠 */}
         <div className="flex-1 overflow-auto p-6">
           {activeTab === 'itinerary' ? (
@@ -470,6 +622,12 @@ export function QuoteEditorShell({ requestId }: Props) {
               request={request}
               pricing={pricing}
               onChange={handlePricingChange}
+              pricingMode={pricingMode}
+              onPricingModeChange={mode => { setPricingMode(mode); isDirtyRef.current = true; setSaveStatus('unsaved') }}
+              summaryTotal={summaryTotal}
+              summaryPerPerson={summaryPerPerson}
+              onSummaryTotalChange={v => { setSummaryTotal(v); isDirtyRef.current = true; setSaveStatus('unsaved') }}
+              onSummaryPerPersonChange={v => { setSummaryPerPerson(v); isDirtyRef.current = true; setSaveStatus('unsaved') }}
             />
           )}
 

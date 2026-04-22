@@ -114,7 +114,10 @@ export default async function LandcoDashboard() {
       return { ...req, phase: 'lost' as const, dday: null, submitted: true }
     }
     if (req.status === 'payment_pending') {
-      return { ...req, phase: 'payment_pending' as const, dday: null, submitted: true }
+      const [ty, tm, td] = today.split('-').map(Number)
+      const [dy, dm, dd] = req.depart_date.slice(0, 10).split('-').map(Number)
+      const dday = Math.ceil((Date.UTC(dy, dm - 1, dd) - Date.UTC(ty, tm - 1, td)) / 86400000)
+      return { ...req, phase: 'payment_pending' as const, dday, submitted: true }
     }
     const phase = getPhase(req, today)
     const dday = getDday(req, phase, today)

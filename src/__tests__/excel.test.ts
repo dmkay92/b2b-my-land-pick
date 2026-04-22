@@ -25,7 +25,7 @@ describe('generateQuoteTemplate', () => {
       hotel_grade: 5,
     })
     const sheet = workbook.getWorksheet('견적서')!
-    const headers = sheet.getRow(3).values as string[]
+    const headers = sheet.getRow(4).values as string[]
     expect(headers).toContain('항목')
     expect(headers).toContain('합계')
   })
