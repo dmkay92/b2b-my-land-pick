@@ -272,8 +272,8 @@ export default function LandcoRequestDetail() {
         </div>
       )}
 
-      {/* 결제 현황 — payment_pending/finalized + 선택됨 */}
-      {(request.status === 'payment_pending' || request.status === 'finalized') && selectionResult === 'selected' && paymentSchedule && (
+      {/* 결제 현황 */}
+      {(request.status === 'payment_pending' || request.status === 'finalized') && paymentSchedule && (
         <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
           <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
             <div className="flex items-center gap-2.5">
@@ -393,7 +393,7 @@ export default function LandcoRequestDetail() {
       )}
 
       {/* 결제확인 — paymentSchedule이 없을 때 fallback */}
-      {request.status === 'payment_pending' && selectionResult === 'selected' && !paymentSchedule && !paymentConfirmed && (
+      {request.status === 'payment_pending' && !paymentSchedule && !paymentConfirmed && (
         <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
           <div className="flex items-center px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
             <h3 className="text-sm font-bold text-white">결제 확인</h3>
