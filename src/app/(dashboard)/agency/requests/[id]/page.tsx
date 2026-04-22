@@ -130,6 +130,20 @@ export default function AgencyRequestDetail() {
     load()
   }, [id])
 
+  // 승인 대기 중일 때 30초 간격 폴링
+  useEffect(() => {
+    if (paymentSchedule?.approval_status !== 'pending') return
+    const interval = setInterval(async () => {
+      const res = await fetch(`/api/payment-schedule?requestId=${id}`)
+      if (res.ok) {
+        const { schedule, installments } = await res.json()
+        setPaymentSchedule(schedule)
+        setPaymentInstallments(installments ?? [])
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [id, paymentSchedule?.approval_status])
+
   async function handleConfirm(landcoId: string, quoteId: string) {
     const res = await fetch('/api/quotes/confirm', {
       method: 'POST',

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { buildInstallments, getDefaultTemplateType } from '@/lib/payment/schedule'
 import { calculateTotalPeople } from '@/lib/utils'
 
@@ -11,11 +12,17 @@ export async function GET(request: NextRequest) {
   const requestId = request.nextUrl.searchParams.get('requestId')
   if (!requestId) return NextResponse.json({ error: 'requestId required' }, { status: 400 })
 
-  const { data: schedule } = await supabase
+  // admin client로 조회 (RLS 우회 — 인증은 위에서 완료)
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+
+  const { data: schedule } = await admin
     .from('payment_schedules').select('*').eq('request_id', requestId).maybeSingle()
   if (!schedule) return NextResponse.json({ schedule: null, installments: [] })
 
-  const { data: installments } = await supabase
+  const { data: installments } = await admin
     .from('payment_installments').select('*')
     .eq('schedule_id', schedule.id).order('rate', { ascending: true })
 
