@@ -597,7 +597,10 @@ export default function LandcoRequestDetail() {
           </div>
           <div className="bg-white">
             {paymentInstallments.map((inst, idx) => {
-              const progressPct = inst.amount > 0 ? Math.min(100, Math.round((inst.paid_amount / inst.amount) * 100)) : 0
+              const displayTotal = landcoQuoteTotal ?? paymentSchedule.total_amount
+              const landcoAmount = Math.round(displayTotal * inst.rate)
+              const landcoPaidAmount = paymentSchedule.total_amount > 0 ? Math.round(inst.paid_amount * (displayTotal / paymentSchedule.total_amount)) : 0
+              const progressPct = landcoAmount > 0 ? Math.min(100, Math.round((landcoPaidAmount / landcoAmount) * 100)) : 0
               return (
                 <div key={inst.id} className={`px-5 py-4 ${idx > 0 ? 'border-t border-gray-100' : ''}`}>
                   <div className="flex items-center justify-between">
@@ -627,9 +630,9 @@ export default function LandcoRequestDetail() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-base font-bold text-gray-900">{inst.amount.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></div>
-                      {inst.paid_amount > 0 && inst.status !== 'paid' && (
-                        <div className="text-[10px] text-blue-500">{inst.paid_amount.toLocaleString('ko-KR')}원 결제됨</div>
+                      <div className="text-base font-bold text-gray-900">{landcoAmount.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></div>
+                      {landcoPaidAmount > 0 && inst.status !== 'paid' && (
+                        <div className="text-[10px] text-blue-500">{landcoPaidAmount.toLocaleString('ko-KR')}원 결제됨</div>
                       )}
                     </div>
                   </div>
