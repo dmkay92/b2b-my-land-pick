@@ -392,6 +392,43 @@ export default function LandcoRequestDetail() {
         </div>
       )}
 
+      {/* 결제확인 — paymentSchedule이 없을 때 fallback */}
+      {request.status === 'payment_pending' && selectionResult === 'selected' && !paymentSchedule && !paymentConfirmed && (
+        <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+          <div className="flex items-center px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
+            <h3 className="text-sm font-bold text-white">결제 확인</h3>
+          </div>
+          <div className="px-5 py-4 bg-white">
+            <p className="text-sm text-gray-500 mb-3">입금이 확인되면 아래 버튼을 눌러 최종 확정 처리해주세요.</p>
+            <textarea
+              value={paymentMemo}
+              onChange={e => setPaymentMemo(e.target.value)}
+              placeholder="메모 입력 (선택사항, 내부 기록용)"
+              rows={2}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-blue-400 mb-3"
+            />
+            <div className="flex justify-end">
+              <button
+                onClick={handlePaymentConfirm}
+                disabled={paymentConfirming}
+                className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {paymentConfirming ? '처리 중...' : '결제확인 완료'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {!paymentSchedule && paymentConfirmed && (
+        <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 mb-6">
+          <span className="text-2xl">✅</span>
+          <div>
+            <p className="text-sm font-semibold text-emerald-700">결제 확인이 완료되었습니다.</p>
+            <p className="text-xs text-emerald-600 mt-0.5">최종 확정 처리가 완료되었습니다.</p>
+          </div>
+        </div>
+      )}
+
       {/* 입금 메모 — finalized 상태에서 메모가 있을 때 */}
       {request.status === 'finalized' && selectionResult === 'selected' && savedMemo && (
         <div className="bg-white rounded-lg shadow-sm p-5 mb-6 border border-gray-100">
