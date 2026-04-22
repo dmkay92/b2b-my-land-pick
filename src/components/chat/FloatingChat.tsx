@@ -27,13 +27,15 @@ const PHASE_TAG: Record<RequestPhase, { label: string; style: React.CSSPropertie
   end: { label: '여행완료', style: { backgroundColor: '#d1fae5', color: '#065f46' } },
 }
 
-function ApprovalRequestCard({ msg, currentUserId, onAction }: {
+function ApprovalRequestCard({ msg, currentUserId, onAction, resolved }: {
   msg: { sender_id: string; content: string | null; metadata?: Record<string, unknown> | null }
   currentUserId: string
   onAction: (action: 'approve' | 'reject') => Promise<void>
+  resolved: boolean
 }) {
   const [acting, setActing] = useState(false)
-  const isLandco = msg.sender_id !== currentUserId // 여행사가 보낸 요청 → 랜드사가 볼 때 버튼 표시
+  const isLandco = msg.sender_id !== currentUserId
+  const showButtons = isLandco && !resolved
 
   return (
     <div style={{
@@ -43,7 +45,7 @@ function ApprovalRequestCard({ msg, currentUserId, onAction }: {
     }}>
       <div style={{ fontSize: '11px', color: '#92400e', fontWeight: 600, marginBottom: '6px' }}>여행 후 정산 승인 요청</div>
       <div style={{ fontSize: '13px', color: '#78350f', lineHeight: 1.5 }}>{msg.content ?? ''}</div>
-      {isLandco && (
+      {showButtons && (
         <div style={{ display: 'flex', gap: '8px', marginTop: '10px', justifyContent: 'flex-end' }}>
           <button
             onClick={async () => { setActing(true); await onAction('reject'); setActing(false) }}
@@ -274,7 +276,9 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
           return (
             <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.message_type === 'approval_request' || msg.message_type === 'approval_result' ? 'center' : isMine ? 'flex-end' : 'flex-start' }}>
               {msg.message_type === 'approval_request' ? (
-                <ApprovalRequestCard msg={msg} currentUserId={currentUserId ?? ''} onAction={async (action) => {
+                <ApprovalRequestCard msg={msg} currentUserId={currentUserId ?? ''} resolved={
+                  messages.some(m => m.message_type === 'approval_result' && (m.metadata as { schedule_id?: string } | undefined)?.schedule_id === (msg.metadata as { schedule_id?: string } | undefined)?.schedule_id)
+                } onAction={async (action) => {
                   const meta = msg.metadata as { schedule_id?: string } | undefined
                   if (!meta?.schedule_id) return
                   await fetch('/api/payment-schedule/approve', {
