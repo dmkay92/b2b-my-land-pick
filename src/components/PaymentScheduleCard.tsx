@@ -363,7 +363,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                     {switching ? '변경 중...' : '일반 플랜으로 변경'}
                   </button>
                 )}
-                {!isPostTravel && !isImmediate && (
+                {!isPostTravel && (
                   <button
                     onClick={() => setShowPostTravelModal(true)}
                     disabled={switching}
