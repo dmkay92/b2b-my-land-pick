@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
 
   const { scheduleId, action } = await request.json() as { scheduleId: string; action: 'approve' | 'reject' }
 
@@ -13,7 +19,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 스케줄 조회
-  const { data: schedule, error: scheduleError } = await supabase
+  const { data: schedule, error: scheduleError } = await admin
     .from('payment_schedules').select('*, quote_requests!inner(agency_id)').eq('id', scheduleId).single()
 
   if (scheduleError || !schedule) {
@@ -25,7 +31,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 권한 확인: 해당 견적의 랜드사만 승인 가능
-  const { data: selection } = await supabase
+  const { data: selection } = await admin
     .from('quote_selections').select('landco_id').eq('request_id', schedule.request_id).single()
 
   if (!selection || selection.landco_id !== user.id) {
@@ -34,7 +40,7 @@ export async function POST(request: NextRequest) {
 
   const newStatus = action === 'approve' ? 'approved' : 'rejected'
 
-  await supabase.from('payment_schedules')
+  await admin.from('payment_schedules')
     .update({ approval_status: newStatus, updated_at: new Date().toISOString() })
     .eq('id', scheduleId)
 
@@ -45,7 +51,7 @@ export async function POST(request: NextRequest) {
 
   if (agencyId) {
     const notifType = action === 'approve' ? 'post_travel_approved' : 'post_travel_rejected'
-    await supabase.from('notifications').insert({
+    await admin.from('notifications').insert({
       user_id: agencyId,
       type: notifType,
       payload: { request_id: schedule.request_id, schedule_id: scheduleId },
@@ -53,7 +59,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 채팅방에 결과 메시지
-  const { data: room } = await supabase
+  const { data: room } = await admin
     .from('chat_rooms').select('id')
     .eq('request_id', schedule.request_id).eq('landco_id', user.id).maybeSingle()
 
@@ -62,7 +68,7 @@ export async function POST(request: NextRequest) {
       ? '여행 후 정산 플랜을 승인했습니다. 결제 일정이 확정되었습니다.'
       : '여행 후 정산 플랜을 거부했습니다. 다른 결제 플랜을 선택해주세요.'
 
-    await supabase.from('messages').insert({
+    await admin.from('messages').insert({
       room_id: room.id,
       sender_id: user.id,
       content,
