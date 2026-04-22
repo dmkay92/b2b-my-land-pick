@@ -470,7 +470,7 @@ export default function AgencyRequestDetail() {
         )}
       </div>
 
-      {(request.status === 'payment_pending' || request.status === 'finalized') && paymentSchedule && (
+      {(request.status === 'payment_pending' || request.status === 'finalized' || request.status === 'closed') && paymentSchedule && (
         <div className="mb-6">
           <PaymentScheduleCard
             schedule={paymentSchedule}
@@ -516,6 +516,7 @@ export default function AgencyRequestDetail() {
                 setPaymentInstallments(installments ?? [])
               }
             }}
+            isCancelled={request.status === 'closed'}
           />
         </div>
       )}

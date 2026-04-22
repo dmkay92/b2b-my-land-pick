@@ -12,6 +12,7 @@ interface Props {
   onSwitchToDefault: () => Promise<void>
   onSwitchToPostTravel: () => Promise<void>
   onRefresh?: () => void
+  isCancelled?: boolean
 }
 
 function fmt(n: number): string {
@@ -48,7 +49,7 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string }[] =
   { value: 'card_keyin', label: '카드결제 (수기)', icon: '⌨️' },
 ]
 
-export default function PaymentScheduleCard({ schedule, installments, departDate, returnDate, onSwitchToImmediate, onSwitchToDefault, onSwitchToPostTravel, onRefresh }: Props) {
+export default function PaymentScheduleCard({ schedule, installments, departDate, returnDate, onSwitchToImmediate, onSwitchToDefault, onSwitchToPostTravel, onRefresh, isCancelled }: Props) {
   const [switching, setSwitching] = useState(false)
   const [payingInstallment, setPayingInstallment] = useState<PaymentInstallment | null>(null)
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
@@ -419,7 +420,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                         <div className="text-[10px] text-blue-500">{fmt(inst.paid_amount)}원 결제됨</div>
                       )}
                     </div>
-                    {canPay && (
+                    {canPay && !isCancelled && (
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => openPayModal(inst, false)}
@@ -440,6 +441,13 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                           </button>
                         )}
                       </div>
+                    )}
+                    {(inst.status === 'paid' || inst.status === 'partial') && inst.paid_amount > 0 && (
+                      <button
+                        className="px-3 py-1.5 text-xs font-medium text-amber-700 border border-amber-300 rounded-lg hover:bg-amber-50 transition-all active:scale-95 whitespace-nowrap"
+                      >
+                        환불요청
+                      </button>
                     )}
                   </div>
                 </div>
