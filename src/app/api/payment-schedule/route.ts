@@ -26,7 +26,12 @@ export async function GET(request: NextRequest) {
     .from('payment_installments').select('*')
     .eq('schedule_id', schedule.id).order('rate', { ascending: true })
 
-  return NextResponse.json({ schedule, installments: installments ?? [] })
+  // 정산 데이터도 같이 반환
+  const { data: settlement } = await admin
+    .from('quote_settlements').select('landco_quote_total, agency_markup, gmv')
+    .eq('request_id', requestId).maybeSingle()
+
+  return NextResponse.json({ schedule, installments: installments ?? [], settlement })
 }
 
 export async function PUT(request: NextRequest) {

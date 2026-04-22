@@ -71,14 +71,10 @@ export default function LandcoRequestDetail() {
         if (json.request?.status === 'payment_pending' || json.request?.status === 'finalized') {
           const schedRes = await fetch(`/api/payment-schedule?requestId=${id}`)
           if (schedRes.ok) {
-            const { schedule, installments } = await schedRes.json()
+            const { schedule, installments, settlement } = await schedRes.json()
             if (schedule) setPaymentSchedule(schedule)
             if (installments) setPaymentInstallments(installments)
-          }
-          // 정산 데이터는 quote_settlements RLS가 있으므로 API 응답에서 추출
-          const selectedQuote = myOnly.find(q => q.status === 'selected' || q.status === 'finalized')
-          if (selectedQuote?.pricing?.total) {
-            setLandcoQuoteTotal(selectedQuote.pricing.total)
+            if (settlement?.landco_quote_total) setLandcoQuoteTotal(settlement.landco_quote_total)
           }
         }
 
