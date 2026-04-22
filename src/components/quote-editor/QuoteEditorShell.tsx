@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from '@/lib/toast'
-import type { QuoteRequest, ItineraryDay, PricingData } from '@/lib/supabase/types'
+import type { QuoteRequest, ItineraryDay, PricingData, PricingRow } from '@/lib/supabase/types'
 import { ItineraryEditor } from './ItineraryEditor'
 import { PricingEditor } from './PricingEditor'
 import { QuotePreview } from './QuotePreview'
@@ -40,6 +40,7 @@ export function QuoteEditorShell({ requestId }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
+  const [submitMode, setSubmitMode] = useState<'detailed' | 'summary'>('detailed')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
   const [showTemplateSaveAfterSubmit, setShowTemplateSaveAfterSubmit] = useState(false)
@@ -205,14 +206,14 @@ export function QuoteEditorShell({ requestId }: Props) {
     }
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(mode: 'detailed' | 'summary') {
     setIsSubmitting(true)
     try {
       await saveDraft()
       const res = await fetch('/api/quotes/draft/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId }),
+        body: JSON.stringify({ requestId, pricing_mode: mode }),
       })
       if (!res.ok) {
         const json = await res.json()
@@ -404,12 +405,42 @@ export function QuoteEditorShell({ requestId }: Props) {
           </div>
         </div>
       )}
-      {showSubmitConfirm && (
+      {showSubmitConfirm && (() => {
+        const categories: (keyof PricingData)[] = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타']
+        const hasPricingItems = categories.some(cat =>
+          (pricing[cat] as PricingRow[])?.some((r: PricingRow) => r.detail || r.price > 0)
+        )
+        const hasSummaryTotal = summaryTotal > 0
+        const canSubmit = submitMode === 'detailed' ? hasPricingItems : hasSummaryTotal
+        const warningMessage = submitMode === 'detailed'
+          ? '항목별 견적 데이터가 입력되지 않았습니다.'
+          : '합계 금액이 입력되지 않았습니다.'
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setShowSubmitConfirm(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="text-base font-bold text-gray-900 mb-1">견적서 제출</h3>
-            <p className="text-sm text-gray-500 mt-2">견적서를 제출하시겠습니까?</p>
+            <h3 className="text-base font-bold text-gray-900 mb-1">견적 제출 방식 선택</h3>
             <p className="text-xs text-gray-400 mt-1">제출 후에는 수정할 수 없습니다.</p>
+            <div className="mt-4 space-y-2">
+              <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${submitMode === 'summary' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                <input type="radio" name="submitMode" checked={submitMode === 'summary'} onChange={() => setSubmitMode('summary')} className="accent-blue-600" />
+                <div>
+                  <span className="text-sm font-medium text-gray-900">합계만</span>
+                  <p className="text-xs text-gray-500">총액만 전달합니다</p>
+                </div>
+              </label>
+              <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${submitMode === 'detailed' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                <input type="radio" name="submitMode" checked={submitMode === 'detailed'} onChange={() => setSubmitMode('detailed')} className="accent-blue-600" />
+                <div>
+                  <span className="text-sm font-medium text-gray-900">항목별</span>
+                  <p className="text-xs text-gray-500">상세 내역을 포함합니다</p>
+                </div>
+              </label>
+            </div>
+            {!canSubmit && (
+              <p className="text-sm text-amber-600 mt-3 flex items-center gap-1">
+                <span>&#9888;</span> {warningMessage}
+              </p>
+            )}
             <div className="flex justify-end gap-2 mt-5">
               <button
                 onClick={() => setShowSubmitConfirm(false)}
@@ -418,9 +449,8 @@ export function QuoteEditorShell({ requestId }: Props) {
                 취소
               </button>
               <button
-                autoFocus
-                onClick={() => { setShowSubmitConfirm(false); handleSubmit() }}
-                disabled={isSubmitting}
+                onClick={() => { setShowSubmitConfirm(false); handleSubmit(submitMode) }}
+                disabled={isSubmitting || !canSubmit}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 제출하기
@@ -428,7 +458,8 @@ export function QuoteEditorShell({ requestId }: Props) {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
       {templateMode && (
         <TemplateModal
           mode={templateMode}
@@ -572,7 +603,7 @@ export function QuoteEditorShell({ requestId }: Props) {
               미리보기
             </button>
             <button
-              onClick={() => setShowSubmitConfirm(true)}
+              onClick={() => { setSubmitMode(pricingMode); setShowSubmitConfirm(true) }}
               disabled={isSubmitting}
               className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
             >

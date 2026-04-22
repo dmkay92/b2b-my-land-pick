@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
   const { user, error } = await getAuthorizedLandco(supabase)
   if (error) return error
 
-  const { requestId } = await request.json() as { requestId: string }
+  const { requestId, pricing_mode: submittedPricingMode } = await request.json() as { requestId: string; pricing_mode?: 'detailed' | 'summary' }
 
   if (!requestId) {
     return NextResponse.json({ error: 'requestId가 필요합니다.' }, { status: 400 })
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       file_name: fileName,
       itinerary: draft.itinerary,
       pricing: draft.pricing,
-      pricing_mode: draft.pricing_mode ?? 'detailed',
+      pricing_mode: submittedPricingMode ?? draft.pricing_mode ?? 'detailed',
       summary_total: draft.summary_total ?? 0,
       summary_per_person: draft.summary_per_person ?? 0,
     })
