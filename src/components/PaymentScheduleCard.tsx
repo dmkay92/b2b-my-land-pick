@@ -7,8 +7,11 @@ interface Props {
   schedule: PaymentSchedule
   installments: PaymentInstallment[]
   departDate?: string
+  returnDate?: string
   onSwitchToImmediate: () => Promise<void>
   onSwitchToDefault: () => Promise<void>
+  onSwitchToPostTravel: () => Promise<void>
+  onRefresh?: () => void
 }
 
 function fmt(n: number): string {
@@ -34,6 +37,7 @@ function templateLabel(type: string) {
   switch (type) {
     case 'large_event': return '대형행사 (3단계)'
     case 'immediate': return '한번에 결제'
+    case 'post_travel': return '여행 후 정산'
     default: return '일반 (2단계)'
   }
 }
@@ -44,12 +48,13 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string }[] =
   { value: 'card_keyin', label: '카드결제 (수기)', icon: '⌨️' },
 ]
 
-export default function PaymentScheduleCard({ schedule, installments, departDate, onSwitchToImmediate, onSwitchToDefault }: Props) {
+export default function PaymentScheduleCard({ schedule, installments, departDate, returnDate, onSwitchToImmediate, onSwitchToDefault, onSwitchToPostTravel, onRefresh }: Props) {
   const [switching, setSwitching] = useState(false)
   const [payingInstallment, setPayingInstallment] = useState<PaymentInstallment | null>(null)
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null)
   const [payAmount, setPayAmount] = useState('')
   const [isSplitModal, setIsSplitModal] = useState(false)
+  const [showPostTravelModal, setShowPostTravelModal] = useState(false)
   const [issuedVirtualAccount, setIssuedVirtualAccount] = useState<{
     bank: string; account_number: string; holder: string; expires_at: string;
     transactionId: string; amount: number;
@@ -57,6 +62,9 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
 
   const noPaid = installments.every(i => i.status === 'pending')
   const isImmediate = schedule.template_type === 'immediate'
+  const isPostTravel = schedule.template_type === 'post_travel'
+  const isPending = schedule.approval_status === 'pending'
+  const isRejected = schedule.approval_status === 'rejected'
   const daysUntilDepart = departDate ? Math.ceil((new Date(departDate).getTime() - Date.now()) / 86400000) : 999
   const forceImmediate = daysUntilDepart <= 7
 
@@ -65,6 +73,14 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
     try {
       if (toImmediate) await onSwitchToImmediate()
       else await onSwitchToDefault()
+    } finally { setSwitching(false) }
+  }
+
+  const handlePostTravelRequest = async () => {
+    setSwitching(true)
+    try {
+      await onSwitchToPostTravel()
+      setShowPostTravelModal(false)
     } finally { setSwitching(false) }
   }
 
@@ -260,6 +276,56 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
         </div>
       )}
 
+      {/* 여행 후 정산 안내 모달 */}
+      {showPostTravelModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-bold text-gray-900">여행 후 정산 플랜</h3>
+            </div>
+            <div className="px-5 py-5 space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">계약금</span>
+                  <span className="font-semibold">10% — 확정 후 7일 이내</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">중도금</span>
+                  <span className="font-semibold">40% — 출발 7일 전</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">잔금</span>
+                  <span className="font-semibold">50% — 귀국 후 30일 이내</span>
+                </div>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1.5">
+                <p className="text-xs text-amber-800 font-medium">안내사항</p>
+                <ul className="text-xs text-amber-700 space-y-1 list-disc list-inside">
+                  <li>여행 후 정산 플랜은 <strong>랜드사 승인이 필요</strong>합니다.</li>
+                  <li>승인 전까지 결제 일정이 확정되지 않습니다.</li>
+                  <li>랜드사가 거부할 경우 다른 플랜을 선택해야 합니다.</li>
+                </ul>
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                onClick={() => setShowPostTravelModal(false)}
+                className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handlePostTravelRequest}
+                disabled={switching}
+                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {switching ? '요청 중...' : '승인 요청'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 스케줄 카드 */}
       <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         {/* 헤더 */}
@@ -272,14 +338,35 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-white">{fmt(schedule.total_amount)}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></span>
-            {noPaid && !forceImmediate && (
-              <button
-                onClick={() => handleSwitch(!isImmediate)}
-                disabled={switching}
-                className="text-[10px] text-gray-300 bg-white/10 border border-white/20 px-2 py-0.5 rounded-full hover:bg-white/20 disabled:opacity-50 transition-colors"
-              >
-                {switching ? '변경 중...' : isImmediate ? '나눠서 결제하기' : '한번에 결제하기'}
-              </button>
+            {isPending && (
+              <span className="text-[10px] font-medium text-amber-300 bg-amber-500/20 border border-amber-400/30 px-2 py-0.5 rounded-full">
+                랜드사 승인 대기중
+              </span>
+            )}
+            {isRejected && (
+              <span className="text-[10px] font-medium text-red-300 bg-red-500/20 border border-red-400/30 px-2 py-0.5 rounded-full">
+                거부됨
+              </span>
+            )}
+            {noPaid && !forceImmediate && !isPending && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => handleSwitch(!isImmediate)}
+                  disabled={switching}
+                  className="text-[10px] text-gray-300 bg-white/10 border border-white/20 px-2 py-0.5 rounded-full hover:bg-white/20 disabled:opacity-50 transition-colors"
+                >
+                  {switching ? '변경 중...' : isImmediate ? '나눠서 결제하기' : '한번에 결제하기'}
+                </button>
+                {!isPostTravel && (
+                  <button
+                    onClick={() => setShowPostTravelModal(true)}
+                    disabled={switching}
+                    className="text-[10px] text-blue-300 bg-blue-500/20 border border-blue-400/30 px-2 py-0.5 rounded-full hover:bg-blue-500/30 disabled:opacity-50 transition-colors"
+                  >
+                    여행 후 정산
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -288,7 +375,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
         <div className="bg-white">
           {installments.map((inst, idx) => {
             const remaining = inst.amount - inst.paid_amount
-            const canPay = inst.status === 'pending' || inst.status === 'partial' || inst.status === 'overdue'
+            const canPay = (inst.status === 'pending' || inst.status === 'partial' || inst.status === 'overdue') && schedule.approval_status === 'approved'
             const progressPct = inst.amount > 0 ? Math.min(100, Math.round((inst.paid_amount / inst.amount) * 100)) : 0
 
             return (
@@ -367,6 +454,18 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
             )
           })}
         </div>
+
+        {/* 승인 상태 안내 */}
+        {isPending && (
+          <div className="px-5 py-3 bg-amber-50 border-t border-amber-100">
+            <p className="text-xs text-amber-700">랜드사의 승인을 기다리고 있습니다. 승인 완료 후 결제가 가능합니다.</p>
+          </div>
+        )}
+        {isRejected && (
+          <div className="px-5 py-3 bg-red-50 border-t border-red-100">
+            <p className="text-xs text-red-700">여행 후 정산 플랜이 거부되었습니다. 다른 결제 플랜을 선택해주세요.</p>
+          </div>
+        )}
       </div>
     </>
   )

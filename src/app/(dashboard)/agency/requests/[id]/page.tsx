@@ -462,6 +462,7 @@ export default function AgencyRequestDetail() {
             schedule={paymentSchedule}
             installments={paymentInstallments}
             departDate={request.depart_date}
+            returnDate={request.return_date}
             onSwitchToImmediate={async () => {
               await fetch('/api/payment-schedule', {
                 method: 'PUT',
@@ -480,6 +481,19 @@ export default function AgencyRequestDetail() {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ requestId: id, templateType: 'default' }),
+              })
+              const res = await fetch(`/api/payment-schedule?requestId=${id}`)
+              if (res.ok) {
+                const { schedule, installments } = await res.json()
+                setPaymentSchedule(schedule)
+                setPaymentInstallments(installments ?? [])
+              }
+            }}
+            onSwitchToPostTravel={async () => {
+              await fetch('/api/payment-schedule', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId: id, templateType: 'post_travel' }),
               })
               const res = await fetch(`/api/payment-schedule?requestId=${id}`)
               if (res.ok) {
