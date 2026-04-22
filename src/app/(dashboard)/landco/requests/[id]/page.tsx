@@ -180,7 +180,10 @@ export default function LandcoRequestDetail() {
     setPaymentConfirming(false)
   }
 
-  const hasOverdue = paymentInstallments.some(i => i.status === 'overdue')
+  const today = new Date().toISOString().slice(0, 10)
+  const hasOverdue = paymentInstallments.some(i =>
+    i.status === 'overdue' || (i.status === 'pending' && i.due_date < today)
+  )
   const canCancel = selectionResult === 'selected' && hasOverdue && request?.status !== 'closed' && request?.status !== 'finalized'
 
   async function handleLandcoCancel() {
