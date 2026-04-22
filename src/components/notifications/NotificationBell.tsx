@@ -19,6 +19,7 @@ const TYPE_LABEL: Record<string, string> = {
   post_travel_approval_request: '여행 후 정산 승인 요청이 있습니다',
   post_travel_approved: '여행 후 정산이 승인되었습니다',
   post_travel_rejected: '여행 후 정산이 거부되었습니다',
+  landco_cancelled: '결제 미이행으로 행사가 취소되었습니다',
 }
 
 export function NotificationBell({ userId }: { userId: string }) {

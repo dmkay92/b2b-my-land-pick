@@ -33,6 +33,8 @@ export default function LandcoRequestDetail() {
   const [excelParsed, setExcelParsed] = useState(false)
   const [templateModal, setTemplateModal] = useState<{ quoteId: string; defaultName: string } | null>(null)
   const [templateName, setTemplateName] = useState('')
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
   const [paymentSchedule, setPaymentSchedule] = useState<{ template_type: string; total_amount: number; approval_status: string } | null>(null)
   const [paymentInstallments, setPaymentInstallments] = useState<{ id: string; label: string; rate: number; amount: number; paid_amount: number; due_date: string; status: string }[]>([])
   const [landcoQuoteTotal, setLandcoQuoteTotal] = useState<number | null>(null)
@@ -178,6 +180,19 @@ export default function LandcoRequestDetail() {
     setPaymentConfirming(false)
   }
 
+  const hasOverdue = paymentInstallments.some(i => i.status === 'overdue')
+  const canCancel = selectionResult === 'selected' && hasOverdue && request?.status !== 'closed' && request?.status !== 'finalized'
+
+  async function handleLandcoCancel() {
+    setCancelling(true)
+    const res = await fetch(`/api/requests/${id}/landco-cancel`, { method: 'POST' })
+    if (res.ok) {
+      setRequest(prev => prev ? { ...prev, status: 'closed' as const } : prev)
+      setShowCancelModal(false)
+    }
+    setCancelling(false)
+  }
+
   if (!request) return <div className="p-8 text-gray-400">로딩 중...</div>
 
   const isUploadDisabled = request.status === 'finalized' || request.status === 'payment_pending' || isAbandoned
@@ -247,7 +262,48 @@ export default function LandcoRequestDetail() {
       )}
     <div className="p-8 max-w-3xl mx-auto">
       <BackButton href="/landco" />
-      <h1 className="text-2xl font-bold mb-4">{request.event_name}</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">{request.event_name}</h1>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowCancelModal(true)}
+            disabled={!canCancel}
+            className={`border px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              canCancel
+                ? 'border-red-300 text-red-500 bg-white hover:bg-red-50'
+                : 'border-gray-200 text-gray-300 bg-gray-50 cursor-not-allowed'
+            }`}
+          >
+            견적 취소
+          </button>
+        </div>
+      </div>
+
+      {/* 취소 확인 모달 */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-1">행사 취소</h3>
+            <p className="text-sm text-gray-500 mt-2">결제 미이행으로 이 행사를 취소하시겠습니까?</p>
+            <p className="text-xs text-red-500 mt-1">취소 후 복구할 수 없습니다. 이미 결제된 금액은 별도 환불 처리가 필요합니다.</p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleLandcoCancel}
+                disabled={cancelling}
+                className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-600 disabled:opacity-50"
+              >
+                {cancelling ? '처리 중...' : '행사 취소'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 선택 결과 배너 */}
       {selectionResult === 'selected' && (
