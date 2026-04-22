@@ -7,7 +7,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 interface Notification {
   id: string
   type: string
-  payload: { request_id?: string; event_name?: string }
+  payload: { request_id?: string; event_name?: string; schedule_id?: string }
   read_at: string | null
   created_at: string
 }
@@ -16,12 +16,16 @@ const TYPE_LABEL: Record<string, string> = {
   quote_selected: '견적서가 선택되었습니다',
   quote_finalized: '견적이 최종 확정되었습니다',
   new_request: '새 견적 요청이 접수되었습니다',
+  post_travel_approval_request: '여행 후 정산 승인 요청이 있습니다',
+  post_travel_approved: '여행 후 정산이 승인되었습니다',
+  post_travel_rejected: '여행 후 정산이 거부되었습니다',
 }
 
 export function NotificationBell({ userId }: { userId: string }) {
   const supabase = createClient()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
+  const [actingId, setActingId] = useState<string | null>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -132,10 +136,48 @@ export function NotificationBell({ userId }: { userId: string }) {
               >
                 <div className="flex items-start gap-2.5">
                   <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${n.read_at ? 'bg-transparent' : 'bg-blue-500'}`} />
-                  <div>
+                  <div className="flex-1">
                     <p>{TYPE_LABEL[n.type] ?? n.type}</p>
                     {n.payload.event_name && (
                       <p className="text-xs text-gray-400 mt-0.5">{n.payload.event_name}</p>
+                    )}
+                    {n.type === 'post_travel_approval_request' && n.payload.schedule_id && (
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          disabled={actingId === n.id}
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            setActingId(n.id)
+                            await fetch('/api/payment-schedule/approve', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ scheduleId: n.payload.schedule_id, action: 'reject' }),
+                            })
+                            load()
+                            setActingId(null)
+                          }}
+                          className="px-3 py-1 text-xs font-medium border border-red-300 text-red-600 rounded-md hover:bg-red-50 disabled:opacity-50"
+                        >
+                          거부
+                        </button>
+                        <button
+                          disabled={actingId === n.id}
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            setActingId(n.id)
+                            await fetch('/api/payment-schedule/approve', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ scheduleId: n.payload.schedule_id, action: 'approve' }),
+                            })
+                            load()
+                            setActingId(null)
+                          }}
+                          className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          승인
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
