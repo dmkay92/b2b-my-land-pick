@@ -43,7 +43,6 @@ export function QuoteEditorShell({ requestId }: Props) {
   const [submitMode, setSubmitMode] = useState<'detailed' | 'summary'>('detailed')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
-  const [showTemplateSaveAfterSubmit, setShowTemplateSaveAfterSubmit] = useState(false)
   const [templateMode, setTemplateMode] = useState<'save' | 'load' | null>(null)
   const [pricingMode, setPricingMode] = useState<'detailed' | 'summary'>('detailed')
   const [summaryTotal, setSummaryTotal] = useState(0)
@@ -223,7 +222,8 @@ export function QuoteEditorShell({ requestId }: Props) {
       }
       setSaveStatus('saved')
       toast('견적서가 제출되었습니다.', 'success')
-      setShowTemplateSaveAfterSubmit(true)
+      window.opener?.location.reload()
+      window.close()
     } catch {
       toast('제출 중 오류가 발생했습니다.', 'error')
     } finally {
@@ -334,29 +334,6 @@ export function QuoteEditorShell({ requestId }: Props) {
           e.target.value = ''
         }}
       />
-      {showTemplateSaveAfterSubmit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setShowTemplateSaveAfterSubmit(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="text-base font-bold text-gray-900 mb-1">템플릿으로 저장할까요?</h3>
-            <p className="text-sm text-gray-500 mt-2">제출된 견적서는 사라집니다. 다음에도 활용하려면 템플릿으로 저장해 두세요.</p>
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                onClick={() => { setShowTemplateSaveAfterSubmit(false); window.opener?.location.reload(); window.close() }}
-                className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
-                저장 안함
-              </button>
-              <button
-                autoFocus
-                onClick={() => { setShowTemplateSaveAfterSubmit(false); closeAfterTemplateSaveRef.current = true; setTemplateMode('save') }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                템플릿 저장
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {showExitConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setShowExitConfirm(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
