@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       ? '여행 후 정산 플랜을 승인했습니다. 결제 일정이 확정되었습니다.'
       : '여행 후 정산 플랜을 거부했습니다. 다른 결제 플랜을 선택해주세요.'
 
-    await supabase.from('chat_messages').insert({
+    await supabase.from('messages').insert({
       room_id: room.id,
       sender_id: user.id,
       content,

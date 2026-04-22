@@ -98,7 +98,7 @@ export async function PUT(request: NextRequest) {
         .eq('request_id', requestId).eq('landco_id', selection.landco_id).maybeSingle()
 
       if (room) {
-        await supabase.from('chat_messages').insert({
+        await supabase.from('messages').insert({
           room_id: room.id,
           sender_id: user.id,
           content: '여행 후 정산 플랜 승인을 요청했습니다. (계약금 10% + 중도금 40% + 잔금 50% 귀국 후 30일)',
