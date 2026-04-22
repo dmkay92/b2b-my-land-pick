@@ -343,21 +343,27 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                 랜드사 승인 대기중
               </span>
             )}
-            {isRejected && (
-              <span className="text-[10px] font-medium text-red-300 bg-red-500/20 border border-red-400/30 px-2 py-0.5 rounded-full">
-                거부됨
-              </span>
-            )}
             {noPaid && !forceImmediate && !isPending && (
               <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => handleSwitch(!isImmediate)}
-                  disabled={switching}
-                  className="text-[10px] text-gray-300 bg-white/10 border border-white/20 px-2 py-0.5 rounded-full hover:bg-white/20 disabled:opacity-50 transition-colors"
-                >
-                  {switching ? '변경 중...' : isImmediate ? '나눠서 결제하기' : '한번에 결제하기'}
-                </button>
                 {!isPostTravel && (
+                  <button
+                    onClick={() => handleSwitch(isImmediate ? false : true)}
+                    disabled={switching}
+                    className="text-[10px] text-gray-300 bg-white/10 border border-white/20 px-2 py-0.5 rounded-full hover:bg-white/20 disabled:opacity-50 transition-colors"
+                  >
+                    {switching ? '변경 중...' : isImmediate ? '나눠서 결제하기' : '한번에 결제하기'}
+                  </button>
+                )}
+                {isPostTravel && (
+                  <button
+                    onClick={() => handleSwitch(false)}
+                    disabled={switching}
+                    className="text-[10px] text-gray-300 bg-white/10 border border-white/20 px-2 py-0.5 rounded-full hover:bg-white/20 disabled:opacity-50 transition-colors"
+                  >
+                    {switching ? '변경 중...' : '일반 플랜으로 변경'}
+                  </button>
+                )}
+                {!isPostTravel && !isImmediate && (
                   <button
                     onClick={() => setShowPostTravelModal(true)}
                     disabled={switching}
