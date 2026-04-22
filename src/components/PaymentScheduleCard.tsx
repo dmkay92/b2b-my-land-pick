@@ -343,9 +343,9 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                 랜드사 승인 대기중
               </span>
             )}
-            {noPaid && !forceImmediate && !isPending && (
+            {noPaid && !isPending && (
               <div className="flex items-center gap-1.5">
-                {!isPostTravel && (
+                {!forceImmediate && !isPostTravel && (
                   <button
                     onClick={() => handleSwitch(isImmediate ? false : true)}
                     disabled={switching}
@@ -354,7 +354,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                     {switching ? '변경 중...' : isImmediate ? '나눠서 결제하기' : '한번에 결제하기'}
                   </button>
                 )}
-                {isPostTravel && (
+                {!forceImmediate && isPostTravel && (
                   <button
                     onClick={() => handleSwitch(false)}
                     disabled={switching}

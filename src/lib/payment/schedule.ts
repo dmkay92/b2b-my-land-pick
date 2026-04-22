@@ -47,9 +47,9 @@ export function buildInstallments(
 ): InstallmentDraft[] {
   const today = new Date().toISOString().slice(0, 10)
 
-  // 출발 7일 이내면 무조건 즉시완납
+  // 출발 7일 이내면 즉시완납 (단, post_travel은 제외)
   const daysUntilDepart = Math.ceil((new Date(departDate).getTime() - Date.now()) / 86400000)
-  if (daysUntilDepart <= 7) {
+  if (daysUntilDepart <= 7 && templateType !== 'post_travel') {
     return [{
       label: '전액',
       rate: 1.0,
