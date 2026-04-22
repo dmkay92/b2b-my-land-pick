@@ -28,7 +28,7 @@ export async function PUT(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { requestId, templateType } = await request.json()
-  const validTypes = ['immediate', 'default']
+  const validTypes = ['immediate', 'default', 'post_travel']
   if (!requestId || !validTypes.includes(templateType)) {
     return NextResponse.json({ error: 'Invalid templateType' }, { status: 400 })
   }
@@ -46,20 +46,27 @@ export async function PUT(request: NextRequest) {
   }
 
   const { data: qr } = await supabase
-    .from('quote_requests').select('depart_date, adults, children, infants, leaders')
+    .from('quote_requests').select('depart_date, return_date, adults, children, infants, leaders')
     .eq('id', requestId).single()
 
   // Determine target template type
-  const targetType = templateType === 'immediate'
-    ? 'immediate' as const
-    : getDefaultTemplateType(calculateTotalPeople({
-        adults: qr?.adults ?? 0, children: qr?.children ?? 0,
-        infants: qr?.infants ?? 0, leaders: qr?.leaders ?? 0,
-      }))
+  let targetType: import('@/lib/supabase/types').PaymentTemplateType
+  if (templateType === 'immediate') {
+    targetType = 'immediate'
+  } else if (templateType === 'post_travel') {
+    targetType = 'post_travel'
+  } else {
+    targetType = getDefaultTemplateType(calculateTotalPeople({
+      adults: qr?.adults ?? 0, children: qr?.children ?? 0,
+      infants: qr?.infants ?? 0, leaders: qr?.leaders ?? 0,
+    }))
+  }
+
+  const approvalStatus = targetType === 'post_travel' ? 'pending' : 'approved'
 
   await supabase.from('payment_installments').delete().eq('schedule_id', schedule.id)
 
-  const newInstallments = buildInstallments(targetType, schedule.total_amount, qr!.depart_date)
+  const newInstallments = buildInstallments(targetType, schedule.total_amount, qr!.depart_date, qr!.return_date)
   for (const inst of newInstallments) {
     await supabase.from('payment_installments').insert({
       schedule_id: schedule.id,
@@ -68,8 +75,39 @@ export async function PUT(request: NextRequest) {
   }
 
   await supabase.from('payment_schedules')
-    .update({ template_type: targetType, updated_at: new Date().toISOString() })
+    .update({ template_type: targetType, approval_status: approvalStatus, updated_at: new Date().toISOString() })
     .eq('id', schedule.id)
+
+  // post_travel: 랜드사에 승인 요청 알림 + 채팅 메시지
+  if (targetType === 'post_travel') {
+    // 견적 선택 정보에서 랜드사 ID 조회
+    const { data: selection } = await supabase
+      .from('quote_selections').select('landco_id').eq('request_id', requestId).single()
+
+    if (selection) {
+      // 알림 생성
+      await supabase.from('notifications').insert({
+        user_id: selection.landco_id,
+        type: 'post_travel_approval_request',
+        payload: { request_id: requestId, schedule_id: schedule.id },
+      })
+
+      // 채팅방 찾기 + 시스템 메시지 발송
+      const { data: room } = await supabase
+        .from('chat_rooms').select('id')
+        .eq('request_id', requestId).eq('landco_id', selection.landco_id).maybeSingle()
+
+      if (room) {
+        await supabase.from('chat_messages').insert({
+          room_id: room.id,
+          sender_id: user.id,
+          content: '여행 후 정산 플랜 승인을 요청했습니다. (계약금 10% + 중도금 40% + 잔금 50% 귀국 후 30일)',
+          message_type: 'approval_request',
+          metadata: { schedule_id: schedule.id, request_id: requestId },
+        })
+      }
+    }
+  }
 
   return NextResponse.json({ success: true })
 }
