@@ -44,7 +44,7 @@ export interface QuoteRequest {
   id: string
   display_id?: string | null
   agency_id: string
-  event_number: string | null
+
   event_name: string
   destination_country: string
   destination_city: string
