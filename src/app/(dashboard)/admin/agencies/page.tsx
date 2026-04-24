@@ -194,7 +194,7 @@ export default function AgenciesPage() {
                   onClick={() => openModal(agency)}
                   className="hover:bg-gray-50 transition-colors cursor-pointer"
                 >
-                  <td className="px-5 py-3 font-mono text-xs text-gray-500">{'A' + String(agency.seq_id ?? i + 1).padStart(5, '0')}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-gray-500">{agency.display_id ?? 'A' + String(agency.seq_id ?? i + 1).padStart(5, '0')}</td>
                   <td className="px-5 py-3 font-medium text-gray-800 whitespace-nowrap">{agency.company_name}</td>
                   <td className="px-5 py-3 text-gray-500 font-mono text-xs">{agency.business_registration_number ?? '-'}</td>
                   <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{agency.representative_name ?? '-'}</td>
@@ -243,7 +243,7 @@ export default function AgenciesPage() {
             <div className="px-6 pt-6 pb-4 border-b border-gray-100">
               <h3 className="text-base font-bold text-gray-900">{selected.company_name}</h3>
               <p className="text-xs text-gray-400 mt-0.5">
-                <span className="font-mono font-medium text-gray-500">{'A' + String(selected.seq_id ?? '?').padStart(5, '0')}</span>
+                <span className="font-mono font-medium text-gray-500">{selected.display_id ?? 'A' + String(selected.seq_id ?? '?').padStart(5, '0')}</span>
                 <span className="mx-1.5 text-gray-300">·</span>여행사
               </p>
             </div>
