@@ -118,6 +118,8 @@ export async function POST(request: NextRequest) {
     agency_payout_supply: Math.round(agencyPayout / 1.1),
     agency_payout_vat: agencyPayout - Math.round(agencyPayout / 1.1),
     platform_net_revenue: platformNetRevenue,
+    platform_net_revenue_supply: Math.round(platformNetRevenue / 1.1),
+    platform_net_revenue_vat: platformNetRevenue - Math.round(platformNetRevenue / 1.1),
     landco_payout: landcoPayout,
     gmv,
   }, { onConflict: 'request_id' })
