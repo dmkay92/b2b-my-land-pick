@@ -225,12 +225,12 @@ export interface SignupDraft {
   countries: string[]
 }
 
-export interface AgencyMarkup {
+export interface AgencyCommission {
   id: string
   quote_id: string
   agency_id: string
-  markup_per_person: number
-  markup_total: number
+  commission_per_person: number
+  commission_total: number
   created_at: string
   updated_at: string
 }

@@ -10,7 +10,7 @@ import { BackButton } from '@/components/BackButton'
 import MarkupInput from '@/components/MarkupInput'
 import ConfirmMarkupModal from '@/components/ConfirmMarkupModal'
 import PaymentScheduleCard from '@/components/PaymentScheduleCard'
-import type { AgencyMarkup, PaymentSchedule, PaymentInstallment } from '@/lib/supabase/types'
+import type { AgencyCommission, PaymentSchedule, PaymentInstallment } from '@/lib/supabase/types'
 
 interface QuoteWithLandco extends Quote {
   profiles: { company_name: string }
@@ -57,7 +57,7 @@ export default function AgencyRequestDetail() {
   const [selection, setSelection] = useState<Selection | null>(null)
   const [confirmTarget, setConfirmTarget] = useState<{ landcoId: string; quoteId: string; total: number; companyName: string } | null>(null)
   const { openOrCreateRoom } = useChat()
-  const [markups, setMarkups] = useState<Record<string, AgencyMarkup>>({})
+  const [markups, setMarkups] = useState<Record<string, AgencyCommission>>({})
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showCopyModal, setShowCopyModal] = useState(false)
   const [canceling, setCanceling] = useState(false)
@@ -102,20 +102,20 @@ export default function AgencyRequestDetail() {
       }
 
       // Fetch agency markups
-      const markupsRes = await fetch(`/api/agency-markups?requestId=${id}`)
+      const markupsRes = await fetch(`/api/agency-commissions?requestId=${id}`)
       if (markupsRes.ok) {
         const { markups: markupsList } = await markupsRes.json()
-        const markupMap: Record<string, AgencyMarkup> = {}
+        const markupMap: Record<string, AgencyCommission> = {}
         for (const m of markupsList) { markupMap[m.quote_id] = m }
         setMarkups(markupMap)
 
         // 글로벌 마크업 초기화: 선택된 견적의 마크업 우선, 없으면 첫 번째
         const selectedMarkup = selectedQuoteId
-          ? markupsList.find((m: AgencyMarkup) => m.quote_id === selectedQuoteId)
+          ? markupsList.find((m: AgencyCommission) => m.quote_id === selectedQuoteId)
           : null
         const initMarkup = selectedMarkup ?? markupsList[0]
         if (initMarkup) {
-          setGlobalMarkup({ perPerson: initMarkup.markup_per_person, total: initMarkup.markup_total })
+          setGlobalMarkup({ perPerson: initMarkup.commission_per_person, total: initMarkup.commission_total })
         }
       }
 
@@ -166,10 +166,10 @@ export default function AgencyRequestDetail() {
       return sorted[0]?.id
     }).filter(Boolean) as string[]
 
-    const newMarkups: Record<string, AgencyMarkup> = {}
+    const newMarkups: Record<string, AgencyCommission> = {}
     for (const qid of allQuoteIds) {
-      newMarkups[qid] = { ...markups[qid], quote_id: qid, markup_per_person: perPerson, markup_total: total } as AgencyMarkup
-      fetch('/api/agency-markups', {
+      newMarkups[qid] = { ...markups[qid], quote_id: qid, commission_per_person: perPerson, commission_total: total } as AgencyCommission
+      fetch('/api/agency-commissions', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quoteId: qid, markupPerPerson: perPerson, markupTotal: total }),
@@ -193,11 +193,11 @@ export default function AgencyRequestDetail() {
         <ConfirmMarkupModal
           landcoTotal={confirmTarget.total}
           totalPeople={total}
-          initialPerPerson={markups[confirmTarget.quoteId]?.markup_per_person ?? 0}
-          initialTotal={markups[confirmTarget.quoteId]?.markup_total ?? 0}
+          initialPerPerson={markups[confirmTarget.quoteId]?.commission_per_person ?? 0}
+          initialTotal={markups[confirmTarget.quoteId]?.commission_total ?? 0}
           landcoName={confirmTarget.companyName}
           onConfirm={async (markupPerPerson, markupTotal) => {
-            await fetch('/api/agency-markups', {
+            await fetch('/api/agency-commissions', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({

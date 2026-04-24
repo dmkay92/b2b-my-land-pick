@@ -34,7 +34,7 @@ export async function GET(
   // Get agency markup — try this quote first, then fallback to any quote in the same request
   let markup = null
   const { data: directMarkup } = await supabase
-    .from('agency_markups').select('markup_per_person, markup_total')
+    .from('agency_commissions').select('commission_per_person, commission_total')
     .eq('quote_id', quoteId).eq('agency_id', user.id).maybeSingle()
   if (directMarkup) {
     markup = directMarkup
@@ -44,7 +44,7 @@ export async function GET(
     const qIds = (requestQuotes ?? []).map(q => q.id)
     if (qIds.length > 0) {
       const { data: fallbackMarkup } = await supabase
-        .from('agency_markups').select('markup_per_person, markup_total')
+        .from('agency_commissions').select('commission_per_person, commission_total')
         .eq('agency_id', user.id).in('quote_id', qIds).limit(1).maybeSingle()
       markup = fallbackMarkup
     }

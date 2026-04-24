@@ -13,7 +13,7 @@ interface QuoteDetailData {
   quote: { id: string; request_id: string; landco_id: string; status: string; file_name: string }
   request: QuoteRequest
   draft: { itinerary: ItineraryDay[]; pricing: PricingData }
-  markup: { markup_per_person: number; markup_total: number } | null
+  markup: { commission_per_person: number; commission_total: number } | null
   isSelected: boolean
   landcoName: string
   pricing_mode: 'detailed' | 'summary'
@@ -50,7 +50,7 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
   })
 
   const isSummaryMode = data.pricing_mode === 'summary'
-  const markupTotal = urlMarkup > 0 ? urlMarkup : (data.markup?.markup_total ?? 0)
+  const markupTotal = urlMarkup > 0 ? urlMarkup : (data.markup?.commission_total ?? 0)
   const exchangeRates = data.draft.pricing.exchangeRates ?? {}
 
   // Calculate KRW base total (before markup)

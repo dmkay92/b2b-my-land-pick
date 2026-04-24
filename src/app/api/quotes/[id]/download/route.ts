@@ -55,19 +55,19 @@ export async function GET(
   } else {
     const agencyId = isAgency ? user.id : req.agency_id
     const { data: directMarkup } = await supabase
-      .from('agency_markups').select('markup_total')
+      .from('agency_commissions').select('commission_total')
       .eq('quote_id', quoteId).eq('agency_id', agencyId).maybeSingle()
     if (directMarkup) {
-      markupTotal = directMarkup.markup_total ?? 0
+      markupTotal = directMarkup.commission_total ?? 0
     } else {
       const { data: requestQuotes } = await supabase
         .from('quotes').select('id').eq('request_id', quote.request_id)
       const qIds = (requestQuotes ?? []).map(q => q.id)
       if (qIds.length > 0) {
         const { data: fallbackMarkup } = await supabase
-          .from('agency_markups').select('markup_total')
+          .from('agency_commissions').select('commission_total')
           .eq('agency_id', agencyId).in('quote_id', qIds).limit(1).maybeSingle()
-        markupTotal = fallbackMarkup?.markup_total ?? 0
+        markupTotal = fallbackMarkup?.commission_total ?? 0
       }
     }
   }

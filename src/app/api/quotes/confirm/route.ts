@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
   const platformFeeRate = marginSetting ? Number(marginSetting.value) : 0.05
 
   const { data: markup } = await supabase
-    .from('agency_markups').select('markup_total')
+    .from('agency_commissions').select('commission_total')
     .eq('quote_id', quoteId).eq('agency_id', user.id).maybeSingle()
-  const agencyMarkup = markup?.markup_total ?? 0
+  const agencyMarkup = markup?.commission_total ?? 0
 
   const { data: quoteData } = await supabase
     .from('quotes').select('file_url, pricing_mode, summary_total, summary_per_person, pricing').eq('id', quoteId).single()
