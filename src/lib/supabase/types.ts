@@ -6,6 +6,7 @@ export type QuoteStatus = 'submitted' | 'selected' | 'finalized' | 'rejected'
 
 export interface Profile {
   id: string
+  display_id?: string | null
   email: string
   role: UserRole
   company_name: string
@@ -41,6 +42,7 @@ export interface FlightSchedule {
 
 export interface QuoteRequest {
   id: string
+  display_id?: string | null
   agency_id: string
   event_number: string | null
   event_name: string
@@ -69,6 +71,7 @@ export interface QuoteRequest {
 
 export interface Quote {
   id: string
+  display_id?: string | null
   request_id: string
   landco_id: string
   version: number
@@ -234,6 +237,7 @@ export interface AgencyMarkup {
 
 export interface QuoteSettlement {
   id: string
+  display_id?: string | null
   request_id: string
   quote_id: string
   landco_id: string
@@ -268,6 +272,7 @@ export type PaymentMethod = 'virtual_account' | 'card_link' | 'card_keyin'
 
 export interface PaymentSchedule {
   id: string
+  display_id?: string | null
   request_id: string
   settlement_id: string | null
   template_type: PaymentTemplateType
@@ -280,6 +285,7 @@ export interface PaymentSchedule {
 
 export interface PaymentInstallment {
   id: string
+  display_id?: string | null
   schedule_id: string
   label: string
   rate: number
@@ -295,6 +301,7 @@ export interface PaymentInstallment {
 
 export interface PaymentTransaction {
   id: string
+  display_id?: string | null
   installment_id: string
   base_amount: number | null
   card_surcharge_rate: number
