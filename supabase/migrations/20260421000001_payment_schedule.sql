@@ -5,7 +5,7 @@ CREATE TABLE payment_schedules (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   request_id uuid REFERENCES quote_requests(id) NOT NULL UNIQUE,
   settlement_id uuid REFERENCES quote_settlements(id),
-  template_type text NOT NULL CHECK (template_type IN ('standard', 'large_event', 'onetime')),
+  template_type text NOT NULL CHECK (template_type IN ('two_time', 'large_event', 'one_time')),
   total_amount numeric NOT NULL,
   total_people integer NOT NULL,
   created_at timestamptz DEFAULT now(),

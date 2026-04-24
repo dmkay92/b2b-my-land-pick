@@ -483,7 +483,7 @@ export default function AgencyRequestDetail() {
               await fetch('/api/payment-schedule', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requestId: id, templateType: 'onetime' }),
+                body: JSON.stringify({ requestId: id, templateType: 'one_time' }),
               })
               const res = await fetch(`/api/payment-schedule?requestId=${id}`)
               if (res.ok) {

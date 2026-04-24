@@ -5,7 +5,7 @@ ALTER TABLE payment_schedules ADD COLUMN IF NOT EXISTS approval_status text DEFA
 -- 2. template_type에 post_travel 추가
 ALTER TABLE payment_schedules DROP CONSTRAINT IF EXISTS payment_schedules_template_type_check;
 ALTER TABLE payment_schedules ADD CONSTRAINT payment_schedules_template_type_check
-  CHECK (template_type IN ('standard', 'large_event', 'onetime', 'post_travel'));
+  CHECK (template_type IN ('two_time', 'large_event', 'one_time', 'post_travel'));
 
 -- 3. messages에 message_type, metadata 추가
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_type text DEFAULT 'text'

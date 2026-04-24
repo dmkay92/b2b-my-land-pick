@@ -11,8 +11,8 @@ describe('getDefaultTemplateType', () => {
   })
 
   it('returns standard for under 50 people', () => {
-    expect(getDefaultTemplateType(49)).toBe('standard')
-    expect(getDefaultTemplateType(1)).toBe('standard')
+    expect(getDefaultTemplateType(49)).toBe('two_time')
+    expect(getDefaultTemplateType(1)).toBe('two_time')
   })
 })
 
@@ -21,7 +21,7 @@ describe('buildInstallments', () => {
   const sevenDaysLater = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
 
   it('builds standard (2-step) installments', () => {
-    const result = buildInstallments('standard', 10000000, departDate)
+    const result = buildInstallments('two_time', 10000000, departDate)
     expect(result).toHaveLength(2)
     expect(result[0].label).toBe('계약금')
     expect(result[0].rate).toBe(0.1)
@@ -56,14 +56,14 @@ describe('buildInstallments', () => {
 
   it('deposit due_date falls back to today when departure is too close', () => {
     const closeDepartDate = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10)
-    const result = buildInstallments('standard', 10000000, closeDepartDate)
+    const result = buildInstallments('two_time', 10000000, closeDepartDate)
     const today = new Date().toISOString().slice(0, 10)
     expect(result[0].due_date).toBe(today)
   })
 
   it('forces immediate when departure is within 7 days', () => {
     const soonDepartDate = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10)
-    const result = buildInstallments('standard', 10000000, soonDepartDate)
+    const result = buildInstallments('two_time', 10000000, soonDepartDate)
     expect(result).toHaveLength(1)
     expect(result[0].label).toBe('전액')
     expect(result[0].amount).toBe(10000000)
@@ -78,7 +78,7 @@ describe('buildInstallments', () => {
   })
 
   it('builds immediate (1-step) installment', () => {
-    const result = buildInstallments('onetime', 10000000, departDate)
+    const result = buildInstallments('one_time', 10000000, departDate)
     expect(result).toHaveLength(1)
     expect(result[0].label).toBe('전액')
     expect(result[0].rate).toBe(1.0)
@@ -87,7 +87,7 @@ describe('buildInstallments', () => {
   })
 
   it('rounds amounts to integer and remainder goes to last', () => {
-    const result = buildInstallments('standard', 9999999, departDate)
+    const result = buildInstallments('two_time', 9999999, departDate)
     expect(result[0].amount).toBe(1000000)
     expect(result[1].amount).toBe(8999999)
     expect(result[0].amount + result[1].amount).toBe(9999999)

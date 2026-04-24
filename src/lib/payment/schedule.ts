@@ -3,7 +3,7 @@ import type { PaymentTemplateType } from '@/lib/supabase/types'
 export const LARGE_EVENT_THRESHOLD = 50
 
 export function getDefaultTemplateType(totalPeople: number): PaymentTemplateType {
-  return totalPeople >= LARGE_EVENT_THRESHOLD ? 'large_event' : 'standard'
+  return totalPeople >= LARGE_EVENT_THRESHOLD ? 'large_event' : 'two_time'
 }
 
 function daysBeforeDeparture(departDate: string, days: number): string {
@@ -59,7 +59,7 @@ export function buildInstallments(
     }]
   }
 
-  if (templateType === 'onetime') {
+  if (templateType === 'one_time') {
     return [{
       label: '전액',
       rate: 1.0,
