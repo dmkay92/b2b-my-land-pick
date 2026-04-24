@@ -78,7 +78,7 @@ describe('buildInstallments', () => {
   })
 
   it('builds immediate (1-step) installment', () => {
-    const result = buildInstallments('immediate', 10000000, departDate)
+    const result = buildInstallments('onetime', 10000000, departDate)
     expect(result).toHaveLength(1)
     expect(result[0].label).toBe('전액')
     expect(result[0].rate).toBe(1.0)

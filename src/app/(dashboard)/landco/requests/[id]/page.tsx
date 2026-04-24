@@ -646,7 +646,7 @@ export default function LandcoRequestDetail() {
               <h3 className="text-sm font-bold text-white">결제 현황</h3>
               <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">
                 {paymentSchedule.template_type === 'large_event' ? '대형행사 (3단계)' :
-                 paymentSchedule.template_type === 'immediate' ? '한번에 결제' :
+                 paymentSchedule.template_type === 'onetime' ? '한번에 결제' :
                  paymentSchedule.template_type === 'post_travel' ? '여행 후 정산' : '일반 (2단계)'}
               </span>
             </div>

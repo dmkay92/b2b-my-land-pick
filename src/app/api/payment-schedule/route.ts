@@ -40,7 +40,7 @@ export async function PUT(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { requestId, templateType } = await request.json()
-  const validTypes = ['immediate', 'default', 'post_travel']
+  const validTypes = ['onetime', 'default', 'post_travel']
   if (!requestId || !validTypes.includes(templateType)) {
     return NextResponse.json({ error: 'Invalid templateType' }, { status: 400 })
   }
@@ -63,8 +63,8 @@ export async function PUT(request: NextRequest) {
 
   // Determine target template type
   let targetType: import('@/lib/supabase/types').PaymentTemplateType
-  if (templateType === 'immediate') {
-    targetType = 'immediate'
+  if (templateType === 'onetime') {
+    targetType = 'onetime'
   } else if (templateType === 'post_travel') {
     targetType = 'post_travel'
   } else {

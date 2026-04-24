@@ -36,7 +36,7 @@ const instReqMap = {
 const tables = [
   {
     name: 'quote_settlements',
-    headers: ['display_id', 'request_id', 'quote_id', 'landco_id', 'agency_id', 'landco_quote_total', 'platform_fee_rate', 'platform_fee', 'platform_fee_supply', 'platform_fee_vat', 'agency_markup', 'agency_commission_rate', 'platform_gross_revenue', 'agency_payout', 'agency_payout_supply', 'agency_payout_vat', 'platform_net_revenue', 'landco_payout', 'gmv', 'landco_settled', 'agency_settled', 'created_at'],
+    headers: ['display_id', 'request_id', 'quote_id', 'landco_id', 'agency_id', 'landco_quote_total', 'platform_fee_rate', 'platform_fee', 'platform_fee_supply', 'platform_fee_vat', 'agency_commission', 'agency_commission_rate', 'platform_gross_revenue', 'agency_payout', 'agency_payout_supply', 'agency_payout_vat', 'platform_net_revenue', 'platform_net_revenue_supply', 'platform_net_revenue_vat', 'landco_payout', 'gmv', 'landco_settled', 'agency_settled', 'created_at'],
     descriptions: [
       'text UNIQUE — 정산 표시 ID (STL-YYYYMMDD-NNNNNN)',
       'uuid FK → quote_requests (1:1)',
@@ -48,27 +48,28 @@ const tables = [
       'numeric — 플랫폼 수수료 = 견적가 × 수수료율',
       'numeric — 플랫폼 수수료 공급가액 = round(수수료 / 1.1)',
       'numeric — 플랫폼 수수료 부가세 = 수수료 - 공급가액',
-      'numeric — 여행사 마크업 금액',
+      'numeric — 여행사 커미션 금액 (= agency_commissions.commission_total)',
       'numeric — 여행사 커미션율 (기본 1.0)',
-      'numeric — 플랫폼 총수익 = 수수료 + 마크업',
-      'numeric — 여행사 지급액 = 마크업 × 커미션율',
+      'numeric — 플랫폼 총수익 = 수수료 + 커미션',
+      'numeric — 여행사 지급액 = 커미션 × 커미션율',
       'numeric — 여행사 지급액 공급가액 = round(agency_payout / 1.1)',
       'numeric — 여행사 지급액 부가세 = agency_payout - 공급가액',
       'numeric — 플랫폼 순수익 = 총수익 - 여행사 지급',
+      'numeric — 플랫폼 순수익 공급가액 = round(순수익 / 1.1)',
+      'numeric — 플랫폼 순수익 부가세 = 순수익 - 공급가액',
       'numeric — 랜드사 수취액 = 견적가 - 수수료',
-      'numeric — GMV = 견적가 + 마크업',
+      'numeric — GMV = 견적가 + 커미션',
       'boolean — 랜드사 정산완료 (기본 false)',
       'boolean — 여행사 정산완료 (기본 false)',
       'timestamptz — 생성일시',
     ],
     groupCol: 1,
     rows: [
-      // 순서: display_id, request_id, quote_id, landco_id, agency_id, landco_quote_total, platform_fee_rate, platform_fee, platform_fee_supply, platform_fee_vat, agency_markup, agency_commission_rate, platform_gross_revenue, agency_payout, agency_payout_supply, agency_payout_vat, platform_net_revenue, landco_payout, gmv, landco_settled, agency_settled, created_at
-      ['STL-20260424-000001', 'REQ-20260424-000018', 'QOT-20260424-000008', 'L000001', 'A000003', 10580000, 0.05, 529000, 480909, 48091, 210000, 1.0, 739000, 210000, 190909, 19091, 529000, 10051000, 10790000, false, false, '2026-04-21T07:34:31'],
-      ['STL-20260424-000002', 'REQ-20260424-000020', 'QOT-20260424-000015', 'L000001', 'A000003', 22800000, 0.05, 1140000, 1036364, 103636, 2100000, 1.0, 3240000, 2100000, 1909091, 190909, 1140000, 21660000, 24900000, false, false, '2026-04-21T12:27:11'],
-      ['STL-20260501-000001', 'REQ-20260424-000001', 'QOT-20260501-000001', 'L000002', 'A000001', 45000000, 0.05, 2250000, 2045455, 204545, 5000000, 1.0, 7250000, 5000000, 4545455, 454545, 2250000, 42750000, 50000000, true, true, '2026-05-01T10:00:00'],
-      ['STL-20260505-000001', 'REQ-20260424-000003', 'QOT-20260505-000001', 'L000001', 'A000002', 8000000, 0.05, 400000, 363636, 36364, 800000, 1.0, 1200000, 800000, 727273, 72727, 400000, 7600000, 8800000, false, false, '2026-05-05T09:00:00'],
-      ['STL-20260510-000001', 'REQ-20260424-000006', 'QOT-20260510-000001', 'L000002', 'A000003', 30000000, 0.05, 1500000, 1363636, 136364, 3000000, 1.0, 4500000, 3000000, 2727273, 272727, 1500000, 28500000, 33000000, true, false, '2026-05-10T14:00:00'],
+      ['STL-20260424-000001', 'REQ-20260424-000018', 'QOT-20260424-000008', 'L000001', 'A000003', 10580000, 0.05, 529000, 480909, 48091, 210000, 1.0, 739000, 210000, 190909, 19091, 529000, 480909, 48091, 10051000, 10790000, false, false, '2026-04-21T07:34:31'],
+      ['STL-20260424-000002', 'REQ-20260424-000020', 'QOT-20260424-000015', 'L000001', 'A000003', 22800000, 0.05, 1140000, 1036364, 103636, 2100000, 1.0, 3240000, 2100000, 1909091, 190909, 1140000, 1036364, 103636, 21660000, 24900000, false, false, '2026-04-21T12:27:11'],
+      ['STL-20260501-000001', 'REQ-20260424-000001', 'QOT-20260501-000001', 'L000002', 'A000001', 45000000, 0.05, 2250000, 2045455, 204545, 5000000, 1.0, 7250000, 5000000, 4545455, 454545, 2250000, 2045455, 204545, 42750000, 50000000, true, true, '2026-05-01T10:00:00'],
+      ['STL-20260505-000001', 'REQ-20260424-000003', 'QOT-20260505-000001', 'L000001', 'A000002', 8000000, 0.05, 400000, 363636, 36364, 800000, 1.0, 1200000, 800000, 727273, 72727, 400000, 363636, 36364, 7600000, 8800000, false, false, '2026-05-05T09:00:00'],
+      ['STL-20260510-000001', 'REQ-20260424-000006', 'QOT-20260510-000001', 'L000002', 'A000003', 30000000, 0.05, 1500000, 1363636, 136364, 3000000, 1.0, 4500000, 3000000, 2727273, 272727, 1500000, 1363636, 136364, 28500000, 33000000, true, false, '2026-05-10T14:00:00'],
     ],
   },
   {
@@ -165,24 +166,24 @@ const tables = [
     ],
   },
   {
-    name: 'agency_markups',
-    headers: ['display_id', 'quote_id', 'agency_id', 'markup_per_person', 'markup_total', 'created_at', 'updated_at'],
+    name: 'agency_commissions',
+    headers: ['display_id', 'quote_id', 'agency_id', 'commission_per_person', 'commission_total', 'created_at', 'updated_at'],
     descriptions: [
-      'text UNIQUE — 마크업 표시 ID (MKP-YYYYMMDD-NNNNNN)',
+      'text UNIQUE — 커미션 표시 ID (ACM-YYYYMMDD-NNNNNN)',
       'uuid FK → quotes (UNIQUE: quote_id + agency_id)',
       'uuid FK → profiles (여행사)',
-      'numeric — 1인당 마크업 (기본 0)',
-      'numeric — 마크업 총액 (기본 0)',
+      'numeric — 1인당 커미션 (기본 0)',
+      'numeric — 커미션 총액 (기본 0)',
       'timestamptz — 생성일시',
       'timestamptz — 수정일시',
     ],
     groupCol: null,
     rows: [
-      ['MKP-20260424-000001', 'QOT-20260424-000008', 'A000003', 30000, 210000, '2026-04-20T15:47:52', '2026-04-20T15:47:52'],
-      ['MKP-20260424-000002', 'QOT-20260424-000015', 'A000003', 100000, 2100000, '2026-04-21T12:23:27', '2026-04-21T12:27:11'],
-      ['MKP-20260501-000001', 'QOT-20260501-000001', 'A000001', 62500, 5000000, '2026-05-01T09:50:00', '2026-05-01T09:50:00'],
-      ['MKP-20260505-000001', 'QOT-20260505-000001', 'A000002', 53333, 800000, '2026-05-05T08:50:00', '2026-05-05T08:50:00'],
-      ['MKP-20260510-000001', 'QOT-20260510-000001', 'A000003', 75000, 3000000, '2026-05-10T13:50:00', '2026-05-10T13:50:00'],
+      ['ACM-20260424-000001', 'QOT-20260424-000008', 'A000003', 30000, 210000, '2026-04-20T15:47:52', '2026-04-20T15:47:52'],
+      ['ACM-20260424-000002', 'QOT-20260424-000015', 'A000003', 100000, 2100000, '2026-04-21T12:23:27', '2026-04-21T12:27:11'],
+      ['ACM-20260501-000001', 'QOT-20260501-000001', 'A000001', 62500, 5000000, '2026-05-01T09:50:00', '2026-05-01T09:50:00'],
+      ['ACM-20260505-000001', 'QOT-20260505-000001', 'A000002', 53333, 800000, '2026-05-05T08:50:00', '2026-05-05T08:50:00'],
+      ['ACM-20260510-000001', 'QOT-20260510-000001', 'A000003', 75000, 3000000, '2026-05-10T13:50:00', '2026-05-10T13:50:00'],
     ],
   },
   {
@@ -271,7 +272,7 @@ async function main() {
       row.eachCell((cell, colNum) => {
         const h = table.headers[colNum - 1]?.toLowerCase() || ''
         if (moneyKw.some(k => h.includes(k)) && typeof cell.value === 'number') cell.numFmt = '#,##0'
-        if (h === 'rate' && typeof cell.value === 'number') cell.numFmt = '0%'
+        if (h.includes('rate') && typeof cell.value === 'number') cell.numFmt = '0.00'
       })
     })
 

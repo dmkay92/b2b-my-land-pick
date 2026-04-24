@@ -59,7 +59,7 @@ export function buildInstallments(
     }]
   }
 
-  if (templateType === 'immediate') {
+  if (templateType === 'onetime') {
     return [{
       label: '전액',
       rate: 1.0,

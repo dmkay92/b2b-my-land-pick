@@ -37,7 +37,7 @@ function statusBadge(status: string) {
 function templateLabel(type: string) {
   switch (type) {
     case 'large_event': return '대형행사 (3단계)'
-    case 'immediate': return '한번에 결제'
+    case 'onetime': return '한번에 결제'
     case 'post_travel': return '여행 후 정산'
     default: return '일반 (2단계)'
   }
@@ -62,7 +62,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
   } | null>(null)
 
   const noPaid = installments.every(i => i.status === 'pending')
-  const isImmediate = schedule.template_type === 'immediate'
+  const isImmediate = schedule.template_type === 'onetime'
   const isPostTravel = schedule.template_type === 'post_travel'
   const isPending = schedule.approval_status === 'pending'
   const isRejected = schedule.approval_status === 'rejected'

@@ -263,7 +263,7 @@ export interface PlatformSetting {
   updated_at: string
 }
 
-export type PaymentTemplateType = 'standard' | 'large_event' | 'immediate' | 'post_travel'
+export type PaymentTemplateType = 'standard' | 'large_event' | 'onetime' | 'post_travel'
 export type ApprovalStatus = 'approved' | 'pending' | 'rejected'
 export type ChatMessageType = 'text' | 'file' | 'system' | 'approval_request' | 'approval_result'
 export type PaymentInstallmentStatus = 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled'
