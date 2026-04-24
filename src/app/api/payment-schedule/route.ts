@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
   // 정산 데이터도 같이 반환
   const { data: settlement } = await admin
-    .from('quote_settlements').select('landco_quote_total, agency_markup, gmv')
+    .from('quote_settlements').select('landco_quote_total, agency_commission, gmv')
     .eq('request_id', requestId).maybeSingle()
 
   return NextResponse.json({ schedule, installments: installments ?? [], settlement })

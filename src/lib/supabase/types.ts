@@ -245,7 +245,7 @@ export interface QuoteSettlement {
   landco_quote_total: number
   platform_fee_rate: number
   platform_fee: number
-  agency_markup: number
+  agency_commission: number
   agency_commission_rate: number
   platform_gross_revenue: number
   agency_payout: number

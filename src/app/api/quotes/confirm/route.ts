@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     platform_fee: platformFee,
     platform_fee_supply: Math.round(platformFee / 1.1),
     platform_fee_vat: platformFee - Math.round(platformFee / 1.1),
-    agency_markup: agencyMarkup,
+    agency_commission: agencyMarkup,
     agency_commission_rate: agencyCommissionRate,
     platform_gross_revenue: platformGrossRevenue,
     agency_payout: agencyPayout,
