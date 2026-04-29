@@ -3,14 +3,15 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { formatDate, formatDateWithDay, calculateTotalPeople, hotelGradeLabel, getCountryName } from '@/lib/utils'
-import type { QuoteRequest, Quote } from '@/lib/supabase/types'
+import type { QuoteRequest, Quote, AdditionalSettlement } from '@/lib/supabase/types'
 import { useChat } from '@/lib/chat/ChatContext'
 import { AttachmentPreviewModal } from '@/components/AttachmentPreviewModal'
 import { BackButton } from '@/components/BackButton'
+import AdditionalSettlementSection from '@/components/AdditionalSettlementSection'
 import MarkupInput from '@/components/MarkupInput'
 import ConfirmMarkupModal from '@/components/ConfirmMarkupModal'
 import PaymentScheduleCard from '@/components/PaymentScheduleCard'
-import type { AgencyMarkup, PaymentSchedule, PaymentInstallment } from '@/lib/supabase/types'
+import type { AgencyCommission, PaymentSchedule, PaymentInstallment } from '@/lib/supabase/types'
 
 interface QuoteWithLandco extends Quote {
   profiles: { company_name: string }
@@ -57,13 +58,14 @@ export default function AgencyRequestDetail() {
   const [selection, setSelection] = useState<Selection | null>(null)
   const [confirmTarget, setConfirmTarget] = useState<{ landcoId: string; quoteId: string; total: number; companyName: string } | null>(null)
   const { openOrCreateRoom } = useChat()
-  const [markups, setMarkups] = useState<Record<string, AgencyMarkup>>({})
+  const [markups, setMarkups] = useState<Record<string, AgencyCommission>>({})
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showCopyModal, setShowCopyModal] = useState(false)
   const [canceling, setCanceling] = useState(false)
   const [attachmentPreview, setAttachmentPreview] = useState<{ url: string; name: string } | null>(null)
   const [paymentSchedule, setPaymentSchedule] = useState<PaymentSchedule | null>(null)
   const [paymentInstallments, setPaymentInstallments] = useState<PaymentInstallment[]>([])
+  const [additionalSettlements, setAdditionalSettlements] = useState<AdditionalSettlement[]>([])
 
   async function handleCancel() {
     setCanceling(true)
@@ -102,20 +104,20 @@ export default function AgencyRequestDetail() {
       }
 
       // Fetch agency markups
-      const markupsRes = await fetch(`/api/agency-markups?requestId=${id}`)
+      const markupsRes = await fetch(`/api/agency-commissions?requestId=${id}`)
       if (markupsRes.ok) {
         const { markups: markupsList } = await markupsRes.json()
-        const markupMap: Record<string, AgencyMarkup> = {}
+        const markupMap: Record<string, AgencyCommission> = {}
         for (const m of markupsList) { markupMap[m.quote_id] = m }
         setMarkups(markupMap)
 
         // 글로벌 마크업 초기화: 선택된 견적의 마크업 우선, 없으면 첫 번째
         const selectedMarkup = selectedQuoteId
-          ? markupsList.find((m: AgencyMarkup) => m.quote_id === selectedQuoteId)
+          ? markupsList.find((m: AgencyCommission) => m.quote_id === selectedQuoteId)
           : null
         const initMarkup = selectedMarkup ?? markupsList[0]
         if (initMarkup) {
-          setGlobalMarkup({ perPerson: initMarkup.markup_per_person, total: initMarkup.markup_total })
+          setGlobalMarkup({ perPerson: initMarkup.commission_per_person, total: initMarkup.commission_total })
         }
       }
 
@@ -126,9 +128,31 @@ export default function AgencyRequestDetail() {
         setPaymentSchedule(schedule)
         setPaymentInstallments(installments ?? [])
       }
+
+      if (json.request?.status === 'finalized') {
+        const addRes = await fetch(`/api/additional-settlements?requestId=${id}`)
+        if (addRes.ok) {
+          const { settlements } = await addRes.json()
+          setAdditionalSettlements(settlements ?? [])
+        }
+      }
     }
     load()
   }, [id])
+
+  // 승인 대기 중일 때 30초 간격 폴링
+  useEffect(() => {
+    if (paymentSchedule?.approval_status !== 'pending') return
+    const interval = setInterval(async () => {
+      const res = await fetch(`/api/payment-schedule?requestId=${id}`)
+      if (res.ok) {
+        const { schedule, installments } = await res.json()
+        setPaymentSchedule(schedule)
+        setPaymentInstallments(installments ?? [])
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [id, paymentSchedule?.approval_status])
 
   async function handleConfirm(landcoId: string, quoteId: string) {
     const res = await fetch('/api/quotes/confirm', {
@@ -152,10 +176,10 @@ export default function AgencyRequestDetail() {
       return sorted[0]?.id
     }).filter(Boolean) as string[]
 
-    const newMarkups: Record<string, AgencyMarkup> = {}
+    const newMarkups: Record<string, AgencyCommission> = {}
     for (const qid of allQuoteIds) {
-      newMarkups[qid] = { ...markups[qid], quote_id: qid, markup_per_person: perPerson, markup_total: total } as AgencyMarkup
-      fetch('/api/agency-markups', {
+      newMarkups[qid] = { ...markups[qid], quote_id: qid, commission_per_person: perPerson, commission_total: total } as AgencyCommission
+      fetch('/api/agency-commissions', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ quoteId: qid, markupPerPerson: perPerson, markupTotal: total }),
@@ -179,11 +203,11 @@ export default function AgencyRequestDetail() {
         <ConfirmMarkupModal
           landcoTotal={confirmTarget.total}
           totalPeople={total}
-          initialPerPerson={markups[confirmTarget.quoteId]?.markup_per_person ?? 0}
-          initialTotal={markups[confirmTarget.quoteId]?.markup_total ?? 0}
+          initialPerPerson={markups[confirmTarget.quoteId]?.commission_per_person ?? 0}
+          initialTotal={markups[confirmTarget.quoteId]?.commission_total ?? 0}
           landcoName={confirmTarget.companyName}
           onConfirm={async (markupPerPerson, markupTotal) => {
-            await fetch('/api/agency-markups', {
+            const commRes = await fetch('/api/agency-commissions', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -192,8 +216,22 @@ export default function AgencyRequestDetail() {
                 markupTotal,
               }),
             })
+            if (!commRes.ok) {
+              alert('커미션 저장에 실패했습니다.')
+              return
+            }
+            setGlobalMarkup({ perPerson: markupPerPerson, total: markupTotal })
+            setMarkups(prev => ({
+              ...prev,
+              [confirmTarget.quoteId]: {
+                ...prev[confirmTarget.quoteId],
+                commission_per_person: markupPerPerson,
+                commission_total: markupTotal,
+              },
+            }))
             await handleConfirm(confirmTarget.landcoId, confirmTarget.quoteId)
             setConfirmTarget(null)
+            window.location.reload()
           }}
           onClose={() => setConfirmTarget(null)}
         />
@@ -252,7 +290,9 @@ export default function AgencyRequestDetail() {
       )}
       <div className="p-8 max-w-4xl mx-auto">
       <BackButton href="/agency" />
-      {request.event_number && <p className="text-xs text-gray-400 mb-1">{request.event_number}</p>}
+      {request.display_id && (
+        <p className="text-xs text-gray-400 mb-1 font-mono">{request.display_id}</p>
+      )}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">{request.event_name}</h1>
         <div className="flex gap-2">
@@ -456,17 +496,18 @@ export default function AgencyRequestDetail() {
         )}
       </div>
 
-      {(request.status === 'payment_pending' || request.status === 'finalized') && paymentSchedule && (
+      {(request.status === 'payment_pending' || request.status === 'finalized' || request.status === 'closed') && paymentSchedule && (
         <div className="mb-6">
           <PaymentScheduleCard
             schedule={paymentSchedule}
             installments={paymentInstallments}
             departDate={request.depart_date}
+            returnDate={request.return_date}
             onSwitchToImmediate={async () => {
               await fetch('/api/payment-schedule', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requestId: id, templateType: 'immediate' }),
+                body: JSON.stringify({ requestId: id, templateType: 'one_time' }),
               })
               const res = await fetch(`/api/payment-schedule?requestId=${id}`)
               if (res.ok) {
@@ -488,8 +529,43 @@ export default function AgencyRequestDetail() {
                 setPaymentInstallments(installments ?? [])
               }
             }}
+            onSwitchToPostTravel={async () => {
+              await fetch('/api/payment-schedule', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId: id, templateType: 'post_travel' }),
+              })
+              const res = await fetch(`/api/payment-schedule?requestId=${id}`)
+              if (res.ok) {
+                const { schedule, installments } = await res.json()
+                setPaymentSchedule(schedule)
+                setPaymentInstallments(installments ?? [])
+              }
+            }}
+            isCancelled={request.status === 'closed'}
           />
         </div>
+      )}
+
+      {request.status === 'finalized' && (
+        <AdditionalSettlementSection
+          requestId={id}
+          settlements={additionalSettlements}
+          onCreated={async () => {
+            const res = await fetch(`/api/additional-settlements?requestId=${id}`)
+            if (res.ok) {
+              const { settlements } = await res.json()
+              setAdditionalSettlements(settlements ?? [])
+            }
+            const schedRes = await fetch(`/api/payment-schedule?requestId=${id}`)
+            if (schedRes.ok) {
+              const { schedule, installments } = await schedRes.json()
+              setPaymentSchedule(schedule)
+              setPaymentInstallments(installments ?? [])
+            }
+          }}
+          role="agency"
+        />
       )}
 
       <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -608,7 +684,7 @@ export default function AgencyRequestDetail() {
                             <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-medium">
                               결제 대기 중
                             </span>
-                          ) : request.status !== 'finalized' && request.status !== 'payment_pending' && (
+                          ) : request.status !== 'finalized' && request.status !== 'payment_pending' && request.status !== 'closed' && (
                             <button
                               onClick={() => setConfirmTarget({
                                 landcoId,

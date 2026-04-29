@@ -88,6 +88,13 @@ function addInfoSection(workbook: ExcelJS.Workbook, sheet: ExcelJS.Worksheet, to
     { label: '도착일', value: formatDateWithDay(opts.return_date) },
   ]
 
+  if (opts.includes) {
+    infoRows.push({ label: '포함사항', value: opts.includes.split('\n').filter(Boolean).join(', ') })
+  }
+  if (opts.excludes) {
+    infoRows.push({ label: '불포함사항', value: opts.excludes.split('\n').filter(Boolean).join(', ') })
+  }
+
   // row 1: 브랜드 행
   addBrandRow(workbook, sheet, totalCols)
 

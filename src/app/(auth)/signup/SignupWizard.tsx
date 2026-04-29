@@ -12,7 +12,7 @@ import { Step5Countries } from './steps/Step5Countries'
 
 const DRAFT_KEY = 'signup_draft'
 
-const EMPTY_DRAFT: SignupDraft = { role: null, step: 1, ocr: { biz: null, bank: null }, basicInfo: null, bankInfo: null, countries: [] }
+const EMPTY_DRAFT: SignupDraft = { role: null, step: 1, ocr: { biz: null, bank: null }, basicInfo: null, bankInfo: null, countries: [], service_areas: [] }
 
 function ProgressBar({ step, role }: { step: number; role: UserRole | null }) {
   const total = role === 'landco' ? 5 : 4
@@ -53,7 +53,7 @@ export function SignupWizard() {
     })
   }
 
-  async function handleFinalSubmit(countries: string[]) {
+  async function handleFinalSubmit(countries: { country: string; city: string }[] | string[]) {
     if (submitCalledRef.current) return
     submitCalledRef.current = true
 
@@ -123,7 +123,10 @@ export function SignupWizard() {
         bank_holder: draft.bankInfo.bank_holder,
         document_biz_url: bizUrl,
         document_bank_url: bankUrl,
-        ...(draft.role === 'landco' ? { country_codes: countries } : {}),
+        ...(draft.role === 'landco' ? {
+          service_areas: countries,
+          country_codes: [...new Set((countries as { country: string; city: string }[]).map((a) => a.country))],
+        } : {}),
       }),
     })
     if (!profileRes.ok) {
@@ -203,10 +206,10 @@ export function SignupWizard() {
       <div>
         <ProgressBar step={5} role={role} />
         <Step5Countries
-          initial={draft.countries}
-          onNext={countries => {
-            updateDraft({ countries })
-            handleFinalSubmit(countries)
+          initial={draft.service_areas ?? []}
+          onNext={areas => {
+            updateDraft({ service_areas: areas, countries: [...new Set(areas.map(a => a.country))] })
+            handleFinalSubmit(areas)
           }}
           onBack={() => updateDraft({ step: 4 })}
         />

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
   if (quoteIds.length === 0) return NextResponse.json({ markups: [] })
 
   const { data: markups, error } = await supabase
-    .from('agency_markups')
+    .from('agency_commissions')
     .select('*')
     .eq('agency_id', user.id)
     .in('quote_id', quoteIds)
@@ -35,13 +36,19 @@ export async function PUT(request: NextRequest) {
   const { quoteId, markupPerPerson, markupTotal } = await request.json()
   if (!quoteId) return NextResponse.json({ error: 'quoteId required' }, { status: 400 })
 
-  const { data, error } = await supabase
-    .from('agency_markups')
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const { data, error } = await admin
+    .from('agency_commissions')
     .upsert({
       quote_id: quoteId,
       agency_id: user.id,
-      markup_per_person: markupPerPerson ?? 0,
-      markup_total: markupTotal ?? 0,
+      commission_per_person: markupPerPerson ?? 0,
+      commission_total: markupTotal ?? 0,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'quote_id,agency_id' })
     .select()

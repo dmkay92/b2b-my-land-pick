@@ -4,11 +4,12 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, formatDateWithDay, calculateTotalPeople, hotelGradeLabel, getCountryName } from '@/lib/utils'
-import type { QuoteRequest, Quote } from '@/lib/supabase/types'
+import type { QuoteRequest, Quote, AdditionalSettlement } from '@/lib/supabase/types'
 
 type QuoteWithPricing = Quote & { pricing?: { total: number | null; per_person: number | null }; pricing_mode?: 'detailed' | 'summary' }
 import { AttachmentPreviewModal } from '@/components/AttachmentPreviewModal'
 import { BackButton } from '@/components/BackButton'
+import AdditionalSettlementSection from '@/components/AdditionalSettlementSection'
 
 export default function LandcoRequestDetail() {
   const { id } = useParams<{ id: string }>()
@@ -33,6 +34,12 @@ export default function LandcoRequestDetail() {
   const [excelParsed, setExcelParsed] = useState(false)
   const [templateModal, setTemplateModal] = useState<{ quoteId: string; defaultName: string } | null>(null)
   const [templateName, setTemplateName] = useState('')
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [paymentSchedule, setPaymentSchedule] = useState<{ template_type: string; total_amount: number; approval_status: string } | null>(null)
+  const [paymentInstallments, setPaymentInstallments] = useState<{ id: string; label: string; rate: number; amount: number; paid_amount: number; due_date: string; status: string }[]>([])
+  const [landcoQuoteTotal, setLandcoQuoteTotal] = useState<number | null>(null)
+  const [additionalSettlements, setAdditionalSettlements] = useState<AdditionalSettlement[]>([])
 
   useEffect(() => {
     async function load() {
@@ -61,6 +68,25 @@ export default function LandcoRequestDetail() {
             }
           } else {
             setSelectionResult('lost')
+          }
+        }
+
+        // 결제 일정 + 정산 데이터 로드
+        if (json.request?.status === 'payment_pending' || json.request?.status === 'finalized') {
+          const schedRes = await fetch(`/api/payment-schedule?requestId=${id}`)
+          if (schedRes.ok) {
+            const { schedule, installments, settlement } = await schedRes.json()
+            if (schedule) setPaymentSchedule(schedule)
+            if (installments) setPaymentInstallments(installments)
+            if (settlement?.landco_quote_total) setLandcoQuoteTotal(settlement.landco_quote_total)
+          }
+        }
+
+        if (json.request?.status === 'finalized') {
+          const addRes = await fetch(`/api/additional-settlements?requestId=${id}`)
+          if (addRes.ok) {
+            const { settlements } = await addRes.json()
+            setAdditionalSettlements(settlements ?? [])
           }
         }
 
@@ -164,6 +190,29 @@ export default function LandcoRequestDetail() {
     setPaymentConfirming(false)
   }
 
+  const today = new Date().toISOString().slice(0, 10)
+  const hasOverdue = paymentInstallments.some(i =>
+    i.status === 'overdue' || (i.status === 'pending' && i.due_date < today)
+  )
+  const canCancel = selectionResult === 'selected' && hasOverdue && request?.status !== 'closed' && request?.status !== 'finalized'
+
+  async function handleLandcoCancel() {
+    setCancelling(true)
+    try {
+      const res = await fetch(`/api/requests/${id}/landco-cancel`, { method: 'POST' })
+      if (res.ok) {
+        setRequest(prev => prev ? { ...prev, status: 'closed' as const } : prev)
+        setShowCancelModal(false)
+      } else {
+        const body = await res.json().catch(() => ({}))
+        alert(body.error || '행사 취소에 실패했습니다.')
+      }
+    } catch {
+      alert('네트워크 오류가 발생했습니다.')
+    }
+    setCancelling(false)
+  }
+
   if (!request) return <div className="p-8 text-gray-400">로딩 중...</div>
 
   const isUploadDisabled = request.status === 'finalized' || request.status === 'payment_pending' || isAbandoned
@@ -233,7 +282,49 @@ export default function LandcoRequestDetail() {
       )}
     <div className="p-8 max-w-3xl mx-auto">
       <BackButton href="/landco" />
-      <h1 className="text-2xl font-bold mb-4">{request.event_name}</h1>
+      {request.display_id && <p className="text-xs text-gray-400 mb-1 font-mono">{request.display_id}</p>}
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">{request.event_name}</h1>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowCancelModal(true)}
+            disabled={!canCancel}
+            className={`border px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              canCancel
+                ? 'border-red-300 text-red-500 bg-white hover:bg-red-50'
+                : 'border-gray-200 text-gray-300 bg-gray-50 cursor-not-allowed'
+            }`}
+          >
+            견적 취소
+          </button>
+        </div>
+      </div>
+
+      {/* 취소 확인 모달 */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h3 className="text-base font-bold text-gray-900 mb-1">행사 취소</h3>
+            <p className="text-sm text-gray-500 mt-2">결제 미이행으로 이 행사를 취소하시겠습니까?</p>
+            <p className="text-xs text-red-500 mt-1">취소 후 복구할 수 없습니다. 이미 결제된 금액은 별도 환불 처리가 필요합니다.</p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleLandcoCancel}
+                disabled={cancelling}
+                className="bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-600 disabled:opacity-50"
+              >
+                {cancelling ? '처리 중...' : '행사 취소'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 선택 결과 배너 */}
       {selectionResult === 'selected' && (
@@ -252,48 +343,6 @@ export default function LandcoRequestDetail() {
             <p className="text-sm font-semibold text-gray-600">이번 견적 요청은 다른 랜드사가 선택되었습니다.</p>
             <p className="text-xs text-gray-400 mt-0.5">다음 기회를 노려보세요.</p>
           </div>
-        </div>
-      )}
-
-      {/* 결제 확인 섹션 — 랜드사만 표시, payment_pending + 선택됨 */}
-      {request.status === 'payment_pending' && selectionResult === 'selected' && !paymentConfirmed && (
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-amber-200">
-          <h2 className="font-semibold text-lg mb-1">결제 확인</h2>
-          <p className="text-sm text-gray-500 mb-4">입금이 확인되면 아래 버튼을 눌러 최종 확정 처리해주세요.</p>
-          <textarea
-            value={paymentMemo}
-            onChange={e => setPaymentMemo(e.target.value)}
-            placeholder="메모 입력 (선택사항, 내부 기록용)"
-            rows={3}
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-amber-400 mb-3"
-          />
-          <div className="flex justify-end">
-            <button
-              onClick={handlePaymentConfirm}
-              disabled={paymentConfirming}
-              className="bg-amber-500 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50 transition-colors"
-            >
-              {paymentConfirming ? '처리 중...' : '✓ 결제확인 완료'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {paymentConfirmed && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-6">
-          <span className="text-2xl">✅</span>
-          <div>
-            <p className="text-sm font-semibold text-amber-700">결제 확인이 완료되었습니다.</p>
-            <p className="text-xs text-amber-600 mt-0.5">최종 확정 처리가 완료되었습니다.</p>
-          </div>
-        </div>
-      )}
-
-      {/* 입금 메모 — finalized 상태에서 메모가 있을 때 */}
-      {request.status === 'finalized' && selectionResult === 'selected' && savedMemo && (
-        <div className="bg-white rounded-lg shadow-sm p-5 mb-6 border border-gray-100">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">입금 메모</p>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">{savedMemo}</p>
         </div>
       )}
 
@@ -605,6 +654,263 @@ export default function LandcoRequestDetail() {
         {!isUploadDisabled && uploadError && <p className="text-red-500 text-sm mt-3">{uploadError}</p>}
         </div>
       </div>
+
+      {/* 결제 현황 */}
+      {(request.status === 'payment_pending' || request.status === 'finalized') && paymentSchedule && (
+        <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+          <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-sm font-bold text-white">결제 현황</h3>
+              <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">
+                {paymentSchedule.template_type === 'large_event' ? '대형행사 (3단계)' :
+                 paymentSchedule.template_type === 'one_time' ? '한번에 결제' :
+                 paymentSchedule.template_type === 'post_travel' ? '여행 후 정산' : '나눠서 결제'}
+              </span>
+            </div>
+          </div>
+          {/* 기본 회차 (rate > 0) */}
+          <div className="bg-white">
+            {paymentInstallments.filter(i => i.rate > 0).map((inst, idx) => {
+              const displayTotal = landcoQuoteTotal ?? paymentSchedule.total_amount
+              const landcoAmount = Math.round(displayTotal * inst.rate)
+              const landcoPaidAmount = paymentSchedule.total_amount > 0 ? Math.round(inst.paid_amount * (displayTotal / paymentSchedule.total_amount)) : 0
+              const progressPct = landcoAmount > 0 ? Math.min(100, Math.round((landcoPaidAmount / landcoAmount) * 100)) : 0
+              return (
+                <div key={inst.id} className={`px-5 py-4 ${idx > 0 ? 'border-t border-gray-100' : ''}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${
+                        inst.status === 'paid' ? 'bg-emerald-500 text-white' :
+                        inst.status === 'partial' ? 'bg-blue-500 text-white' :
+                        inst.status === 'overdue' ? 'bg-red-500 text-white' :
+                        'bg-gray-100 text-gray-500 border border-gray-200'
+                      }`}>
+                        {inst.status === 'paid' ? '✓' : idx + 1}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-bold text-gray-900">{inst.label}</span>
+                          <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{Math.round(inst.rate * 100)}%</span>
+                          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                            inst.status === 'paid' ? 'text-emerald-700 bg-emerald-50' :
+                            inst.status === 'partial' ? 'text-blue-700 bg-blue-50' :
+                            inst.status === 'overdue' ? 'text-red-700 bg-red-50' :
+                            'text-amber-700 bg-amber-50'
+                          }`}>
+                            {inst.status === 'paid' ? '결제완료' : inst.status === 'partial' ? '부분결제' : inst.status === 'overdue' ? '기한초과' : '결제대기'}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-gray-500">{inst.due_date}까지</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-base font-bold text-gray-900">{landcoAmount.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></div>
+                      {landcoPaidAmount > 0 && inst.status !== 'paid' && (
+                        <div className="text-[10px] text-blue-500">{landcoPaidAmount.toLocaleString('ko-KR')}원 결제됨</div>
+                      )}
+                    </div>
+                  </div>
+                  {inst.paid_amount > 0 && (
+                    <div className="mt-2 ml-10">
+                      <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${inst.status === 'paid' ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${progressPct}%` }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {(() => {
+            const displayTotal = landcoQuoteTotal ?? paymentSchedule.total_amount
+            const totalPaid = paymentInstallments.reduce((sum, i) => sum + i.paid_amount, 0)
+            const paidRatio = paymentSchedule.total_amount > 0 ? totalPaid / paymentSchedule.total_amount : 0
+            const landcoPaid = Math.round(displayTotal * paidRatio)
+            const landcoRemaining = displayTotal - landcoPaid
+            const paidPct = Math.round(paidRatio * 100)
+            return (
+              <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-gray-500">랜드사 견적가</span>
+                  <span className="text-xs text-gray-500">{displayTotal.toLocaleString('ko-KR')}원</span>
+                </div>
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${paidPct}%` }} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">결제완료 {landcoPaid.toLocaleString('ko-KR')}원 ({paidPct}%)</span>
+                  <span className={`text-sm font-bold ${landcoRemaining > 0 ? 'text-gray-900' : 'text-emerald-600'}`}>
+                    {landcoRemaining > 0 ? `잔여 ${landcoRemaining.toLocaleString('ko-KR')}원` : '전액 결제완료'}
+                  </span>
+                </div>
+              </div>
+            )
+          })()}
+          {request.status === 'payment_pending' && !paymentConfirmed && (
+            <div className="px-5 py-4 border-t border-gray-100">
+              <textarea
+                value={paymentMemo}
+                onChange={e => setPaymentMemo(e.target.value)}
+                placeholder="메모 입력 (선택사항, 내부 기록용)"
+                rows={2}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-blue-400 mb-3"
+              />
+              <div className="flex justify-end">
+                <button
+                  onClick={handlePaymentConfirm}
+                  disabled={paymentConfirming}
+                  className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {paymentConfirming ? '처리 중...' : '결제확인 완료'}
+                </button>
+              </div>
+            </div>
+          )}
+          {paymentConfirmed && (
+            <div className="px-5 py-3 bg-emerald-50 border-t border-emerald-100">
+              <p className="text-xs text-emerald-700 font-medium">결제 확인이 완료되었습니다. 최종 확정 처리되었습니다.</p>
+            </div>
+          )}
+          {/* 추가 정산 회차 (rate === 0) */}
+          {paymentInstallments.some(i => i.rate === 0) && (
+            <>
+              <div className="px-5 py-2.5 bg-gray-100 border-t border-gray-200">
+                <span className="text-[11px] font-bold text-gray-500">추가 정산</span>
+              </div>
+              <div className="bg-white">
+                {paymentInstallments.filter(i => i.rate === 0).map((inst) => {
+                  const landcoPaidAmount = inst.paid_amount
+                  const progressPct = inst.amount > 0 ? Math.min(100, Math.round((landcoPaidAmount / inst.amount) * 100)) : 0
+                  return (
+                    <div key={inst.id} className="px-5 py-4 border-t border-gray-100">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${
+                            inst.status === 'paid' ? 'bg-emerald-500 text-white' :
+                            inst.status === 'cancelled' ? 'bg-gray-200 text-gray-400' :
+                            inst.status === 'overdue' ? 'bg-red-500 text-white' :
+                            'bg-amber-100 text-amber-600 border border-amber-200'
+                          }`}>
+                            {inst.status === 'paid' ? '✓' : inst.status === 'cancelled' ? '✕' : '+'}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-bold text-gray-900">{inst.label}</span>
+                              <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                                inst.status === 'paid' ? 'text-emerald-700 bg-emerald-50' :
+                                inst.status === 'cancelled' ? 'text-gray-500 bg-gray-100' :
+                                inst.status === 'overdue' ? 'text-red-700 bg-red-50' :
+                                'text-amber-700 bg-amber-50'
+                              }`}>
+                                {inst.status === 'paid' ? '결제완료' : inst.status === 'cancelled' ? '취소됨' : inst.status === 'overdue' ? '기한초과' : '결제대기'}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-gray-500">{inst.due_date}까지</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-bold text-gray-900">
+                            {inst.amount.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span>
+                          </span>
+                          {(inst.status === 'pending' || inst.status === 'overdue') && inst.paid_amount === 0 && (
+                            <button
+                              onClick={async () => {
+                                if (!confirm('이 추가 정산 회차를 취소하시겠습니까?')) return
+                                await fetch(`/api/payment-schedule/cancel-installment`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ installmentId: inst.id }),
+                                })
+                                const schedRes = await fetch(`/api/payment-schedule?requestId=${id}`)
+                                if (schedRes.ok) {
+                                  const { schedule, installments, settlement } = await schedRes.json()
+                                  if (schedule) setPaymentSchedule(schedule)
+                                  if (installments) setPaymentInstallments(installments)
+                                  if (settlement?.landco_quote_total) setLandcoQuoteTotal(settlement.landco_quote_total)
+                                }
+                              }}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-300 text-red-500 hover:bg-red-50"
+                            >
+                              취소하기
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {inst.paid_amount > 0 && (
+                        <div className="mt-2 ml-10">
+                          <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${inst.status === 'paid' ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${progressPct}%` }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* 결제확인 — paymentSchedule이 없을 때 fallback */}
+      {request.status === 'payment_pending' && !paymentSchedule && !paymentConfirmed && (
+        <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+          <div className="flex items-center px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
+            <h3 className="text-sm font-bold text-white">결제 확인</h3>
+          </div>
+          <div className="px-5 py-4 bg-white">
+            <p className="text-sm text-gray-500 mb-3">입금이 확인되면 아래 버튼을 눌러 최종 확정 처리해주세요.</p>
+            <textarea
+              value={paymentMemo}
+              onChange={e => setPaymentMemo(e.target.value)}
+              placeholder="메모 입력 (선택사항, 내부 기록용)"
+              rows={2}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-blue-400 mb-3"
+            />
+            <div className="flex justify-end">
+              <button
+                onClick={handlePaymentConfirm}
+                disabled={paymentConfirming}
+                className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {paymentConfirming ? '처리 중...' : '결제확인 완료'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {!paymentSchedule && paymentConfirmed && (
+        <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 mb-6">
+          <span className="text-2xl">✅</span>
+          <div>
+            <p className="text-sm font-semibold text-emerald-700">결제 확인이 완료되었습니다.</p>
+            <p className="text-xs text-emerald-600 mt-0.5">최종 확정 처리가 완료되었습니다.</p>
+          </div>
+        </div>
+      )}
+
+      {/* 입금 메모 */}
+      {request.status === 'finalized' && selectionResult === 'selected' && savedMemo && (
+        <div className="bg-white rounded-lg shadow-sm p-5 mb-6 border border-gray-100">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">입금 메모</p>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap">{savedMemo}</p>
+        </div>
+      )}
+
+      {request.status === 'finalized' && selectionResult === 'selected' && (
+        <AdditionalSettlementSection
+          requestId={id}
+          settlements={additionalSettlements}
+          onCreated={async () => {
+            const res = await fetch(`/api/additional-settlements?requestId=${id}`)
+            if (res.ok) {
+              const { settlements } = await res.json()
+              setAdditionalSettlements(settlements ?? [])
+            }
+          }}
+          role="landco"
+        />
+      )}
 
       {/* 제출 이력 */}
       <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">

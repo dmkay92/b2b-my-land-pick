@@ -25,14 +25,15 @@ const NAV_ITEMS: Record<'agency' | 'landco' | 'admin', { label: string; href: st
     { label: '관리자 대시보드', href: '/admin', icon: '🛠️' },
     { label: '여행사 리스트', href: '/admin/agencies', icon: '🏢' },
     { label: '랜드사 리스트', href: '/admin/landcos', icon: '🌏' },
+    { label: '도시 관리', href: '/admin/cities', icon: '🏙️' },
+    { label: '결제 관리', href: '/admin/payments', icon: '💰' },
   ],
 }
 
 export function AgencySidebar({ companyName, role, rightSlot, children }: Props) {
-  const [pinned, setPinned] = useState(false)
   const [hovered, setHovered] = useState(false)
   const pathname = usePathname()
-  const open = pinned || hovered
+  const open = hovered
   const sidebarWidth = open ? 260 : 0
 
   return (
@@ -41,7 +42,6 @@ export function AgencySidebar({ companyName, role, rightSlot, children }: Props)
       <header className="fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-100 flex items-center justify-between px-4 h-14" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setPinned(v => !v)}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             className="text-gray-500 hover:text-gray-900 w-9 h-9 flex items-center justify-center rounded hover:bg-gray-100 transition-colors duration-150"

@@ -11,6 +11,8 @@ interface Message {
   content: string | null
   file_url: string | null
   file_name: string | null
+  message_type?: string | null
+  metadata?: Record<string, unknown> | null
   created_at: string
   sender?: { company_name: string }
 }

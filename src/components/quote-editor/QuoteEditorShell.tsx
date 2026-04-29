@@ -48,6 +48,8 @@ export function QuoteEditorShell({ requestId }: Props) {
   const [summaryTotal, setSummaryTotal] = useState(0)
   const [summaryPerPerson, setSummaryPerPerson] = useState(0)
   const [isParsingExcel, setIsParsingExcel] = useState(false)
+  const [includes, setIncludes] = useState('')
+  const [excludes, setExcludes] = useState('')
   const [previousVersions, setPreviousVersions] = useState<{ id: string; version: number; submitted_at: string }[]>([])
   const [showVersionDropdown, setShowVersionDropdown] = useState(false)
   const [loadingVersion, setLoadingVersion] = useState(false)
@@ -60,6 +62,8 @@ export function QuoteEditorShell({ requestId }: Props) {
   const pricingModeRef = useRef(pricingMode)
   const summaryTotalRef = useRef(summaryTotal)
   const summaryPerPersonRef = useRef(summaryPerPerson)
+  const includesRef = useRef('')
+  const excludesRef = useRef('')
 
   // keep refs in sync
   useEffect(() => { itineraryRef.current = itinerary }, [itinerary])
@@ -67,6 +71,8 @@ export function QuoteEditorShell({ requestId }: Props) {
   useEffect(() => { pricingModeRef.current = pricingMode }, [pricingMode])
   useEffect(() => { summaryTotalRef.current = summaryTotal }, [summaryTotal])
   useEffect(() => { summaryPerPersonRef.current = summaryPerPerson }, [summaryPerPerson])
+  useEffect(() => { includesRef.current = includes }, [includes])
+  useEffect(() => { excludesRef.current = excludes }, [excludes])
 
   // request + draft 로드
   useEffect(() => {
@@ -95,6 +101,8 @@ export function QuoteEditorShell({ requestId }: Props) {
               if (draft.pricing_mode) setPricingMode(draft.pricing_mode)
               if (draft.summary_total) setSummaryTotal(draft.summary_total)
               if (draft.summary_per_person) setSummaryPerPerson(draft.summary_per_person)
+              setIncludes(draft.includes ?? '')
+              setExcludes(draft.excludes ?? '')
               draftLoaded = true
             }
           }
@@ -156,6 +164,8 @@ export function QuoteEditorShell({ requestId }: Props) {
           pricing_mode: pricingModeRef.current,
           summary_total: summaryTotalRef.current,
           summary_per_person: summaryPerPersonRef.current,
+          includes: includesRef.current || null,
+          excludes: excludesRef.current || null,
         }),
       })
     } finally {
@@ -207,6 +217,14 @@ export function QuoteEditorShell({ requestId }: Props) {
   }
 
   async function handleSubmit(mode: 'detailed' | 'summary') {
+    if (!includesRef.current.trim()) {
+      toast('포함사항을 입력해주세요.', 'error')
+      return
+    }
+    if (!excludesRef.current.trim()) {
+      toast('불포함사항을 입력해주세요.', 'error')
+      return
+    }
     setIsSubmitting(true)
     try {
       await saveDraft()
@@ -305,6 +323,8 @@ export function QuoteEditorShell({ requestId }: Props) {
       if (json.pricing_mode) setPricingMode(json.pricing_mode)
       if (json.summary_total) setSummaryTotal(json.summary_total)
       if (json.summary_per_person) setSummaryPerPerson(json.summary_per_person)
+      setIncludes(json.draft?.includes ?? '')
+      setExcludes(json.draft?.excludes ?? '')
       isDirtyRef.current = true
       setSaveStatus('unsaved')
     } catch {
@@ -640,6 +660,40 @@ export function QuoteEditorShell({ requestId }: Props) {
             />
           )}
 
+        </div>
+
+        {/* 포함사항 / 불포함사항 */}
+        <div className="bg-slate-50 border-t-2 border-slate-300 px-6 py-5 flex-shrink-0">
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-bold text-slate-800">포함 / 불포함 사항</h3>
+            <span className="text-[10px] font-semibold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">필수</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-emerald-700 mb-1.5 flex items-center gap-1">
+                <span className="text-emerald-500">+</span> 포함사항
+              </label>
+              <textarea
+                value={includes}
+                onChange={e => { setIncludes(e.target.value); isDirtyRef.current = true }}
+                placeholder="예: 호텔, 식사, 가이드비 등"
+                rows={3}
+                className="w-full border-2 border-emerald-200 bg-white rounded-lg px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-emerald-400"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-red-600 mb-1.5 flex items-center gap-1">
+                <span className="text-red-400">-</span> 불포함사항
+              </label>
+              <textarea
+                value={excludes}
+                onChange={e => { setExcludes(e.target.value); isDirtyRef.current = true }}
+                placeholder="예: 입장료, 개인경비, 여행자보험 등"
+                rows={3}
+                className="w-full border-2 border-red-200 bg-white rounded-lg px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-red-400"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </>

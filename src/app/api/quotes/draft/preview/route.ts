@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   // 2. 현재 유저의 draft 조회
   const { data: draft, error: draftError } = await supabase
     .from('quote_drafts')
-    .select('itinerary, pricing')
+    .select('itinerary, pricing, includes, excludes')
     .eq('request_id', requestId)
     .eq('landco_id', user!.id)
     .single()
@@ -60,8 +60,8 @@ export async function POST(request: NextRequest) {
       children: qr.children ?? 0,
       infants: qr.infants ?? 0,
       leaders: qr.leaders ?? 0,
-      includes: '',
-      excludes: '',
+      includes: draft.includes ?? '',
+      excludes: draft.excludes ?? '',
     },
     {
       itinerary: draft.itinerary,

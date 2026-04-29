@@ -1,147 +1,130 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { getCountryName } from '@/lib/utils'
-
-const ALL_COUNTRY_CODES = [
-  'JP', 'CN', 'TH', 'VN', 'PH', 'SG', 'MY', 'ID', 'HK', 'TW',
-  'US', 'CA', 'GB', 'FR', 'DE', 'IT', 'ES', 'CH', 'AT', 'NL',
-  'AU', 'NZ', 'AE', 'TR', 'GR', 'PT', 'CZ', 'HU', 'PL', 'HR',
-  'MX', 'IN', 'KH', 'LA', 'MM', 'NP', 'MV', 'FJ', 'MO',
-]
+import { useState, useEffect } from 'react'
+import CitySearchSelect from '@/components/CitySearchSelect'
 
 interface Props {
-  initial: string[]
-  onNext: (countries: string[]) => void
+  initial: { country: string; city: string }[]
+  onNext: (areas: { country: string; city: string }[]) => void
   onBack: () => void
 }
 
 export function Step5Countries({ initial, onNext, onBack }: Props) {
-  const [selected, setSelected] = useState<string[]>(initial.length > 0 ? initial : [''])
-  const [query, setQuery] = useState<string[]>(initial.map(code => code ? getCountryName(code) : ''))
-  const [openIdx, setOpenIdx] = useState<number | null>(null)
-  const containerRef = useRef<HTMLFormElement>(null)
+  const [areas, setAreas] = useState<{ country: string; city: string }[]>(initial.length > 0 ? initial : [])
+  const [countries, setCountries] = useState<{ code: string; name: string }[]>([])
+  const [selectedCountry, setSelectedCountry] = useState('')
+  const [selectedCities, setSelectedCities] = useState<string[]>([])
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpenIdx(null)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
+    fetch('/api/cities').then(r => r.json()).then(d => setCountries(d.countries ?? []))
   }, [])
 
-  function addRow() {
-    setSelected(prev => [...prev, ''])
-    setQuery(prev => [...prev, ''])
+  function addAreas() {
+    if (!selectedCountry || selectedCities.length === 0) return
+    const newAreas = selectedCities
+      .filter(city => !areas.some(a => a.country === selectedCountry && a.city === city))
+      .map(city => ({ country: selectedCountry, city }))
+    setAreas(prev => [...prev, ...newAreas])
+    setSelectedCountry('')
+    setSelectedCities([])
   }
 
-  function removeRow(i: number) {
-    setSelected(prev => prev.filter((_, idx) => idx !== i))
-    setQuery(prev => prev.filter((_, idx) => idx !== i))
-    if (openIdx === i) setOpenIdx(null)
+  function removeArea(country: string, city: string) {
+    setAreas(prev => prev.filter(a => !(a.country === country && a.city === city)))
   }
 
-  function selectCountry(i: number, code: string) {
-    setSelected(prev => prev.map((c, idx) => idx === i ? code : c))
-    setQuery(prev => prev.map((q, idx) => idx === i ? getCountryName(code) : q))
-    setOpenIdx(null)
+  function handleSubmit() {
+    if (areas.length === 0) return
+    onNext(areas)
   }
 
-  function handleQueryChange(i: number, val: string) {
-    setQuery(prev => prev.map((q, idx) => idx === i ? val : q))
-    setSelected(prev => prev.map((c, idx) => idx === i ? '' : c))
-    setOpenIdx(i)
-  }
+  // Group areas by country for display
+  const grouped = areas.reduce<Record<string, string[]>>((acc, a) => {
+    if (!acc[a.country]) acc[a.country] = []
+    acc[a.country].push(a.city)
+    return acc
+  }, {})
 
-  function filteredOptions(i: number) {
-    const q = query[i].toLowerCase()
-    const alreadySelected = new Set(selected.filter((_, idx) => idx !== i))
-    return ALL_COUNTRY_CODES
-      .filter(code => !alreadySelected.has(code))
-      .filter(code => !q || getCountryName(code).toLowerCase().includes(q) || code.toLowerCase().includes(q))
-  }
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const valid = selected.filter(c => c !== '')
-    if (valid.length === 0) return
-    onNext(valid)
-  }
-
-  const allFilled = selected.every(c => c !== '')
+  const getCountryName = (code: string) => countries.find(c => c.code === code)?.name || code
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6" ref={containerRef}>
+    <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-gray-900">마지막이에요!</h2>
-        <p className="mt-1 text-sm text-gray-500">담당하는 국가를 선택해주세요. 나중에 추가/변경도 가능해요.</p>
+        <h2 className="text-xl font-bold text-gray-900">담당 지역 선택</h2>
+        <p className="mt-1 text-sm text-gray-500">담당하는 국가와 도시를 선택해주세요. 나중에 추가/변경도 가능해요.</p>
       </div>
 
-      <div className="space-y-2">
-        {selected.map((code, i) => (
-          <div key={i} className="relative flex gap-2">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                value={query[i]}
-                onChange={e => handleQueryChange(i, e.target.value)}
-                onFocus={() => setOpenIdx(i)}
-                placeholder="국가명을 입력하세요"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              {openIdx === i && filteredOptions(i).length > 0 && (
-                <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-md">
-                  {filteredOptions(i).slice(0, 20).map(optCode => (
-                    <li
-                      key={optCode}
-                      onMouseDown={() => selectCountry(i, optCode)}
-                      className="cursor-pointer px-3 py-2 text-sm hover:bg-blue-50"
-                    >
-                      {getCountryName(optCode)} <span className="text-gray-400 text-xs">{optCode}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            {selected.length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeRow(i)}
-                className="rounded-lg border border-gray-200 px-2 text-gray-400 hover:text-red-400 hover:border-red-200"
-              >
-                ×
-              </button>
-            )}
+      {/* 국가 + 도시 선택 */}
+      <div className="space-y-3">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">국가</label>
+          <select
+            value={selectedCountry}
+            onChange={e => { setSelectedCountry(e.target.value); setSelectedCities([]) }}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">국가를 선택하세요</option>
+            {countries.map(c => (
+              <option key={c.code} value={c.code}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {selectedCountry && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">도시 (복수 선택 가능)</label>
+            <CitySearchSelect
+              countryCode={selectedCountry}
+              selected={selectedCities}
+              onChange={v => setSelectedCities(v as string[])}
+              multiple
+              placeholder="도시를 검색하세요"
+            />
           </div>
-        ))}
-        <button
-          type="button"
-          onClick={addRow}
-          disabled={!allFilled}
-          className="flex w-full items-center justify-center gap-1 rounded-lg border-2 border-dashed border-gray-200 py-2 text-sm text-gray-400 hover:border-blue-400 hover:text-blue-500 disabled:opacity-40 transition-colors"
-        >
-          + 국가 추가
-        </button>
+        )}
+
+        {selectedCountry && selectedCities.length > 0 && (
+          <button
+            onClick={addAreas}
+            className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+          >
+            + {getCountryName(selectedCountry)} {selectedCities.length}개 도시 추가
+          </button>
+        )}
       </div>
 
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="flex-1 rounded-xl border border-gray-200 py-3 text-sm text-gray-500 hover:bg-gray-50 transition-colors"
-        >
-          ← 이전
+      {/* 선택된 지역 표시 */}
+      {Object.keys(grouped).length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-gray-700">선택된 담당 지역</p>
+          {Object.entries(grouped).map(([country, cities]) => (
+            <div key={country} className="bg-gray-50 rounded-lg p-3">
+              <p className="text-xs font-semibold text-gray-500 mb-2">{getCountryName(country)}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {cities.map(city => (
+                  <span key={city} className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-xs px-2.5 py-1 rounded-full">
+                    {city}
+                    <button onClick={() => removeArea(country, city)} className="text-blue-400 hover:text-blue-600 ml-0.5">&times;</button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-3 pt-4">
+        <button onClick={onBack} className="flex-1 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+          이전
         </button>
         <button
-          type="submit"
-          disabled={!allFilled || selected.filter(c => c !== '').length === 0}
-          className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40 transition-colors"
+          onClick={handleSubmit}
+          disabled={areas.length === 0}
+          className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
-          가입 신청
+          가입 완료
         </button>
       </div>
-    </form>
+    </div>
   )
 }

@@ -9,7 +9,7 @@ interface Props {
   initialPerPerson: number
   initialTotal: number
   landcoName: string
-  onConfirm: (markupPerPerson: number, markupTotal: number) => void
+  onConfirm: (markupPerPerson: number, markupTotal: number) => void | Promise<void>
   onClose: () => void
 }
 
@@ -27,6 +27,7 @@ export default function ConfirmMarkupModal({
   onClose,
 }: Props) {
   const [step, setStep] = useState<1 | 2>(1)
+  const [confirming, setConfirming] = useState(false)
   const [markupPerPerson, setMarkupPerPerson] = useState(initialPerPerson)
   const [markupTotal, setMarkupTotal] = useState(initialTotal)
 
@@ -127,10 +128,14 @@ export default function ConfirmMarkupModal({
                 이전
               </button>
               <button
-                onClick={() => onConfirm(markupPerPerson, markupTotal)}
-                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                onClick={async () => {
+                  setConfirming(true)
+                  await onConfirm(markupPerPerson, markupTotal)
+                }}
+                disabled={confirming}
+                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                확정
+                {confirming ? '처리 중...' : '확정'}
               </button>
             </div>
           )}
