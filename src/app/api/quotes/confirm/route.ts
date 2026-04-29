@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendQuoteSelectedEmail } from '@/lib/email/notifications'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -16,9 +22,9 @@ export async function POST(request: NextRequest) {
     .from('quote_requests').select('agency_id, event_name, status').eq('id', requestId).single()
   if (qr?.agency_id !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // 이미 결제대기 또는 확정된 경우 차단
-  if (qr?.status === 'payment_pending' || qr?.status === 'finalized') {
-    return NextResponse.json({ error: 'Already confirmed' }, { status: 409 })
+  // 이미 결제대기, 확정, 또는 취소된 경우 차단
+  if (qr?.status === 'payment_pending' || qr?.status === 'finalized' || qr?.status === 'closed') {
+    return NextResponse.json({ error: qr?.status === 'closed' ? '취소된 행사는 견적을 선택할 수 없습니다.' : 'Already confirmed' }, { status: 409 })
   }
 
   // 선택 기록 저장 (finalized_at은 null — 랜드사 결제확인 후 설정)
@@ -101,7 +107,7 @@ export async function POST(request: NextRequest) {
   const landcoPayout = landcoQuoteTotal - platformFee
   const gmv = landcoQuoteTotal + agencyMarkup
 
-  await supabase.from('quote_settlements').upsert({
+  const { error: settlementErr } = await admin.from('quote_settlements').upsert({
     request_id: requestId,
     quote_id: quoteId,
     landco_id: landcoId,
@@ -140,10 +146,9 @@ export async function POST(request: NextRequest) {
   const templateType = getDefaultTemplateType(totalPeople)
   const installmentDrafts = buildInstallments(templateType, gmv, fullRequest!.depart_date)
 
-  const { data: settlement } = await supabase
+  const { data: settlement, error: settlementReadErr } = await admin
     .from('quote_settlements').select('id').eq('request_id', requestId).single()
-
-  const { data: schedule } = await supabase
+  const { data: schedule, error: scheduleErr } = await admin
     .from('payment_schedules').upsert({
       request_id: requestId,
       settlement_id: settlement?.id ?? null,
@@ -153,9 +158,9 @@ export async function POST(request: NextRequest) {
     }, { onConflict: 'request_id' }).select().single()
 
   if (schedule) {
-    await supabase.from('payment_installments').delete().eq('schedule_id', schedule.id)
+    await admin.from('payment_installments').delete().eq('schedule_id', schedule.id)
     for (const inst of installmentDrafts) {
-      await supabase.from('payment_installments').insert({
+      await admin.from('payment_installments').insert({
         schedule_id: schedule.id,
         ...inst,
       })

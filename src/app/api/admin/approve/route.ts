@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
   // @supabase/supabase-js 직접 사용 — RLS 완전 우회 보장
   const serviceClient = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
   const { data: current } = await serviceClient

@@ -4,11 +4,12 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, formatDateWithDay, calculateTotalPeople, hotelGradeLabel, getCountryName } from '@/lib/utils'
-import type { QuoteRequest, Quote } from '@/lib/supabase/types'
+import type { QuoteRequest, Quote, AdditionalSettlement } from '@/lib/supabase/types'
 
 type QuoteWithPricing = Quote & { pricing?: { total: number | null; per_person: number | null }; pricing_mode?: 'detailed' | 'summary' }
 import { AttachmentPreviewModal } from '@/components/AttachmentPreviewModal'
 import { BackButton } from '@/components/BackButton'
+import AdditionalSettlementSection from '@/components/AdditionalSettlementSection'
 
 export default function LandcoRequestDetail() {
   const { id } = useParams<{ id: string }>()
@@ -38,6 +39,7 @@ export default function LandcoRequestDetail() {
   const [paymentSchedule, setPaymentSchedule] = useState<{ template_type: string; total_amount: number; approval_status: string } | null>(null)
   const [paymentInstallments, setPaymentInstallments] = useState<{ id: string; label: string; rate: number; amount: number; paid_amount: number; due_date: string; status: string }[]>([])
   const [landcoQuoteTotal, setLandcoQuoteTotal] = useState<number | null>(null)
+  const [additionalSettlements, setAdditionalSettlements] = useState<AdditionalSettlement[]>([])
 
   useEffect(() => {
     async function load() {
@@ -77,6 +79,14 @@ export default function LandcoRequestDetail() {
             if (schedule) setPaymentSchedule(schedule)
             if (installments) setPaymentInstallments(installments)
             if (settlement?.landco_quote_total) setLandcoQuoteTotal(settlement.landco_quote_total)
+          }
+        }
+
+        if (json.request?.status === 'finalized') {
+          const addRes = await fetch(`/api/additional-settlements?requestId=${id}`)
+          if (addRes.ok) {
+            const { settlements } = await addRes.json()
+            setAdditionalSettlements(settlements ?? [])
           }
         }
 
@@ -188,10 +198,17 @@ export default function LandcoRequestDetail() {
 
   async function handleLandcoCancel() {
     setCancelling(true)
-    const res = await fetch(`/api/requests/${id}/landco-cancel`, { method: 'POST' })
-    if (res.ok) {
-      setRequest(prev => prev ? { ...prev, status: 'closed' as const } : prev)
-      setShowCancelModal(false)
+    try {
+      const res = await fetch(`/api/requests/${id}/landco-cancel`, { method: 'POST' })
+      if (res.ok) {
+        setRequest(prev => prev ? { ...prev, status: 'closed' as const } : prev)
+        setShowCancelModal(false)
+      } else {
+        const body = await res.json().catch(() => ({}))
+        alert(body.error || '행사 취소에 실패했습니다.')
+      }
+    } catch {
+      alert('네트워크 오류가 발생했습니다.')
     }
     setCancelling(false)
   }
@@ -647,12 +664,13 @@ export default function LandcoRequestDetail() {
               <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">
                 {paymentSchedule.template_type === 'large_event' ? '대형행사 (3단계)' :
                  paymentSchedule.template_type === 'one_time' ? '한번에 결제' :
-                 paymentSchedule.template_type === 'post_travel' ? '여행 후 정산' : '일반 (2단계)'}
+                 paymentSchedule.template_type === 'post_travel' ? '여행 후 정산' : '나눠서 결제'}
               </span>
             </div>
           </div>
+          {/* 기본 회차 (rate > 0) */}
           <div className="bg-white">
-            {paymentInstallments.map((inst, idx) => {
+            {paymentInstallments.filter(i => i.rate > 0).map((inst, idx) => {
               const displayTotal = landcoQuoteTotal ?? paymentSchedule.total_amount
               const landcoAmount = Math.round(displayTotal * inst.rate)
               const landcoPaidAmount = paymentSchedule.total_amount > 0 ? Math.round(inst.paid_amount * (displayTotal / paymentSchedule.total_amount)) : 0
@@ -753,6 +771,84 @@ export default function LandcoRequestDetail() {
               <p className="text-xs text-emerald-700 font-medium">결제 확인이 완료되었습니다. 최종 확정 처리되었습니다.</p>
             </div>
           )}
+          {/* 추가 정산 회차 (rate === 0) */}
+          {paymentInstallments.some(i => i.rate === 0) && (
+            <>
+              <div className="px-5 py-2.5 bg-gray-100 border-t border-gray-200">
+                <span className="text-[11px] font-bold text-gray-500">추가 정산</span>
+              </div>
+              <div className="bg-white">
+                {paymentInstallments.filter(i => i.rate === 0).map((inst) => {
+                  const landcoPaidAmount = inst.paid_amount
+                  const progressPct = inst.amount > 0 ? Math.min(100, Math.round((landcoPaidAmount / inst.amount) * 100)) : 0
+                  return (
+                    <div key={inst.id} className="px-5 py-4 border-t border-gray-100">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${
+                            inst.status === 'paid' ? 'bg-emerald-500 text-white' :
+                            inst.status === 'cancelled' ? 'bg-gray-200 text-gray-400' :
+                            inst.status === 'overdue' ? 'bg-red-500 text-white' :
+                            'bg-amber-100 text-amber-600 border border-amber-200'
+                          }`}>
+                            {inst.status === 'paid' ? '✓' : inst.status === 'cancelled' ? '✕' : '+'}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-bold text-gray-900">{inst.label}</span>
+                              <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                                inst.status === 'paid' ? 'text-emerald-700 bg-emerald-50' :
+                                inst.status === 'cancelled' ? 'text-gray-500 bg-gray-100' :
+                                inst.status === 'overdue' ? 'text-red-700 bg-red-50' :
+                                'text-amber-700 bg-amber-50'
+                              }`}>
+                                {inst.status === 'paid' ? '결제완료' : inst.status === 'cancelled' ? '취소됨' : inst.status === 'overdue' ? '기한초과' : '결제대기'}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-gray-500">{inst.due_date}까지</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-bold text-gray-900">
+                            {inst.amount.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span>
+                          </span>
+                          {(inst.status === 'pending' || inst.status === 'overdue') && inst.paid_amount === 0 && (
+                            <button
+                              onClick={async () => {
+                                if (!confirm('이 추가 정산 회차를 취소하시겠습니까?')) return
+                                await fetch(`/api/payment-schedule/cancel-installment`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ installmentId: inst.id }),
+                                })
+                                const schedRes = await fetch(`/api/payment-schedule?requestId=${id}`)
+                                if (schedRes.ok) {
+                                  const { schedule, installments, settlement } = await schedRes.json()
+                                  if (schedule) setPaymentSchedule(schedule)
+                                  if (installments) setPaymentInstallments(installments)
+                                  if (settlement?.landco_quote_total) setLandcoQuoteTotal(settlement.landco_quote_total)
+                                }
+                              }}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-300 text-red-500 hover:bg-red-50"
+                            >
+                              취소하기
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {inst.paid_amount > 0 && (
+                        <div className="mt-2 ml-10">
+                          <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${inst.status === 'paid' ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${progressPct}%` }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -799,6 +895,21 @@ export default function LandcoRequestDetail() {
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">입금 메모</p>
           <p className="text-sm text-gray-700 whitespace-pre-wrap">{savedMemo}</p>
         </div>
+      )}
+
+      {request.status === 'finalized' && selectionResult === 'selected' && (
+        <AdditionalSettlementSection
+          requestId={id}
+          settlements={additionalSettlements}
+          onCreated={async () => {
+            const res = await fetch(`/api/additional-settlements?requestId=${id}`)
+            if (res.ok) {
+              const { settlements } = await res.json()
+              setAdditionalSettlements(settlements ?? [])
+            }
+          }}
+          role="landco"
+        />
       )}
 
       {/* 제출 이력 */}

@@ -14,6 +14,8 @@ interface QuoteDetailData {
   request: QuoteRequest
   draft: { itinerary: ItineraryDay[]; pricing: PricingData }
   markup: { commission_per_person: number; commission_total: number } | null
+  includes: string | null
+  excludes: string | null
   isSelected: boolean
   landcoName: string
   pricing_mode: 'detailed' | 'summary'
@@ -196,7 +198,41 @@ export default function QuoteDetailPage({ params }: { params: Promise<{ quoteId:
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'itinerary' && <ItineraryView itinerary={data.draft.itinerary} />}
+      {activeTab === 'itinerary' && (
+        <>
+          {(data.includes || data.excludes) && (
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {data.includes && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <h4 className="text-xs font-bold text-emerald-700 mb-2">포함사항</h4>
+                  <ul className="space-y-1">
+                    {data.includes.split('\n').filter(Boolean).map((item, i) => (
+                      <li key={i} className="text-sm text-emerald-800 flex items-start gap-1.5">
+                        <span className="text-emerald-500 mt-0.5">+</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {data.excludes && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <h4 className="text-xs font-bold text-red-700 mb-2">불포함사항</h4>
+                  <ul className="space-y-1">
+                    {data.excludes.split('\n').filter(Boolean).map((item, i) => (
+                      <li key={i} className="text-sm text-red-800 flex items-start gap-1.5">
+                        <span className="text-red-500 mt-0.5">-</span>
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+          <ItineraryView itinerary={data.draft.itinerary} />
+        </>
+      )}
       {activeTab === 'pricing' && data.isSelected && data.pricing_mode !== 'summary' && (
         <PricingView pricing={pricing} totalPeople={totalPeople} />
       )}

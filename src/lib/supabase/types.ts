@@ -12,6 +12,8 @@ export interface Profile {
   company_name: string
   status: UserStatus
   country_codes: string[]
+  service_areas: ServiceArea[] | null
+  partner_code: string | null
   created_at: string
   approved_at: string | null
   seq_id: number | null
@@ -84,6 +86,8 @@ export interface Quote {
   pricing_mode?: 'detailed' | 'summary'
   summary_total?: number
   summary_per_person?: number
+  includes?: string | null
+  excludes?: string | null
 }
 
 export interface QuoteSelection {
@@ -116,7 +120,7 @@ export interface Message {
 export interface AdminActionLog {
   id: string
   target_user_id: string
-  action_type: 'status_change' | 'email_change' | 'country_change'
+  action_type: 'status_change' | 'email_change' | 'country_change' | 'service_areas_change'
   detail: Record<string, unknown>
   created_at: string
 }
@@ -178,6 +182,8 @@ export interface QuoteDraft {
   pricing_mode?: 'detailed' | 'summary'
   summary_total?: number
   summary_per_person?: number
+  includes?: string | null
+  excludes?: string | null
 }
 
 export interface Notification {
@@ -223,6 +229,7 @@ export interface SignupDraft {
     bank_holder: string
   } | null
   countries: string[]
+  service_areas: { country: string; city: string }[]
 }
 
 export interface AgencyCommission {
@@ -297,6 +304,38 @@ export interface PaymentInstallment {
   paid_at: string | null
   created_at: string
   updated_at: string
+}
+
+export interface City {
+  id: string
+  country_code: string
+  city_name: string
+  sort_order: number
+}
+
+export interface ServiceArea {
+  country: string
+  city: string
+}
+
+export interface AdditionalSettlementItem {
+  name: string
+  amount: number
+}
+
+export interface AdditionalSettlement {
+  id: string
+  request_id: string
+  landco_id: string
+  sequence_number: number
+  status: 'pending' | 'approved' | 'rejected'
+  items: AdditionalSettlementItem[]
+  memo: string | null
+  receipt_urls: string[]
+  total_amount: number
+  reviewed_by: string | null
+  reviewed_at: string | null
+  created_at: string
 }
 
 export interface PaymentTransaction {

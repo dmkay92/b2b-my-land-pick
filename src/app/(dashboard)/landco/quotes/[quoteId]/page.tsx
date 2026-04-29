@@ -15,6 +15,8 @@ interface QuoteDetailData {
   pricing_mode: 'detailed' | 'summary'
   summary_total: number
   summary_per_person: number
+  includes?: string | null
+  excludes?: string | null
 }
 
 export default function LandcoQuoteDetailPage({ params }: { params: Promise<{ quoteId: string }> }) {
@@ -158,7 +160,27 @@ export default function LandcoQuoteDetailPage({ params }: { params: Promise<{ qu
         </nav>
       </div>
 
-      {activeTab === 'itinerary' && <ItineraryView itinerary={data.draft.itinerary} />}
+      {activeTab === 'itinerary' && (
+        <>
+          {(data.includes || data.excludes) && (
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {data.includes && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <h4 className="text-xs font-bold text-emerald-700 mb-2">포함사항</h4>
+                  <p className="text-sm text-emerald-800">{data.includes}</p>
+                </div>
+              )}
+              {data.excludes && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <h4 className="text-xs font-bold text-red-700 mb-2">불포함사항</h4>
+                  <p className="text-sm text-red-800">{data.excludes}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <ItineraryView itinerary={data.draft.itinerary} />
+        </>
+      )}
       {activeTab === 'pricing' && !isSummaryMode && <PricingView pricing={data.draft.pricing} totalPeople={totalPeople} />}
     </div>
   )

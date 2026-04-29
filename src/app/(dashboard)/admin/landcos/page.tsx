@@ -5,15 +5,9 @@ import { createClient } from '@/lib/supabase/client'
 import type { Profile, AdminActionLog } from '@/lib/supabase/types'
 import { BackButton } from '@/components/BackButton'
 import { getCountryName } from '@/lib/utils'
+import CitySearchSelect from '@/components/CitySearchSelect'
 
 type Status = 'approved' | 'rejected' | 'pending'
-
-const COUNTRY_OPTIONS = [
-  { code: 'JP', name: '일본' },
-  { code: 'CN', name: '중국' },
-  { code: 'VN', name: '베트남' },
-  { code: 'FR', name: '프랑스' },
-]
 
 const STATUS_STYLE: Record<Status, string> = {
   approved: 'bg-green-100 text-green-700',
@@ -39,6 +33,20 @@ function formatLogDetail(log: AdminActionLog): string {
     const to = ((d.to as string[]) ?? []).map(getCountryName).join(', ') || '미지정'
     return `담당 국가 변경: ${from} → ${to}`
   }
+  if (log.action_type === 'service_areas_change') {
+    const fmt = (areas: { country: string; city: string }[]) =>
+      areas.length === 0 ? '미지정' : areas.map(a => `${getCountryName(a.country)}-${a.city}`).join(', ')
+    const from = fmt((d.from as { country: string; city: string }[]) ?? [])
+    const to = fmt((d.to as { country: string; city: string }[]) ?? [])
+    return `담당 지역 변경: ${from} → ${to}`
+  }
+  if (log.action_type === 'profile_update') {
+    const changes = d.changes as { field: string; from: unknown; to: unknown }[] | undefined
+    if (changes && changes.length > 0) {
+      return changes.map(c => `${c.field}: ${c.from || '-'} → ${c.to || '-'}`).join('\n')
+    }
+    return '프로필 수정'
+  }
   return ''
 }
 
@@ -48,7 +56,7 @@ function formatLogDate(iso: string): string {
     ' ' + d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
 }
 
-type SortKey = 'seq_id' | 'company_name' | 'email' | 'status' | 'created_at' | 'approved_at' | 'business_registration_number' | 'representative_name'
+type SortKey = 'display_id' | 'company_name' | 'email' | 'status' | 'created_at' | 'approved_at' | 'business_registration_number' | 'representative_name'
 
 function sortProfiles(list: Profile[], key: SortKey, dir: 'asc' | 'desc'): Profile[] {
   return [...list].sort((a, b) => {
@@ -86,13 +94,26 @@ export default function LandcosPage() {
   const supabase = createClient()
   const [landcos, setLandcos] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
-  const [sortKey, setSortKey] = useState<SortKey>('seq_id')
+  const [sortKey, setSortKey] = useState<SortKey>('display_id')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [selected, setSelected] = useState<Profile | null>(null)
   const [editStatus, setEditStatus] = useState<Status>('approved')
   const [editEmail, setEditEmail] = useState('')
   const [editingEmail, setEditingEmail] = useState(false)
-  const [editCodes, setEditCodes] = useState<string[]>([])
+  const [editRepName, setEditRepName] = useState('')
+  const [editPhoneLandline, setEditPhoneLandline] = useState('')
+  const [editPhoneMobile, setEditPhoneMobile] = useState('')
+  const [editBankName, setEditBankName] = useState('')
+  const [editBankAccount, setEditBankAccount] = useState('')
+  const [editBankHolder, setEditBankHolder] = useState('')
+  const [editingBasic, setEditingBasic] = useState(false)
+  const [editingBank, setEditingBank] = useState(false)
+  const [editingPartner, setEditingPartner] = useState(false)
+  const [editPartnerCode, setEditPartnerCode] = useState('')
+  const [editServiceAreas, setEditServiceAreas] = useState<{ country: string; city: string }[]>([])
+  const [saCountry, setSaCountry] = useState('')
+  const [saCities, setSaCities] = useState<string[]>([])
+  const [availableCountries, setAvailableCountries] = useState<{ code: string; name: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [pendingStatus, setPendingStatus] = useState<Status | null>(null)
@@ -123,21 +144,33 @@ export default function LandcosPage() {
       })
   }, [])
 
+  useEffect(() => {
+    fetch('/api/cities').then(r => r.json()).then(d => setAvailableCountries(d.countries ?? []))
+  }, [])
+
   async function openModal(landco: Profile) {
     setSelected(landco)
     setEditStatus(landco.status as Status)
     setEditEmail(landco.email)
     setEditingEmail(false)
-    setEditCodes(landco.country_codes ?? [])
+    setEditRepName(landco.representative_name ?? '')
+    setEditPhoneLandline(landco.phone_landline ?? '')
+    setEditPhoneMobile(landco.phone_mobile ?? '')
+    setEditBankName(landco.bank_name ?? '')
+    setEditBankAccount(landco.bank_account ?? '')
+    setEditBankHolder(landco.bank_holder ?? '')
+    setEditingBasic(false)
+    setEditingBank(false)
+    setEditPartnerCode(landco.partner_code ?? '')
+    setEditingPartner(false)
+    setEditServiceAreas(landco.service_areas ?? [])
+    setSaCountry('')
+    setSaCities([])
     setLogs([])
     setLogsLoading(true)
     const res = await fetch(`/api/admin/action-logs?userId=${landco.id}`)
     if (res.ok) setLogs(await res.json())
     setLogsLoading(false)
-  }
-
-  function toggleCode(code: string) {
-    setEditCodes(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code])
   }
 
   function handleStatusClick(s: Status) {
@@ -155,9 +188,27 @@ export default function LandcosPage() {
   async function handleSave() {
     if (!selected) return
     const statusChanged = editStatus !== (selected.status as Status)
-    const emailChanged = editEmail !== selected.email
-    const codesChanged = JSON.stringify([...editCodes].sort()) !== JSON.stringify([...(selected.country_codes ?? [])].sort())
-    if (!statusChanged && !emailChanged && !codesChanged) { setSelected(null); return }
+    const profileFields = {
+      userId: selected.id,
+      email: editEmail,
+      representative_name: editRepName,
+      phone_landline: editPhoneLandline,
+      phone_mobile: editPhoneMobile,
+      bank_name: editBankName,
+      bank_account: editBankAccount,
+      bank_holder: editBankHolder,
+      partner_code: editPartnerCode,
+    }
+    const profileChanged = editEmail !== selected.email
+      || editRepName !== (selected.representative_name ?? '')
+      || editPhoneLandline !== (selected.phone_landline ?? '')
+      || editPhoneMobile !== (selected.phone_mobile ?? '')
+      || editBankName !== (selected.bank_name ?? '')
+      || editBankAccount !== (selected.bank_account ?? '')
+      || editBankHolder !== (selected.bank_holder ?? '')
+      || editPartnerCode !== (selected.partner_code ?? '')
+    const areasChanged = JSON.stringify(editServiceAreas) !== JSON.stringify(selected.service_areas ?? [])
+    if (!statusChanged && !profileChanged && !areasChanged) { setSelected(null); return }
     setSaving(true)
     setSaveError(null)
     const results = await Promise.all([
@@ -166,15 +217,15 @@ export default function LandcosPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: selected.id, status: editStatus }),
       }) : Promise.resolve(null),
-      emailChanged ? fetch('/api/admin/profiles', {
+      profileChanged ? fetch('/api/admin/profiles', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: selected.id, email: editEmail }),
+        body: JSON.stringify(profileFields),
       }) : Promise.resolve(null),
-      codesChanged ? fetch('/api/admin/assign-countries', {
+      areasChanged ? fetch('/api/admin/assign-service-areas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ landcoId: selected.id, countryCodes: editCodes }),
+        body: JSON.stringify({ landcoId: selected.id, serviceAreas: editServiceAreas }),
       }) : Promise.resolve(null),
     ])
     setSaving(false)
@@ -185,7 +236,13 @@ export default function LandcosPage() {
       return
     }
     const approved_at = editStatus === 'approved' ? (selected.approved_at ?? new Date().toISOString()) : selected.approved_at
-    setLandcos(prev => prev.map(l => l.id === selected.id ? { ...l, status: editStatus, email: editEmail, country_codes: editCodes, approved_at } : l))
+    const newCountryCodes = [...new Set(editServiceAreas.map(a => a.country))]
+    setLandcos(prev => prev.map(l => l.id === selected.id ? {
+      ...l, status: editStatus, email: editEmail, country_codes: newCountryCodes, service_areas: editServiceAreas, approved_at,
+      representative_name: editRepName, phone_landline: editPhoneLandline, phone_mobile: editPhoneMobile,
+      bank_name: editBankName, bank_account: editBankAccount, bank_holder: editBankHolder,
+      partner_code: editPartnerCode,
+    } : l))
     setSelected(null)
   }
 
@@ -202,7 +259,7 @@ export default function LandcosPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                <SortTh label="랜드사 ID" sortKey="seq_id" current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="랜드사 ID" sortKey="display_id" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="회사명" sortKey="company_name" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="사업자등록번호" sortKey="business_registration_number" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="대표자명" sortKey="representative_name" current={sortKey} dir={sortDir} onSort={handleSort} />
@@ -289,33 +346,29 @@ export default function LandcosPage() {
             <div className="px-6 py-4 space-y-5">
               {/* 기본 정보 */}
               <section>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">기본 정보</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">기본 정보</p>
+                  <button onClick={() => setEditingBasic(!editingBasic)} className="text-xs text-blue-500 hover:text-blue-700">
+                    {editingBasic ? '완료' : '수정'}
+                  </button>
+                </div>
                 <dl className="space-y-2 text-sm">
                   <InfoRow label="사업자번호" value={selected.business_registration_number} />
-                  <InfoRow label="대표자명" value={selected.representative_name} />
-                  <div className="flex gap-2">
-                    <dt className="text-xs text-gray-400 w-20 shrink-0">이메일</dt>
-                    <dd className="text-xs text-gray-700 flex-1 flex items-center gap-2">
-                      {editingEmail ? (
-                        <>
-                          <input
-                            autoFocus
-                            value={editEmail}
-                            onChange={e => setEditEmail(e.target.value)}
-                            className="flex-1 border border-gray-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:border-blue-400"
-                          />
-                          <button onClick={() => { setEditEmail(selected.email); setEditingEmail(false) }} className="text-xs text-red-400 hover:text-red-600 shrink-0">취소</button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="flex-1 break-all">{editEmail}</span>
-                          <button onClick={() => setEditingEmail(true)} className="text-xs text-blue-500 hover:text-blue-700 shrink-0">수정</button>
-                        </>
-                      )}
-                    </dd>
-                  </div>
-                  <InfoRow label="유선" value={selected.phone_landline} />
-                  <InfoRow label="휴대폰" value={selected.phone_mobile} />
+                  {editingBasic ? (
+                    <>
+                      <EditRow label="대표자명" value={editRepName} onChange={setEditRepName} />
+                      <EditRow label="이메일" value={editEmail} onChange={setEditEmail} />
+                      <EditRow label="유선" value={editPhoneLandline} onChange={setEditPhoneLandline} />
+                      <EditRow label="휴대폰" value={editPhoneMobile} onChange={setEditPhoneMobile} />
+                    </>
+                  ) : (
+                    <>
+                      <InfoRow label="대표자명" value={editRepName} />
+                      <InfoRow label="이메일" value={editEmail} />
+                      <InfoRow label="유선" value={editPhoneLandline} />
+                      <InfoRow label="휴대폰" value={editPhoneMobile} />
+                    </>
+                  )}
                   <InfoRow label="가입일" value={new Date(selected.created_at).toLocaleDateString('ko-KR')} />
                   <InfoRow label="최초승인일" value={selected.approved_at ? new Date(selected.approved_at).toLocaleDateString('ko-KR') : null} />
                   {logs.length > 0 && <InfoRow label="최종수정일" value={formatLogDate(logs[0].created_at)} />}
@@ -324,11 +377,43 @@ export default function LandcosPage() {
 
               {/* 정산 계좌 */}
               <section>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">정산 계좌</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">정산 계좌</p>
+                  <button onClick={() => setEditingBank(!editingBank)} className="text-xs text-blue-500 hover:text-blue-700">
+                    {editingBank ? '완료' : '수정'}
+                  </button>
+                </div>
                 <dl className="space-y-2 text-sm">
-                  <InfoRow label="은행" value={selected.bank_name} />
-                  <InfoRow label="계좌번호" value={selected.bank_account} />
-                  <InfoRow label="예금주" value={selected.bank_holder} />
+                  {editingBank ? (
+                    <>
+                      <EditRow label="은행" value={editBankName} onChange={setEditBankName} />
+                      <EditRow label="계좌번호" value={editBankAccount} onChange={setEditBankAccount} />
+                      <EditRow label="예금주" value={editBankHolder} onChange={setEditBankHolder} />
+                    </>
+                  ) : (
+                    <>
+                      <InfoRow label="은행" value={editBankName} />
+                      <InfoRow label="계좌번호" value={editBankAccount} />
+                      <InfoRow label="예금주" value={editBankHolder} />
+                    </>
+                  )}
+                </dl>
+              </section>
+
+              {/* 거래처 정보 */}
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">거래처 정보</p>
+                  <button onClick={() => setEditingPartner(!editingPartner)} className="text-xs text-blue-500 hover:text-blue-700">
+                    {editingPartner ? '완료' : '수정'}
+                  </button>
+                </div>
+                <dl className="space-y-2 text-sm">
+                  {editingPartner ? (
+                    <EditRow label="거래처코드" value={editPartnerCode} onChange={setEditPartnerCode} />
+                  ) : (
+                    <InfoRow label="거래처코드" value={editPartnerCode} />
+                  )}
                 </dl>
               </section>
 
@@ -387,24 +472,78 @@ export default function LandcosPage() {
                 </div>
               </section>
 
-              {/* 담당 국가 */}
+              {/* 담당 지역 (국가+도시) */}
               <section>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">담당 국가</p>
-                <div className="flex flex-wrap gap-2">
-                  {COUNTRY_OPTIONS.map(country => (
-                    <button
-                      key={country.code}
-                      onClick={() => toggleCode(country.code)}
-                      className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                        editCodes.includes(country.code)
-                          ? 'bg-blue-500 text-white border-blue-500'
-                          : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
-                      }`}
-                    >
-                      {country.name}
-                    </button>
-                  ))}
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">담당 지역</p>
+
+                {/* 현재 등록된 서비스 지역 — 국가별 그룹 */}
+                {editServiceAreas.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {Object.entries(
+                      editServiceAreas.reduce<Record<string, string[]>>((acc, a) => {
+                        if (!acc[a.country]) acc[a.country] = []
+                        acc[a.country].push(a.city)
+                        return acc
+                      }, {})
+                    ).map(([country, cities]) => (
+                      <div key={country} className="bg-gray-50 rounded-lg p-2.5">
+                        <p className="text-[10px] font-bold text-gray-400 mb-1.5">{getCountryName(country)}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {cities.map(city => (
+                            <span key={city} className="inline-flex items-center gap-1 bg-white border border-blue-200 text-blue-700 text-[11px] px-2 py-0.5 rounded-full">
+                              {city}
+                              <button
+                                onClick={() => setEditServiceAreas(prev => prev.filter(a => !(a.country === country && a.city === city)))}
+                                className="text-blue-300 hover:text-blue-600"
+                              >&times;</button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {editServiceAreas.length === 0 && (
+                  <p className="text-xs text-gray-300 mb-3">등록된 담당 지역이 없습니다.</p>
+                )}
+
+                {/* 국가 + 도시 선택 (반반) */}
+                <div className="grid grid-cols-2 gap-2">
+                  <CountrySearchSelect
+                    countries={availableCountries}
+                    selected={saCountry}
+                    onChange={v => { setSaCountry(v); setSaCities([]) }}
+                    placeholder="국가 검색"
+                  />
+                  <div>
+                    {saCountry ? (
+                      <CitySearchSelect
+                        countryCode={saCountry}
+                        selected={saCities}
+                        onChange={v => setSaCities(v as string[])}
+                        multiple
+                        placeholder="도시 검색"
+                      />
+                    ) : (
+                      <input disabled placeholder="국가를 먼저 선택" className="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs bg-gray-50 text-gray-300" />
+                    )}
+                  </div>
                 </div>
+                {saCities.length > 0 && (
+                  <button
+                    onClick={() => {
+                      const newAreas = saCities
+                        .filter(city => !editServiceAreas.some(a => a.country === saCountry && a.city === city))
+                        .map(city => ({ country: saCountry, city }))
+                      setEditServiceAreas(prev => [...prev, ...newAreas])
+                      setSaCities([])
+                      setSaCountry('')
+                    }}
+                    className="mt-2 w-full py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    + {saCities.length}개 도시 추가
+                  </button>
+                )}
               </section>
 
               {/* 액션 로그 */}
@@ -452,6 +591,80 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
     <div className="flex gap-2">
       <dt className="text-xs text-gray-400 w-20 shrink-0">{label}</dt>
       <dd className="text-xs text-gray-700 break-all">{value || <span className="text-gray-300">-</span>}</dd>
+    </div>
+  )
+}
+
+function CountrySearchSelect({ countries, selected, onChange, placeholder = '국가 검색' }: {
+  countries: { code: string; name: string }[]
+  selected: string
+  onChange: (code: string) => void
+  placeholder?: string
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const filtered = countries.filter(c => c.name.includes(query) || c.code.toLowerCase().includes(query.toLowerCase()))
+  const selectedName = countries.find(c => c.code === selected)?.name ?? ''
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="relative">
+        <input
+          value={open ? query : selectedName}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onFocus={() => { setOpen(true); setQuery('') }}
+          placeholder={placeholder}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-blue-400"
+        />
+        <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+      </div>
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto py-1">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-gray-400">검색 결과가 없습니다</p>
+          ) : (
+            filtered.map(c => (
+              <button
+                key={c.code}
+                onClick={() => { onChange(c.code); setOpen(false); setQuery('') }}
+                className={`w-full text-left px-3 py-2 text-xs transition-colors ${
+                  selected === c.code ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                <span className="flex items-center justify-between">
+                  <span>{c.name}</span>
+                  {selected === c.code && <span className="text-blue-500 text-[10px]">✓</span>}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EditRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex gap-2 items-center">
+      <dt className="text-xs text-gray-400 w-20 shrink-0">{label}</dt>
+      <dd className="flex-1">
+        <input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-700 focus:outline-none focus:border-blue-400"
+        />
+      </dd>
     </div>
   )
 }

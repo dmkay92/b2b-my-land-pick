@@ -8,14 +8,14 @@ import { formatDate, calculateTotalPeople, getCountryName } from '@/lib/utils'
 import { DateRangePicker } from '@/components/DateRangePicker'
 import type { QuoteRequest } from '@/lib/supabase/types'
 
-export type LandcoPhase = 'all' | 'ing' | 'payment_pending' | 'confirmed' | 'end' | 'abandoned' | 'lost'
+export type LandcoPhase = 'all' | 'ing' | 'payment_pending' | 'confirmed' | 'end' | 'abandoned' | 'lost' | 'cancelled'
 
 type FilterPhase = 'ing' | 'payment_pending' | 'confirmed' | 'end' | 'abandoned' | 'lost'
 
 const ALL_FILTER_PHASES: FilterPhase[] = ['ing', 'payment_pending', 'confirmed', 'end', 'abandoned', 'lost']
 
 export type PhasedLandcoRequest = QuoteRequest & {
-  phase: 'ing' | 'payment_pending' | 'pre' | 'mid' | 'end' | 'lost' | 'abandoned'
+  phase: 'ing' | 'payment_pending' | 'pre' | 'mid' | 'end' | 'lost' | 'abandoned' | 'cancelled'
   dday: number | null
   submitted: boolean
 }
@@ -37,7 +37,7 @@ const KPI_CARDS: { phase: LandcoPhase; label: string; subtext: string; color?: s
   { phase: 'confirmed',       label: '여행 확정',     subtext: '출발전 · 여행중',    color: '#7c3aed' },
   { phase: 'end',       label: '여행 완료',      subtext: '일정 종료',           color: '#059669' },
   { phase: 'abandoned', label: '포기',           subtext: '참여 포기',           color: '#dc2626' },
-  { phase: 'lost',      label: '미선택',         subtext: '다른 랜드사 선택됨',  color: '#9ca3af' },
+  { phase: 'lost',      label: '미선택/취소',    subtext: '미선택 · 행사취소',   color: '#9ca3af' },
 ]
 
 const SECTIONS = [
@@ -73,9 +73,9 @@ const SECTIONS = [
   },
   {
     key: 'lost' as const,
-    label: '미선택',
+    label: '미선택/취소',
     dotColor: 'bg-gray-400',
-    filter: (r: PhasedLandcoRequest) => r.phase === 'lost',
+    filter: (r: PhasedLandcoRequest) => r.phase === 'lost' || r.phase === 'cancelled',
   },
 ]
 
@@ -86,6 +86,7 @@ function getBorderColor(req: PhasedLandcoRequest): string {
   if (req.phase === 'mid') return '#7c3aed'
   if (req.phase === 'end') return '#059669'
   if (req.phase === 'abandoned') return '#dc2626'
+  if (req.phase === 'cancelled') return '#6b7280'
   return '#9ca3af'
 }
 
@@ -104,14 +105,17 @@ const ING_SUB_FILTERS: { key: 'all' | 'unsubmitted' | 'submitted'; label: string
 export function LandcoDashboardClient({
   requests,
   isRejected = false,
+  today: serverToday,
 }: {
   requests: PhasedLandcoRequest[]
   isRejected?: boolean
+  today?: string
 }) {
   const router = useRouter()
   const [activePhases, setActivePhases] = useState<Set<FilterPhase>>(new Set(ALL_FILTER_PHASES))
   const [confirmedSubFilter, setConfirmedSubFilter] = useState<'all' | 'pre' | 'mid'>('all')
   const [ingSubFilter, setIngSubFilter] = useState<'all' | 'unsubmitted' | 'submitted'>('all')
+  const [lostSubFilter, setLostSubFilter] = useState<'all' | 'lost' | 'cancelled'>('all')
   const [hoveredPhase, setHoveredPhase] = useState<LandcoPhase | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [abandonTarget, setAbandonTarget] = useState<string | null>(null)
@@ -211,7 +215,8 @@ export function LandcoDashboardClient({
     confirmed:       fullyFilteredRequests.filter(r => r.phase === 'pre' || r.phase === 'mid').length,
     end:             fullyFilteredRequests.filter(r => r.phase === 'end').length,
     abandoned:       fullyFilteredRequests.filter(r => r.phase === 'abandoned').length,
-    lost:            fullyFilteredRequests.filter(r => r.phase === 'lost').length,
+    lost:            fullyFilteredRequests.filter(r => r.phase === 'lost' || r.phase === 'cancelled').length,
+    cancelled:       0,
   }
 
   async function handleAbandon() {
@@ -232,6 +237,7 @@ export function LandcoDashboardClient({
     const key: FilterPhase =
       r.phase === 'pre' || r.phase === 'mid' ? 'confirmed' :
       r.phase === 'payment_pending' ? 'payment_pending' :
+      r.phase === 'cancelled' ? 'lost' :
       r.phase
     return activePhases.has(key)
   })
@@ -375,7 +381,9 @@ export function LandcoDashboardClient({
               ? baseSectionRequests.filter(r => r.phase === confirmedSubFilter)
               : section.key === 'ing' && ingSubFilter !== 'all'
                 ? baseSectionRequests.filter(r => ingSubFilter === 'submitted' ? r.submitted : !r.submitted)
-                : baseSectionRequests
+                : section.key === 'lost' && lostSubFilter !== 'all'
+                  ? baseSectionRequests.filter(r => r.phase === lostSubFilter)
+                  : baseSectionRequests
           const isDone = false
 
           return (
@@ -414,6 +422,27 @@ export function LandcoDashboardClient({
                         confirmedSubFilter === f.key
                           ? 'bg-purple-100 text-purple-700 font-semibold'
                           : 'text-gray-400 hover:bg-purple-100 hover:text-purple-700'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {section.key === 'lost' && (
+                <div className="flex items-center gap-1 mb-3">
+                  {([
+                    { key: 'all' as const, label: '전체' },
+                    { key: 'lost' as const, label: '미선택' },
+                    { key: 'cancelled' as const, label: '행사취소' },
+                  ]).map(f => (
+                    <button
+                      key={f.key}
+                      onClick={() => setLostSubFilter(f.key)}
+                      className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
+                        lostSubFilter === f.key
+                          ? 'bg-gray-200 text-gray-700 font-semibold'
+                          : 'text-gray-400 hover:bg-gray-200 hover:text-gray-700'
                       }`}
                     >
                       {f.label}
@@ -465,6 +494,9 @@ export function LandcoDashboardClient({
                               {phase === 'lost' && (
                                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">미선택</span>
                               )}
+                              {phase === 'cancelled' && (
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">행사취소</span>
+                              )}
                               {phase === 'end' && (
                                 <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">여행완료</span>
                               )}
@@ -490,13 +522,13 @@ export function LandcoDashboardClient({
                                 <p className="text-[11px] text-gray-400">마감: {formatDate(req.deadline)}</p>
                               )}
                               {phase === 'pre' && dday !== null && (
-                                <p className="text-[11px]" style={{ color: SUB_PHASE_COLORS.pre.border }}>출발까지 D-{dday}</p>
+                                <p className="text-[11px]" style={{ color: SUB_PHASE_COLORS.pre.border }}>출발까지 {dday >= 0 ? `D-${dday}` : `D+${Math.abs(dday)}`}</p>
                               )}
                               {phase === 'payment_pending' && dday !== null && (
-                                <p className="text-[11px] text-amber-600">출발까지 D-{dday}</p>
+                                <p className="text-[11px] text-amber-600">출발까지 {dday >= 0 ? `D-${dday}` : `D+${Math.abs(dday)}`}</p>
                               )}
                               {phase === 'mid' && dday !== null && (
-                                <p className="text-[11px]" style={{ color: SUB_PHASE_COLORS.mid.border }}>귀국까지 D-{dday}</p>
+                                <p className="text-[11px]" style={{ color: SUB_PHASE_COLORS.mid.border }}>귀국까지 {dday >= 0 ? `D-${dday}` : `D+${Math.abs(dday)}`}</p>
                               )}
                             </div>
                             {phase === 'ing' && (

@@ -67,6 +67,8 @@ export async function GET(
     pricing_mode: quote.pricing_mode ?? 'detailed',
     summary_total: quote.summary_total ?? 0,
     summary_per_person: quote.summary_per_person ?? 0,
+    includes: quote.includes ?? null,
+    excludes: quote.excludes ?? null,
     markup: markup ?? null,
     isSelected,
     landcoName: landcoProfile?.company_name ?? '',

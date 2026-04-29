@@ -26,6 +26,13 @@ function formatLogDetail(log: AdminActionLog): string {
   if (log.action_type === 'email_change') {
     return `이메일 변경: ${d.from} → ${d.to}`
   }
+  if (log.action_type === 'profile_update') {
+    const changes = d.changes as { field: string; from: unknown; to: unknown }[] | undefined
+    if (changes && changes.length > 0) {
+      return changes.map(c => `${c.field}: ${c.from || '-'} → ${c.to || '-'}`).join('\n')
+    }
+    return '프로필 수정'
+  }
   return ''
 }
 
@@ -35,7 +42,7 @@ function formatLogDate(iso: string): string {
     ' ' + d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
 }
 
-type SortKey = 'seq_id' | 'company_name' | 'email' | 'status' | 'created_at' | 'approved_at' | 'business_registration_number' | 'representative_name'
+type SortKey = 'display_id' | 'company_name' | 'email' | 'status' | 'created_at' | 'approved_at' | 'business_registration_number' | 'representative_name'
 
 function sortProfiles(list: Profile[], key: SortKey, dir: 'asc' | 'desc'): Profile[] {
   return [...list].sort((a, b) => {
@@ -73,12 +80,22 @@ export default function AgenciesPage() {
   const supabase = createClient()
   const [agencies, setAgencies] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
-  const [sortKey, setSortKey] = useState<SortKey>('seq_id')
+  const [sortKey, setSortKey] = useState<SortKey>('display_id')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [selected, setSelected] = useState<Profile | null>(null)
   const [editStatus, setEditStatus] = useState<Status>('approved')
   const [editEmail, setEditEmail] = useState('')
   const [editingEmail, setEditingEmail] = useState(false)
+  const [editRepName, setEditRepName] = useState('')
+  const [editPhoneLandline, setEditPhoneLandline] = useState('')
+  const [editPhoneMobile, setEditPhoneMobile] = useState('')
+  const [editBankName, setEditBankName] = useState('')
+  const [editBankAccount, setEditBankAccount] = useState('')
+  const [editBankHolder, setEditBankHolder] = useState('')
+  const [editPartnerCode, setEditPartnerCode] = useState('')
+  const [editingBasic, setEditingBasic] = useState(false)
+  const [editingBank, setEditingBank] = useState(false)
+  const [editingPartner, setEditingPartner] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [pendingStatus, setPendingStatus] = useState<Status | null>(null)
@@ -114,6 +131,16 @@ export default function AgenciesPage() {
     setEditStatus(agency.status as Status)
     setEditEmail(agency.email)
     setEditingEmail(false)
+    setEditRepName(agency.representative_name ?? '')
+    setEditPhoneLandline(agency.phone_landline ?? '')
+    setEditPhoneMobile(agency.phone_mobile ?? '')
+    setEditBankName(agency.bank_name ?? '')
+    setEditBankAccount(agency.bank_account ?? '')
+    setEditBankHolder(agency.bank_holder ?? '')
+    setEditPartnerCode(agency.partner_code ?? '')
+    setEditingBasic(false)
+    setEditingPartner(false)
+    setEditingBank(false)
     setLogs([])
     setLogsLoading(true)
     const res = await fetch(`/api/admin/action-logs?userId=${agency.id}`)
@@ -136,8 +163,27 @@ export default function AgenciesPage() {
   async function handleSave() {
     if (!selected) return
     const statusChanged = editStatus !== (selected.status as Status)
-    const emailChanged = editEmail !== selected.email
-    if (!statusChanged && !emailChanged) { setSelected(null); return }
+    const profileFields = {
+      userId: selected.id,
+      email: editEmail,
+      representative_name: editRepName,
+      phone_landline: editPhoneLandline,
+      phone_mobile: editPhoneMobile,
+      bank_name: editBankName,
+      bank_account: editBankAccount,
+      bank_holder: editBankHolder,
+      partner_code: editPartnerCode,
+    }
+    const profileChanged = editEmail !== selected.email
+      || editRepName !== (selected.representative_name ?? '')
+      || editPhoneLandline !== (selected.phone_landline ?? '')
+      || editPhoneMobile !== (selected.phone_mobile ?? '')
+      || editBankName !== (selected.bank_name ?? '')
+      || editBankAccount !== (selected.bank_account ?? '')
+      || editBankHolder !== (selected.bank_holder ?? '')
+      || editPartnerCode !== (selected.partner_code ?? '')
+
+    if (!statusChanged && !profileChanged) { setSelected(null); return }
     setSaving(true)
     setSaveError(null)
     const results = await Promise.all([
@@ -146,10 +192,10 @@ export default function AgenciesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: selected.id, status: editStatus }),
       }) : Promise.resolve(null),
-      emailChanged ? fetch('/api/admin/profiles', {
+      profileChanged ? fetch('/api/admin/profiles', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: selected.id, email: editEmail }),
+        body: JSON.stringify(profileFields),
       }) : Promise.resolve(null),
     ])
     setSaving(false)
@@ -160,7 +206,11 @@ export default function AgenciesPage() {
       return
     }
     const approved_at = editStatus === 'approved' ? (selected.approved_at ?? new Date().toISOString()) : selected.approved_at
-    setAgencies(prev => prev.map(a => a.id === selected.id ? { ...a, status: editStatus, email: editEmail, approved_at } : a))
+    setAgencies(prev => prev.map(a => a.id === selected.id ? {
+      ...a, status: editStatus, email: editEmail, approved_at,
+      representative_name: editRepName, phone_landline: editPhoneLandline, phone_mobile: editPhoneMobile,
+      bank_name: editBankName, bank_account: editBankAccount, bank_holder: editBankHolder, partner_code: editPartnerCode,
+    } : a))
     setSelected(null)
   }
 
@@ -177,7 +227,7 @@ export default function AgenciesPage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                <SortTh label="여행사 ID" sortKey="seq_id" current={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="여행사 ID" sortKey="display_id" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="회사명" sortKey="company_name" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="사업자등록번호" sortKey="business_registration_number" current={sortKey} dir={sortDir} onSort={handleSort} />
                 <SortTh label="대표자명" sortKey="representative_name" current={sortKey} dir={sortDir} onSort={handleSort} />
@@ -251,33 +301,29 @@ export default function AgenciesPage() {
             <div className="px-6 py-4 space-y-5">
               {/* 기본 정보 */}
               <section>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">기본 정보</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">기본 정보</p>
+                  <button onClick={() => setEditingBasic(!editingBasic)} className="text-xs text-blue-500 hover:text-blue-700">
+                    {editingBasic ? '완료' : '수정'}
+                  </button>
+                </div>
                 <dl className="space-y-2 text-sm">
                   <InfoRow label="사업자번호" value={selected.business_registration_number} />
-                  <InfoRow label="대표자명" value={selected.representative_name} />
-                  <div className="flex gap-2">
-                    <dt className="text-xs text-gray-400 w-20 shrink-0">이메일</dt>
-                    <dd className="text-xs text-gray-700 flex-1 flex items-center gap-2">
-                      {editingEmail ? (
-                        <>
-                          <input
-                            autoFocus
-                            value={editEmail}
-                            onChange={e => setEditEmail(e.target.value)}
-                            className="flex-1 border border-gray-200 rounded px-2 py-0.5 text-xs focus:outline-none focus:border-blue-400"
-                          />
-                          <button onClick={() => { setEditEmail(selected.email); setEditingEmail(false) }} className="text-xs text-red-400 hover:text-red-600 shrink-0">취소</button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="flex-1 break-all">{editEmail}</span>
-                          <button onClick={() => setEditingEmail(true)} className="text-xs text-blue-500 hover:text-blue-700 shrink-0">수정</button>
-                        </>
-                      )}
-                    </dd>
-                  </div>
-                  <InfoRow label="유선" value={selected.phone_landline} />
-                  <InfoRow label="휴대폰" value={selected.phone_mobile} />
+                  {editingBasic ? (
+                    <>
+                      <EditRow label="대표자명" value={editRepName} onChange={setEditRepName} />
+                      <EditRow label="이메일" value={editEmail} onChange={setEditEmail} />
+                      <EditRow label="유선" value={editPhoneLandline} onChange={setEditPhoneLandline} />
+                      <EditRow label="휴대폰" value={editPhoneMobile} onChange={setEditPhoneMobile} />
+                    </>
+                  ) : (
+                    <>
+                      <InfoRow label="대표자명" value={editRepName} />
+                      <InfoRow label="이메일" value={editEmail} />
+                      <InfoRow label="유선" value={editPhoneLandline} />
+                      <InfoRow label="휴대폰" value={editPhoneMobile} />
+                    </>
+                  )}
                   <InfoRow label="가입일" value={new Date(selected.created_at).toLocaleDateString('ko-KR')} />
                   <InfoRow label="최초승인일" value={selected.approved_at ? new Date(selected.approved_at).toLocaleDateString('ko-KR') : null} />
                   {logs.length > 0 && <InfoRow label="최종수정일" value={formatLogDate(logs[0].created_at)} />}
@@ -286,11 +332,43 @@ export default function AgenciesPage() {
 
               {/* 정산 계좌 */}
               <section>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">정산 계좌</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">정산 계좌</p>
+                  <button onClick={() => setEditingBank(!editingBank)} className="text-xs text-blue-500 hover:text-blue-700">
+                    {editingBank ? '완료' : '수정'}
+                  </button>
+                </div>
                 <dl className="space-y-2 text-sm">
-                  <InfoRow label="은행" value={selected.bank_name} />
-                  <InfoRow label="계좌번호" value={selected.bank_account} />
-                  <InfoRow label="예금주" value={selected.bank_holder} />
+                  {editingBank ? (
+                    <>
+                      <EditRow label="은행" value={editBankName} onChange={setEditBankName} />
+                      <EditRow label="계좌번호" value={editBankAccount} onChange={setEditBankAccount} />
+                      <EditRow label="예금주" value={editBankHolder} onChange={setEditBankHolder} />
+                    </>
+                  ) : (
+                    <>
+                      <InfoRow label="은행" value={editBankName} />
+                      <InfoRow label="계좌번호" value={editBankAccount} />
+                      <InfoRow label="예금주" value={editBankHolder} />
+                    </>
+                  )}
+                </dl>
+              </section>
+
+              {/* 거래처 정보 */}
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">거래처 정보</p>
+                  <button onClick={() => setEditingPartner(!editingPartner)} className="text-xs text-blue-500 hover:text-blue-700">
+                    {editingPartner ? '완료' : '수정'}
+                  </button>
+                </div>
+                <dl className="space-y-2 text-sm">
+                  {editingPartner ? (
+                    <EditRow label="거래처코드" value={editPartnerCode} onChange={setEditPartnerCode} />
+                  ) : (
+                    <InfoRow label="거래처코드" value={editPartnerCode} />
+                  )}
                 </dl>
               </section>
 
@@ -394,6 +472,21 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
     <div className="flex gap-2">
       <dt className="text-xs text-gray-400 w-20 shrink-0">{label}</dt>
       <dd className="text-xs text-gray-700 break-all">{value || <span className="text-gray-300">-</span>}</dd>
+    </div>
+  )
+}
+
+function EditRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex gap-2 items-center">
+      <dt className="text-xs text-gray-400 w-20 shrink-0">{label}</dt>
+      <dd className="flex-1">
+        <input
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-full border border-gray-200 rounded px-2 py-1 text-xs text-gray-700 focus:outline-none focus:border-blue-400"
+        />
+      </dd>
     </div>
   )
 }

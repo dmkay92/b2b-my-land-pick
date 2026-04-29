@@ -143,6 +143,8 @@ export async function GET(
       leaders: req.leaders,
       hotel_grade: req.hotel_grade,
       landco_name: landcoProfile?.company_name ?? '',
+      includes: quote.includes ?? '',
+      excludes: quote.excludes ?? '',
       markup_krw: markupForTemplate,
     },
     { itinerary: draft.itinerary, pricing },

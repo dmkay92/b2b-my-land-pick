@@ -75,6 +75,71 @@ function ApprovalRequestCard({ msg, currentUserId, onAction, resolved }: {
   )
 }
 
+function AdditionalSettlementCard({ msg, currentUserId, onAction, resolved }: {
+  msg: { sender_id: string; content: string | null; metadata?: Record<string, unknown> | null }
+  currentUserId: string
+  onAction: (action: 'approve' | 'reject') => Promise<void>
+  resolved: boolean
+}) {
+  const [acting, setActing] = useState(false)
+  const isAgency = msg.sender_id !== currentUserId
+  const showButtons = isAgency && !resolved
+
+  return (
+    <div style={{
+      width: '90%', padding: '12px 16px', borderRadius: '12px',
+      backgroundColor: '#f0f9ff', border: '1px solid #bae6fd',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+    }}>
+      <div style={{ fontSize: '11px', color: '#0369a1', fontWeight: 600, marginBottom: '6px' }}>추가 정산 요청</div>
+      <div style={{ fontSize: '13px', color: '#0c4a6e', lineHeight: 1.5 }}>{msg.content ?? ''}</div>
+      {showButtons && (
+        <div style={{ display: 'flex', gap: '8px', marginTop: '10px', justifyContent: 'flex-end' }}>
+          <button
+            onClick={async () => { setActing(true); await onAction('reject'); setActing(false) }}
+            disabled={acting}
+            style={{
+              padding: '6px 14px', fontSize: '12px', fontWeight: 600, borderRadius: '8px',
+              border: '1px solid #fca5a5', backgroundColor: '#fff', color: '#dc2626',
+              cursor: acting ? 'not-allowed' : 'pointer', opacity: acting ? 0.5 : 1,
+            }}
+          >
+            거부
+          </button>
+          <button
+            onClick={async () => { setActing(true); await onAction('approve'); setActing(false) }}
+            disabled={acting}
+            style={{
+              padding: '6px 14px', fontSize: '12px', fontWeight: 600, borderRadius: '8px',
+              border: 'none', backgroundColor: '#2563eb', color: '#fff',
+              cursor: acting ? 'not-allowed' : 'pointer', opacity: acting ? 0.5 : 1,
+            }}
+          >
+            승인
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AdditionalSettlementResultCard({ msg }: { msg: { content: string | null; metadata?: Record<string, unknown> | null; message_type?: string } }) {
+  const isApproved = msg.message_type === 'additional_settlement_approved'
+  return (
+    <div style={{
+      width: '90%', padding: '10px 14px', borderRadius: '12px',
+      backgroundColor: isApproved ? '#ecfdf5' : '#fef2f2',
+      border: `1px solid ${isApproved ? '#a7f3d0' : '#fecaca'}`,
+      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+    }}>
+      <div style={{ fontSize: '11px', color: isApproved ? '#065f46' : '#991b1b', fontWeight: 600, marginBottom: '4px' }}>
+        {isApproved ? '추가 정산 승인' : '추가 정산 거부'}
+      </div>
+      <div style={{ fontSize: '13px', color: isApproved ? '#047857' : '#b91c1c', lineHeight: 1.5 }}>{msg.content ?? ''}</div>
+    </div>
+  )
+}
+
 function ApprovalResultCard({ msg }: { msg: { content: string | null; metadata?: Record<string, unknown> | null } }) {
   const action = (msg.metadata as { action?: string } | undefined)?.action
   const isApproved = action === 'approve'
@@ -274,7 +339,7 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
           const nextMinuteKey = next ? new Date(next.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : null
           const isLastInGroup = !next || next.sender_id !== msg.sender_id || nextMinuteKey !== minuteKey
           return (
-            <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.message_type === 'approval_request' || msg.message_type === 'approval_result' ? 'center' : isMine ? 'flex-end' : 'flex-start' }}>
+            <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: ['approval_request', 'approval_result', 'additional_settlement', 'additional_settlement_approved', 'additional_settlement_rejected'].includes(msg.message_type ?? '') ? 'center' : isMine ? 'flex-end' : 'flex-start' }}>
               {msg.message_type === 'approval_request' ? (
                 <ApprovalRequestCard msg={msg} currentUserId={currentUserId ?? ''} resolved={
                   messages.some(m => m.message_type === 'approval_result' && (m.metadata as { schedule_id?: string } | undefined)?.schedule_id === (msg.metadata as { schedule_id?: string } | undefined)?.schedule_id)
@@ -290,6 +355,21 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
                 }} />
               ) : msg.message_type === 'approval_result' ? (
                 <ApprovalResultCard msg={msg} />
+              ) : msg.message_type === 'additional_settlement' ? (
+                <AdditionalSettlementCard msg={msg} currentUserId={currentUserId ?? ''} resolved={
+                  messages.some(m => (m.message_type === 'additional_settlement_approved' || m.message_type === 'additional_settlement_rejected') && (m.metadata as { settlement_id?: string } | undefined)?.settlement_id === (msg.metadata as { settlement_id?: string } | undefined)?.settlement_id)
+                } onAction={async (action) => {
+                  const meta = msg.metadata as { settlement_id?: string } | undefined
+                  if (!meta?.settlement_id) return
+                  await fetch(`/api/additional-settlements/${meta.settlement_id}/review`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action }),
+                  })
+                  if (activeRoomId) openRoom(activeRoomId)
+                }} />
+              ) : msg.message_type === 'additional_settlement_approved' || msg.message_type === 'additional_settlement_rejected' ? (
+                <AdditionalSettlementResultCard msg={msg} />
               ) : msg.file_url ? (
                 <FileBubble
                   isMine={isMine}
