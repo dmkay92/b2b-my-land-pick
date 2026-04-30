@@ -328,6 +328,12 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                 )}
               </div>
             )}
+            <button
+              onClick={() => window.open(`/api/invoice?requestId=${schedule.request_id}`, '_blank')}
+              className="text-[10px] text-white bg-white/15 border border-white/25 px-2.5 py-0.5 rounded-full hover:bg-white/25 transition-colors"
+            >
+              인보이스
+            </button>
           </div>
         </div>
 
