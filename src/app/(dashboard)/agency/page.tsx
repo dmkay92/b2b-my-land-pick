@@ -20,7 +20,7 @@ function getPhase(req: QuoteRequest, today: string): InternalPhase {
 }
 
 function getDday(req: QuoteRequest, phase: InternalPhase, today: string): number | null {
-  if (phase === 'pre') {
+  if (phase === 'pre' || phase === 'payment_pending') {
     const [ty, tm, td] = today.split('-').map(Number)
     const [dy, dm, dd] = req.depart_date.slice(0, 10).split('-').map(Number)
     return Math.ceil((Date.UTC(dy, dm - 1, dd) - Date.UTC(ty, tm - 1, td)) / 86400000)
@@ -94,11 +94,11 @@ export default async function AgencyDashboard() {
       const landcoIds = [...new Set(selections.map((s: { landco_id: string }) => s.landco_id))]
 
       const [{ data: selectedQuotes }, { data: landcoProfiles }] = await Promise.all([
-        admin.from('quotes').select('id, file_url').in('id', selectedQuoteIds),
+        admin.from('quotes').select('id, file_url, pricing_mode, summary_total, summary_per_person, pricing').in('id', selectedQuoteIds),
         admin.from('profiles').select('id, company_name').in('id', landcoIds),
       ])
 
-      const quoteFileMap = Object.fromEntries((selectedQuotes ?? []).map((q: { id: string; file_url: string }) => [q.id, q.file_url]))
+      const quoteMap = Object.fromEntries((selectedQuotes ?? []).map((q: Record<string, unknown>) => [q.id as string, q]))
       const landcoNameMap = Object.fromEntries((landcoProfiles ?? []).map((p: { id: string; company_name: string }) => [p.id, p.company_name]))
       const selectionMap = Object.fromEntries(selections.map((s: { request_id: string; selected_quote_id: string; landco_id: string }) => [s.request_id, s]))
 
@@ -106,10 +106,28 @@ export default async function AgencyDashboard() {
         nonIngIds.map(async reqId => {
           const sel = selectionMap[reqId]
           if (!sel) return
-          const fileUrl = quoteFileMap[sel.selected_quote_id]
+          const q = quoteMap[sel.selected_quote_id]
           const landcoName = landcoNameMap[sel.landco_id] ?? ''
-          const pricing = fileUrl ? await extractQuotePricing(fileUrl) : { total: null, per_person: null }
-          selectedInfoMap[reqId] = { landcoName, total: pricing.total, per_person: pricing.per_person }
+
+          let total: number | null = null
+          let per_person: number | null = null
+
+          if (q?.pricing_mode === 'summary') {
+            const pricingData = q.pricing as { currencies?: Record<string, string>; exchangeRates?: Record<string, number> } | null
+            const summaryCurrency = pricingData?.currencies?.['summary'] ?? 'KRW'
+            const exRate = pricingData?.exchangeRates?.[summaryCurrency] ?? 0
+            const rawTotal = (q.summary_total as number) ?? 0
+            const rawPP = (q.summary_per_person as number) ?? 0
+            total = summaryCurrency === 'KRW' ? rawTotal : (exRate > 0 ? Math.round(rawTotal * exRate) : rawTotal)
+            per_person = summaryCurrency === 'KRW' ? rawPP : (exRate > 0 ? Math.round(rawPP * exRate) : rawPP)
+          } else {
+            const fileUrl = q?.file_url as string | undefined
+            const pricing = fileUrl ? await extractQuotePricing(fileUrl) : { total: null, per_person: null }
+            total = pricing.total
+            per_person = pricing.per_person
+          }
+
+          selectedInfoMap[reqId] = { landcoName, total, per_person }
         })
       )
     }

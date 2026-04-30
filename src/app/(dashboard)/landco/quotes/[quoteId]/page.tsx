@@ -1,0 +1,187 @@
+'use client'
+
+import { useEffect, useState, use } from 'react'
+import ItineraryView from '@/components/quote-view/ItineraryView'
+import PricingView from '@/components/quote-view/PricingView'
+import QuoteSummaryBar from '@/components/quote-view/QuoteSummaryBar'
+import { calculateTotalPeople } from '@/lib/utils'
+import type { ItineraryDay, PricingData, QuoteRequest } from '@/lib/supabase/types'
+
+interface QuoteDetailData {
+  quote: { id: string; request_id: string; landco_id: string; status: string; file_name: string }
+  request: QuoteRequest
+  draft: { itinerary: ItineraryDay[]; pricing: PricingData }
+  landcoName: string
+  pricing_mode: 'detailed' | 'summary'
+  summary_total: number
+  summary_per_person: number
+  includes?: string | null
+  excludes?: string | null
+}
+
+export default function LandcoQuoteDetailPage({ params }: { params: Promise<{ quoteId: string }> }) {
+  const { quoteId } = use(params)
+  const [data, setData] = useState<QuoteDetailData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+  const [activeTab, setActiveTab] = useState<'itinerary' | 'pricing'>('itinerary')
+
+  useEffect(() => {
+    async function load() {
+      const res = await fetch(`/api/quotes/${quoteId}/detail`)
+      if (!res.ok) { setLoading(false); return }
+      setData(await res.json())
+      setLoading(false)
+    }
+    load()
+  }, [quoteId])
+
+  if (loading) return <div className="flex items-center justify-center h-64"><p>로딩 중...</p></div>
+  if (!data) return <div className="p-8"><p>견적을 찾을 수 없습니다.</p></div>
+
+  const totalPeople = calculateTotalPeople({
+    adults: data.request.adults, children: data.request.children,
+    infants: data.request.infants, leaders: data.request.leaders,
+  })
+
+  const isSummaryMode = data.pricing_mode === 'summary'
+  const exchangeRates = data.draft.pricing.exchangeRates ?? {}
+
+  // KRW 환산 총액
+  let total: number
+  let perPerson: number
+  if (isSummaryMode) {
+    const summaryCurrency = data.draft.pricing.currencies?.['summary'] ?? 'KRW'
+    const exRate = exchangeRates[summaryCurrency] ?? 0
+    const rawTotal = data.summary_total || 0
+    total = summaryCurrency === 'KRW' ? rawTotal : (exRate > 0 ? Math.round(rawTotal * exRate) : rawTotal)
+    perPerson = totalPeople > 0 ? Math.round(total / totalPeople) : 0
+  } else {
+    const categories = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타'] as const
+    let krwTotal = 0
+    for (const cat of categories) {
+      for (const r of (data.draft.pricing[cat] ?? [])) {
+        const cur = r.currency ?? 'KRW'
+        const rowTotal = r.price * r.count * r.quantity
+        if (cur === 'KRW') krwTotal += rowTotal
+        else {
+          const rate = exchangeRates[cur] ?? 0
+          krwTotal += rate > 0 ? Math.round(rowTotal * rate) : 0
+        }
+      }
+    }
+    total = krwTotal
+    perPerson = totalPeople > 0 ? Math.round(total / totalPeople) : 0
+  }
+
+  const handleDownload = async () => {
+    setDownloading(true)
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}/download`)
+      if (!res.ok) return
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = data.quote.file_name || 'quote.xlsx'
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">{data.request.event_name}</h1>
+          <p className="text-sm text-gray-500">{data.landcoName}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className={`px-4 py-2 text-sm rounded-lg font-medium transition-all duration-200 ${
+              downloading
+                ? 'bg-gray-400 text-gray-200 cursor-wait'
+                : 'bg-gray-900 text-white hover:bg-gray-800 active:scale-95'
+            }`}
+          >
+            {downloading ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                다운로드 중...
+              </span>
+            ) : '엑셀 다운로드'}
+          </button>
+          <button
+            onClick={() => window.close()}
+            className="px-4 py-2 text-sm rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 active:scale-95 transition-all duration-200"
+          >
+            닫기
+          </button>
+        </div>
+      </div>
+
+      <QuoteSummaryBar total={total} perPerson={perPerson} />
+
+      <div className="border-b border-gray-200">
+        <nav className="flex gap-4">
+          <button
+            onClick={() => setActiveTab('itinerary')}
+            className={`pb-2 text-sm font-medium border-b-2 ${
+              activeTab === 'itinerary' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            일정표
+          </button>
+          {isSummaryMode ? (
+            <span className="pb-2 text-sm font-medium text-gray-300 border-b-2 border-transparent cursor-default relative group">
+              견적서
+              <span className="absolute left-1/2 -translate-x-1/2 top-full mt-1 px-2 py-1 bg-gray-900 text-white text-[10px] rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-0 pointer-events-none z-10">
+                항목별 내역이 포함되지 않은 견적입니다
+              </span>
+            </span>
+          ) : (
+            <button
+              onClick={() => setActiveTab('pricing')}
+              className={`pb-2 text-sm font-medium border-b-2 ${
+                activeTab === 'pricing' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              견적서
+            </button>
+          )}
+        </nav>
+      </div>
+
+      {activeTab === 'itinerary' && (
+        <>
+          {(data.includes || data.excludes) && (
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {data.includes && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <h4 className="text-xs font-bold text-emerald-700 mb-2">포함사항</h4>
+                  <p className="text-sm text-emerald-800">{data.includes}</p>
+                </div>
+              )}
+              {data.excludes && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <h4 className="text-xs font-bold text-red-700 mb-2">불포함사항</h4>
+                  <p className="text-sm text-red-800">{data.excludes}</p>
+                </div>
+              )}
+            </div>
+          )}
+          <ItineraryView itinerary={data.draft.itinerary} />
+        </>
+      )}
+      {activeTab === 'pricing' && !isSummaryMode && <PricingView pricing={data.draft.pricing} totalPeople={totalPeople} />}
+    </div>
+  )
+}

@@ -6,11 +6,14 @@ export type QuoteStatus = 'submitted' | 'selected' | 'finalized' | 'rejected'
 
 export interface Profile {
   id: string
+  display_id?: string | null
   email: string
   role: UserRole
   company_name: string
   status: UserStatus
   country_codes: string[]
+  service_areas: ServiceArea[] | null
+  partner_code: string | null
   created_at: string
   approved_at: string | null
   seq_id: number | null
@@ -41,7 +44,9 @@ export interface FlightSchedule {
 
 export interface QuoteRequest {
   id: string
+  display_id?: string | null
   agency_id: string
+
   event_name: string
   destination_country: string
   destination_city: string
@@ -59,6 +64,8 @@ export interface QuoteRequest {
   local_option: boolean | null
   deadline: string
   notes: string | null
+  travel_type: string | null
+  religion_type: string | null
   status: QuoteRequestStatus
   created_at: string
   flight_schedule: FlightSchedule | null
@@ -66,6 +73,7 @@ export interface QuoteRequest {
 
 export interface Quote {
   id: string
+  display_id?: string | null
   request_id: string
   landco_id: string
   version: number
@@ -73,6 +81,13 @@ export interface Quote {
   file_name: string
   status: QuoteStatus
   submitted_at: string
+  itinerary?: unknown  // ItineraryDay[] JSON
+  pricing?: unknown    // PricingData JSON
+  pricing_mode?: 'detailed' | 'summary'
+  summary_total?: number
+  summary_per_person?: number
+  includes?: string | null
+  excludes?: string | null
 }
 
 export interface QuoteSelection {
@@ -97,13 +112,15 @@ export interface Message {
   room_id: string
   sender_id: string
   content: string
+  message_type?: ChatMessageType
+  metadata?: Record<string, unknown>
   created_at: string
 }
 
 export interface AdminActionLog {
   id: string
   target_user_id: string
-  action_type: 'status_change' | 'email_change' | 'country_change'
+  action_type: 'status_change' | 'email_change' | 'country_change' | 'service_areas_change'
   detail: Record<string, unknown>
   created_at: string
 }
@@ -162,6 +179,11 @@ export interface QuoteDraft {
   pricing: PricingData
   created_at: string
   updated_at: string
+  pricing_mode?: 'detailed' | 'summary'
+  summary_total?: number
+  summary_per_person?: number
+  includes?: string | null
+  excludes?: string | null
 }
 
 export interface Notification {
@@ -207,4 +229,128 @@ export interface SignupDraft {
     bank_holder: string
   } | null
   countries: string[]
+  service_areas: { country: string; city: string }[]
+}
+
+export interface AgencyCommission {
+  id: string
+  quote_id: string
+  agency_id: string
+  commission_per_person: number
+  commission_total: number
+  created_at: string
+  updated_at: string
+}
+
+export interface QuoteSettlement {
+  id: string
+  display_id?: string | null
+  request_id: string
+  quote_id: string
+  landco_id: string
+  agency_id: string
+  landco_quote_total: number
+  platform_fee_rate: number
+  platform_fee: number
+  agency_commission: number
+  agency_commission_rate: number
+  platform_gross_revenue: number
+  agency_payout: number
+  platform_net_revenue: number
+  landco_payout: number
+  gmv: number
+  landco_settled: boolean
+  agency_settled: boolean
+  created_at: string
+}
+
+export interface PlatformSetting {
+  key: string
+  value: unknown
+  updated_at: string
+}
+
+export type PaymentTemplateType = 'two_time' | 'large_event' | 'one_time' | 'post_travel'
+export type ApprovalStatus = 'approved' | 'pending' | 'rejected'
+export type ChatMessageType = 'text' | 'file' | 'system' | 'approval_request' | 'approval_result'
+export type PaymentInstallmentStatus = 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled'
+export type PaymentTransactionStatus = 'pending' | 'success' | 'failed' | 'cancelled'
+export type PaymentMethod = 'virtual_account' | 'card_link' | 'card_keyin'
+
+export interface PaymentSchedule {
+  id: string
+  display_id?: string | null
+  request_id: string
+  settlement_id: string | null
+  template_type: PaymentTemplateType
+  approval_status: ApprovalStatus
+  total_amount: number
+  total_people: number
+  created_at: string
+  updated_at: string
+}
+
+export interface PaymentInstallment {
+  id: string
+  display_id?: string | null
+  schedule_id: string
+  label: string
+  rate: number
+  amount: number
+  paid_amount: number
+  due_date: string
+  status: PaymentInstallmentStatus
+  allow_split: boolean
+  paid_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface City {
+  id: string
+  country_code: string
+  city_name: string
+  sort_order: number
+}
+
+export interface ServiceArea {
+  country: string
+  city: string
+}
+
+export interface AdditionalSettlementItem {
+  name: string
+  amount: number
+}
+
+export interface AdditionalSettlement {
+  id: string
+  request_id: string
+  landco_id: string
+  sequence_number: number
+  status: 'pending' | 'approved' | 'rejected'
+  items: AdditionalSettlementItem[]
+  memo: string | null
+  receipt_urls: string[]
+  total_amount: number
+  reviewed_by: string | null
+  reviewed_at: string | null
+  created_at: string
+}
+
+export interface PaymentTransaction {
+  id: string
+  display_id?: string | null
+  installment_id: string
+  base_amount: number | null
+  card_surcharge_rate: number
+  card_surcharge: number
+  amount: number
+  payment_method: PaymentMethod
+  status: PaymentTransactionStatus
+  pg_transaction_id: string | null
+  pg_response: Record<string, unknown> | null
+  virtual_account_info: { bank: string; account_number: string; holder: string; expires_at: string } | null
+  created_at: string
+  updated_at: string
 }

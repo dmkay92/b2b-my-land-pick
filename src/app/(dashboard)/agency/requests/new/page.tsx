@@ -8,6 +8,7 @@ import { TimePickerInput } from '@/components/TimePickerInput'
 import { CustomSelect } from '@/components/CustomSelect'
 import { createClient } from '@/lib/supabase/client'
 import { BackButton } from '@/components/BackButton'
+import CitySearchSelect from '@/components/CitySearchSelect'
 import Link from 'next/link'
 
 const HOTEL_GRADES = [3, 4, 5] as const
@@ -48,6 +49,8 @@ const INITIAL_FORM = {
   shopping_count: null as number | null,
   tip_option: true as boolean | null,
   local_option: false as boolean | null,
+  travel_type: '',
+  religion_type: '',
   deadline: '',
   notes: '',
 }
@@ -106,6 +109,8 @@ export default function NewRequestPage() {
         shopping_count: r.shopping_count ?? null,
         tip_option: r.tip_option ?? null,
         local_option: r.local_option ?? null,
+        travel_type: r.travel_type ?? '',
+        religion_type: r.religion_type ?? '',
         deadline: getDefaultDeadline(),
         notes: r.notes ?? '',
       })
@@ -122,10 +127,20 @@ export default function NewRequestPage() {
   const [isDragging, setIsDragging] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [countryOptions, setCountryOptions] = useState<{ code: string; name: string }[]>([])
+
+  useEffect(() => {
+    fetch('/api/cities?active=true').then(r => r.json()).then(d => setCountryOptions(d.countries ?? []))
+  }, [])
 
   const totalPeople = calculateTotalPeople(form)
 
   function handleChange(field: string, value: string | number) {
+    // If country changed, clear city
+    if (field === 'destination_country') {
+      setForm(prev => ({ ...prev, destination_country: value as string, destination_city: '' }))
+      return
+    }
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
@@ -290,19 +305,22 @@ export default function NewRequestPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">목적지 국가 <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 align-middle mb-0.5 ml-1" /></label>
             <CustomSelect
               value={form.destination_country}
-              options={COUNTRY_OPTIONS.map(c => ({ value: c.code, label: c.name }))}
+              options={countryOptions.map(c => ({ value: c.code, label: c.name }))}
               onChange={v => handleChange('destination_country', v)}
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">목적지 도시 <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 align-middle mb-0.5 ml-1" /></label>
-            <input
-              type="text"
-              value={form.destination_city}
-              onChange={e => handleChange('destination_city', e.target.value)}
-              placeholder="예: 오사카"
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">목적지 도시 <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 align-middle mb-0.5 ml-1" /></label>
+            <div>
+              <CitySearchSelect
+                countryCode={form.destination_country}
+                selected={form.destination_city}
+                onChange={v => handleChange('destination_city', v as string)}
+                placeholder="도시를 검색하세요"
+                activeOnly
+                size="md"
+              />
+            </div>
             <FieldError msg={fieldErrors.destination_city} />
           </div>
         </div>
@@ -490,6 +508,62 @@ export default function NewRequestPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* 여행 유형 */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">여행 유형</h3>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { value: 'corporate_incentive', label: '기업 인센티브' },
+              { value: 'corporate_workshop', label: '기업 워크숍/연수' },
+              { value: 'academic_government', label: '학술/관공서' },
+              { value: 'association', label: '협회/단체' },
+              { value: 'family', label: '가족/친목' },
+              { value: 'mice', label: 'MICE' },
+              { value: 'religion', label: '종교' },
+              { value: 'other', label: '기타' },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setForm(f => ({ ...f, travel_type: opt.value, religion_type: opt.value !== 'religion' ? '' : f.religion_type }))}
+                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                  form.travel_type === opt.value
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {form.travel_type === 'religion' && (
+            <div className="mt-3">
+              <p className="text-xs text-gray-500 mb-2">종교 구분</p>
+              <div className="flex gap-2">
+                {[
+                  { value: 'protestant', label: '기독교' },
+                  { value: 'catholic', label: '천주교' },
+                  { value: 'buddhist', label: '불교' },
+                  { value: 'other', label: '기타' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, religion_type: opt.value }))}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      form.religion_type === opt.value
+                        ? 'bg-purple-600 text-white border-purple-600'
+                        : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div>

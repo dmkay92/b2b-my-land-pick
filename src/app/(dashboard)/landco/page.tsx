@@ -35,9 +35,10 @@ export default async function LandcoDashboard() {
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase
-    .from('profiles').select('country_codes, status').eq('id', user.id).single()
+    .from('profiles').select('country_codes, service_areas, status').eq('id', user.id).single()
 
   const isRejected = profile?.status === 'rejected'
+  const serviceAreas = (profile?.service_areas ?? []) as { country: string; city: string }[]
   const countryCodes = (profile?.country_codes ?? []) as string[]
 
   const admin = createAdminClient(
@@ -80,12 +81,22 @@ export default async function LandcoDashboard() {
     (myAbandonmentsRaw ?? []).map((a: { request_id: string }) => a.request_id)
   )
 
-  const { data: openRaw } = isRejected ? { data: [] } : await supabase
+  let openQuery = supabase
     .from('quote_requests')
     .select('*')
-    .in('destination_country', countryCodes.length > 0 ? countryCodes : ['__none__'])
     .in('status', ['open', 'in_progress'])
     .order('deadline', { ascending: true })
+
+  if (serviceAreas.length > 0) {
+    const orConditions = serviceAreas.map(a => `and(destination_country.eq.${a.country},destination_city.eq.${a.city})`).join(',')
+    openQuery = openQuery.or(orConditions)
+  } else if (countryCodes.length > 0) {
+    openQuery = openQuery.in('destination_country', countryCodes)
+  } else {
+    openQuery = openQuery.in('destination_country', ['__none__'])
+  }
+
+  const { data: openRaw } = isRejected ? { data: [] } : await openQuery
 
   const openRequestIds = new Set((openRaw ?? []).map((r: { id: string }) => r.id))
 
@@ -97,7 +108,7 @@ export default async function LandcoDashboard() {
         .from('quote_requests')
         .select('*')
         .in('id', submittedNotOpen)
-        .in('status', ['payment_pending', 'finalized'])
+        .in('status', ['payment_pending', 'finalized', 'closed'])
     : { data: [] }
 
   const openRequests: PhasedLandcoRequest[] = (openRaw ?? []).map(r => {
@@ -110,11 +121,17 @@ export default async function LandcoDashboard() {
 
   const nonOpenRequests: PhasedLandcoRequest[] = (nonOpenRaw ?? []).map(r => {
     const req = r as unknown as QuoteRequest
+    if (req.status === 'closed') {
+      return { ...req, phase: 'cancelled' as const, dday: null, submitted: true }
+    }
     if (!selectedRequestIds.has(req.id)) {
       return { ...req, phase: 'lost' as const, dday: null, submitted: true }
     }
     if (req.status === 'payment_pending') {
-      return { ...req, phase: 'payment_pending' as const, dday: null, submitted: true }
+      const [ty, tm, td] = today.split('-').map(Number)
+      const [dy, dm, dd] = req.depart_date.slice(0, 10).split('-').map(Number)
+      const dday = Math.ceil((Date.UTC(dy, dm - 1, dd) - Date.UTC(ty, tm - 1, td)) / 86400000)
+      return { ...req, phase: 'payment_pending' as const, dday, submitted: true }
     }
     const phase = getPhase(req, today)
     const dday = getDday(req, phase, today)
@@ -124,5 +141,5 @@ export default async function LandcoDashboard() {
   const requests: PhasedLandcoRequest[] = [...openRequests, ...nonOpenRequests]
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
 
-  return <LandcoDashboardClient requests={requests} isRejected={isRejected} />
+  return <LandcoDashboardClient requests={requests} isRejected={isRejected} today={today} />
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from '@/lib/toast'
-import type { QuoteRequest, ItineraryDay, PricingData } from '@/lib/supabase/types'
+import type { QuoteRequest, ItineraryDay, PricingData, PricingRow } from '@/lib/supabase/types'
 import { ItineraryEditor } from './ItineraryEditor'
 import { PricingEditor } from './PricingEditor'
 import { QuotePreview } from './QuotePreview'
@@ -40,19 +40,39 @@ export function QuoteEditorShell({ requestId }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
+  const [submitMode, setSubmitMode] = useState<'detailed' | 'summary'>('detailed')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
-  const [showTemplateSaveAfterSubmit, setShowTemplateSaveAfterSubmit] = useState(false)
   const [templateMode, setTemplateMode] = useState<'save' | 'load' | null>(null)
+  const [pricingMode, setPricingMode] = useState<'detailed' | 'summary'>('detailed')
+  const [summaryTotal, setSummaryTotal] = useState(0)
+  const [summaryPerPerson, setSummaryPerPerson] = useState(0)
+  const [isParsingExcel, setIsParsingExcel] = useState(false)
+  const [includes, setIncludes] = useState('')
+  const [excludes, setExcludes] = useState('')
+  const [previousVersions, setPreviousVersions] = useState<{ id: string; version: number; submitted_at: string }[]>([])
+  const [showVersionDropdown, setShowVersionDropdown] = useState(false)
+  const [loadingVersion, setLoadingVersion] = useState(false)
   const closeAfterTemplateSaveRef = useRef(false)
+  const excelInputRef = useRef<HTMLInputElement>(null)
 
   const isDirtyRef = useRef(false)
   const itineraryRef = useRef(itinerary)
   const pricingRef = useRef(pricing)
+  const pricingModeRef = useRef(pricingMode)
+  const summaryTotalRef = useRef(summaryTotal)
+  const summaryPerPersonRef = useRef(summaryPerPerson)
+  const includesRef = useRef('')
+  const excludesRef = useRef('')
 
   // keep refs in sync
   useEffect(() => { itineraryRef.current = itinerary }, [itinerary])
   useEffect(() => { pricingRef.current = pricing }, [pricing])
+  useEffect(() => { pricingModeRef.current = pricingMode }, [pricingMode])
+  useEffect(() => { summaryTotalRef.current = summaryTotal }, [summaryTotal])
+  useEffect(() => { summaryPerPersonRef.current = summaryPerPerson }, [summaryPerPerson])
+  useEffect(() => { includesRef.current = includes }, [includes])
+  useEffect(() => { excludesRef.current = excludes }, [excludes])
 
   // request + draft 로드
   useEffect(() => {
@@ -68,6 +88,7 @@ export function QuoteEditorShell({ requestId }: Props) {
           req = json.request
           setRequest(req)
         }
+        let draftLoaded = false
         if (draftRes.ok) {
           const { draft } = await draftRes.json()
           if (draft) {
@@ -77,12 +98,17 @@ export function QuoteEditorShell({ requestId }: Props) {
             } else {
               if (draft.itinerary?.length > 0) setItinerary(draft.itinerary)
               if (draft.pricing) setPricing(draft.pricing)
-              return
+              if (draft.pricing_mode) setPricingMode(draft.pricing_mode)
+              if (draft.summary_total) setSummaryTotal(draft.summary_total)
+              if (draft.summary_per_person) setSummaryPerPerson(draft.summary_per_person)
+              setIncludes(draft.includes ?? '')
+              setExcludes(draft.excludes ?? '')
+              draftLoaded = true
             }
           }
         }
         // draft 없음(또는 reset): 날짜 범위로 기본 일정 생성 (각 날짜에 빈 row 1개)
-        if (req) {
+        if (req && !draftLoaded) {
           const [dy, dm, dd] = req.depart_date.split('-').map(Number)
           const [ry, rm, rd] = req.return_date.split('-').map(Number)
           const departMs = Date.UTC(dy, dm - 1, dd)
@@ -107,6 +133,20 @@ export function QuoteEditorShell({ requestId }: Props) {
       } catch {
         // 로드 실패 시 무시
       }
+
+      // 이전 제출 버전 목록 로드
+      try {
+        const versionsRes = await fetch(`/api/requests/${requestId}`)
+        if (versionsRes.ok) {
+          const { quotes } = await versionsRes.json()
+          const myQuotes = (quotes ?? [])
+            .map((q: { id: string; version: number; submitted_at: string }) => ({
+              id: q.id, version: q.version, submitted_at: q.submitted_at,
+            }))
+            .sort((a: { version: number }, b: { version: number }) => b.version - a.version)
+          setPreviousVersions(myQuotes)
+        }
+      } catch { /* ignore */ }
     }
     load()
   }, [requestId])
@@ -121,6 +161,11 @@ export function QuoteEditorShell({ requestId }: Props) {
           requestId,
           itinerary: itineraryRef.current,
           pricing: pricingRef.current,
+          pricing_mode: pricingModeRef.current,
+          summary_total: summaryTotalRef.current,
+          summary_per_person: summaryPerPersonRef.current,
+          includes: includesRef.current || null,
+          excludes: excludesRef.current || null,
         }),
       })
     } finally {
@@ -171,14 +216,22 @@ export function QuoteEditorShell({ requestId }: Props) {
     }
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(mode: 'detailed' | 'summary') {
+    if (!includesRef.current.trim()) {
+      toast('포함사항을 입력해주세요.', 'error')
+      return
+    }
+    if (!excludesRef.current.trim()) {
+      toast('불포함사항을 입력해주세요.', 'error')
+      return
+    }
     setIsSubmitting(true)
     try {
       await saveDraft()
       const res = await fetch('/api/quotes/draft/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requestId }),
+        body: JSON.stringify({ requestId, pricing_mode: mode }),
       })
       if (!res.ok) {
         const json = await res.json()
@@ -187,7 +240,8 @@ export function QuoteEditorShell({ requestId }: Props) {
       }
       setSaveStatus('saved')
       toast('견적서가 제출되었습니다.', 'success')
-      setShowTemplateSaveAfterSubmit(true)
+      window.opener?.location.reload()
+      window.close()
     } catch {
       toast('제출 중 오류가 발생했습니다.', 'error')
     } finally {
@@ -234,6 +288,52 @@ export function QuoteEditorShell({ requestId }: Props) {
     )
   }
 
+  async function handleExcelImport(file: File) {
+    setIsParsingExcel(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/quotes/parse-excel', { method: 'POST', body: formData })
+      if (!res.ok) {
+        const err = await res.json()
+        alert(err.error || '엑셀 파싱에 실패했습니다.')
+        return
+      }
+      const { itinerary: newItinerary, pricing: newPricing } = await res.json()
+      setItinerary(newItinerary)
+      setPricing(newPricing)
+      isDirtyRef.current = true
+      setSaveStatus('unsaved')
+    } catch {
+      alert('엑셀 파싱 중 오류가 발생했습니다.')
+    } finally {
+      setIsParsingExcel(false)
+    }
+  }
+
+  async function handleLoadVersion(quoteId: string) {
+    setLoadingVersion(true)
+    setShowVersionDropdown(false)
+    try {
+      const res = await fetch(`/api/quotes/${quoteId}/detail`)
+      if (!res.ok) { alert('버전 데이터를 불러올 수 없습니다.'); return }
+      const json = await res.json()
+      if (json.draft?.itinerary) setItinerary(json.draft.itinerary)
+      if (json.draft?.pricing) setPricing(json.draft.pricing)
+      if (json.pricing_mode) setPricingMode(json.pricing_mode)
+      if (json.summary_total) setSummaryTotal(json.summary_total)
+      if (json.summary_per_person) setSummaryPerPerson(json.summary_per_person)
+      setIncludes(json.draft?.includes ?? '')
+      setExcludes(json.draft?.excludes ?? '')
+      isDirtyRef.current = true
+      setSaveStatus('unsaved')
+    } catch {
+      alert('버전 불러오기에 실패했습니다.')
+    } finally {
+      setLoadingVersion(false)
+    }
+  }
+
   function handleTemplateLoad(newItinerary: ItineraryDay[], newPricing: PricingData) {
     setItinerary(newItinerary)
     setPricing(newPricing)
@@ -243,29 +343,17 @@ export function QuoteEditorShell({ requestId }: Props) {
 
   return (
     <>
-      {showTemplateSaveAfterSubmit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setShowTemplateSaveAfterSubmit(false)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="text-base font-bold text-gray-900 mb-1">템플릿으로 저장할까요?</h3>
-            <p className="text-sm text-gray-500 mt-2">제출된 견적서는 사라집니다. 다음에도 활용하려면 템플릿으로 저장해 두세요.</p>
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                onClick={() => { setShowTemplateSaveAfterSubmit(false); window.opener?.location.reload(); window.close() }}
-                className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
-                저장 안함
-              </button>
-              <button
-                autoFocus
-                onClick={() => { setShowTemplateSaveAfterSubmit(false); closeAfterTemplateSaveRef.current = true; setTemplateMode('save') }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                템플릿 저장
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <input
+        ref={excelInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={e => {
+          const file = e.target.files?.[0]
+          if (file) handleExcelImport(file)
+          e.target.value = ''
+        }}
+      />
       {showExitConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setShowExitConfirm(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
@@ -315,12 +403,42 @@ export function QuoteEditorShell({ requestId }: Props) {
           </div>
         </div>
       )}
-      {showSubmitConfirm && (
+      {showSubmitConfirm && (() => {
+        const categories: (keyof PricingData)[] = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타']
+        const hasPricingItems = categories.some(cat =>
+          (pricing[cat] as PricingRow[])?.some((r: PricingRow) => r.detail || r.price > 0)
+        )
+        const hasSummaryTotal = summaryTotal > 0
+        const canSubmit = submitMode === 'detailed' ? hasPricingItems : hasSummaryTotal
+        const warningMessage = submitMode === 'detailed'
+          ? '항목별 견적 데이터가 입력되지 않았습니다.'
+          : '합계 금액이 입력되지 않았습니다.'
+        return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onKeyDown={(e) => e.key === 'Escape' && setShowSubmitConfirm(false)}>
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="text-base font-bold text-gray-900 mb-1">견적서 제출</h3>
-            <p className="text-sm text-gray-500 mt-2">견적서를 제출하시겠습니까?</p>
+            <h3 className="text-base font-bold text-gray-900 mb-1">견적 제출 방식 선택</h3>
             <p className="text-xs text-gray-400 mt-1">제출 후에는 수정할 수 없습니다.</p>
+            <div className="mt-4 space-y-2">
+              <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${submitMode === 'summary' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                <input type="radio" name="submitMode" checked={submitMode === 'summary'} onChange={() => setSubmitMode('summary')} className="accent-blue-600" />
+                <div>
+                  <span className="text-sm font-medium text-gray-900">합계만</span>
+                  <p className="text-xs text-gray-500">총액만 전달합니다</p>
+                </div>
+              </label>
+              <label className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${submitMode === 'detailed' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}>
+                <input type="radio" name="submitMode" checked={submitMode === 'detailed'} onChange={() => setSubmitMode('detailed')} className="accent-blue-600" />
+                <div>
+                  <span className="text-sm font-medium text-gray-900">항목별</span>
+                  <p className="text-xs text-gray-500">상세 내역을 포함합니다</p>
+                </div>
+              </label>
+            </div>
+            {!canSubmit && (
+              <p className="text-sm text-amber-600 mt-3 flex items-center gap-1">
+                <span>&#9888;</span> {warningMessage}
+              </p>
+            )}
             <div className="flex justify-end gap-2 mt-5">
               <button
                 onClick={() => setShowSubmitConfirm(false)}
@@ -329,9 +447,8 @@ export function QuoteEditorShell({ requestId }: Props) {
                 취소
               </button>
               <button
-                autoFocus
-                onClick={() => { setShowSubmitConfirm(false); handleSubmit() }}
-                disabled={isSubmitting}
+                onClick={() => { setShowSubmitConfirm(false); handleSubmit(submitMode) }}
+                disabled={isSubmitting || !canSubmit}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 제출하기
@@ -339,7 +456,8 @@ export function QuoteEditorShell({ requestId }: Props) {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
       {templateMode && (
         <TemplateModal
           mode={templateMode}
@@ -423,6 +541,41 @@ export function QuoteEditorShell({ requestId }: Props) {
               나가기
             </button>
             <button
+              onClick={() => excelInputRef.current?.click()}
+              disabled={isParsingExcel}
+              className="border border-gray-300 bg-white text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {isParsingExcel ? '분석 중...' : '📄 엑셀 불러오기'}
+            </button>
+            {previousVersions.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setShowVersionDropdown(!showVersionDropdown)}
+                  disabled={loadingVersion}
+                  className="flex items-center gap-1.5 border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  {loadingVersion ? '불러오는 중...' : '이전 버전 ▼'}
+                </button>
+                {showVersionDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowVersionDropdown(false)} />
+                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[220px] py-1">
+                      {previousVersions.map(v => (
+                        <button
+                          key={v.id}
+                          onClick={() => handleLoadVersion(v.id)}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center justify-between"
+                        >
+                          <span className="font-medium text-gray-900">v{v.version}</span>
+                          <span className="text-xs text-gray-400">{new Date(v.submitted_at).toLocaleString('ko-KR')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            <button
               onClick={() => setTemplateMode('load')}
               className="flex items-center gap-1.5 border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
             >
@@ -448,7 +601,7 @@ export function QuoteEditorShell({ requestId }: Props) {
               미리보기
             </button>
             <button
-              onClick={() => setShowSubmitConfirm(true)}
+              onClick={() => { setSubmitMode(pricingMode); setShowSubmitConfirm(true) }}
               disabled={isSubmitting}
               className="flex items-center gap-1.5 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
@@ -456,6 +609,34 @@ export function QuoteEditorShell({ requestId }: Props) {
             </button>
           </div>
         </div>
+
+        {/* 견적서 서브탭 */}
+        {activeTab === 'pricing' && (
+          <div className="bg-gray-50 border-b border-gray-200 px-6 py-2 flex-shrink-0">
+            <div className="flex gap-1 bg-white rounded-lg border border-gray-200 p-1 w-fit">
+              <button
+                onClick={() => { setPricingMode('detailed'); isDirtyRef.current = true; setSaveStatus('unsaved') }}
+                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  pricingMode === 'detailed'
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                항목별
+              </button>
+              <button
+                onClick={() => { setPricingMode('summary'); isDirtyRef.current = true; setSaveStatus('unsaved') }}
+                className={`px-4 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                  pricingMode === 'summary'
+                    ? 'bg-gray-900 text-white shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                합계만
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 탭 컨텐츠 */}
         <div className="flex-1 overflow-auto p-6">
@@ -470,9 +651,49 @@ export function QuoteEditorShell({ requestId }: Props) {
               request={request}
               pricing={pricing}
               onChange={handlePricingChange}
+              pricingMode={pricingMode}
+              onPricingModeChange={mode => { setPricingMode(mode); isDirtyRef.current = true; setSaveStatus('unsaved') }}
+              summaryTotal={summaryTotal}
+              summaryPerPerson={summaryPerPerson}
+              onSummaryTotalChange={v => { setSummaryTotal(v); isDirtyRef.current = true; setSaveStatus('unsaved') }}
+              onSummaryPerPersonChange={v => { setSummaryPerPerson(v); isDirtyRef.current = true; setSaveStatus('unsaved') }}
             />
           )}
 
+        </div>
+
+        {/* 포함사항 / 불포함사항 */}
+        <div className="bg-slate-50 border-t-2 border-slate-300 px-6 py-5 flex-shrink-0">
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-bold text-slate-800">포함 / 불포함 사항</h3>
+            <span className="text-[10px] font-semibold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">필수</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-semibold text-emerald-700 mb-1.5 flex items-center gap-1">
+                <span className="text-emerald-500">+</span> 포함사항
+              </label>
+              <textarea
+                value={includes}
+                onChange={e => { setIncludes(e.target.value); isDirtyRef.current = true }}
+                placeholder="예: 호텔, 식사, 가이드비 등"
+                rows={3}
+                className="w-full border-2 border-emerald-200 bg-white rounded-lg px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-emerald-400"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-red-600 mb-1.5 flex items-center gap-1">
+                <span className="text-red-400">-</span> 불포함사항
+              </label>
+              <textarea
+                value={excludes}
+                onChange={e => { setExcludes(e.target.value); isDirtyRef.current = true }}
+                placeholder="예: 입장료, 개인경비, 여행자보험 등"
+                rows={3}
+                className="w-full border-2 border-red-200 bg-white rounded-lg px-3 py-2 text-sm text-gray-700 resize-none focus:outline-none focus:border-red-400"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </>

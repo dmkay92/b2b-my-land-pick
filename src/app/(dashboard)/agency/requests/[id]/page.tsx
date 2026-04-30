@@ -3,18 +3,22 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { formatDate, formatDateWithDay, calculateTotalPeople, hotelGradeLabel, getCountryName } from '@/lib/utils'
-import type { QuoteRequest, Quote } from '@/lib/supabase/types'
+import type { QuoteRequest, Quote, AdditionalSettlement } from '@/lib/supabase/types'
 import { useChat } from '@/lib/chat/ChatContext'
-import { ExcelPreviewModal } from '@/components/ExcelPreviewModal'
 import { AttachmentPreviewModal } from '@/components/AttachmentPreviewModal'
 import { BackButton } from '@/components/BackButton'
+import AdditionalSettlementSection from '@/components/AdditionalSettlementSection'
+import MarkupInput from '@/components/MarkupInput'
+import ConfirmMarkupModal from '@/components/ConfirmMarkupModal'
+import PaymentScheduleCard from '@/components/PaymentScheduleCard'
+import type { AgencyCommission, PaymentSchedule, PaymentInstallment } from '@/lib/supabase/types'
 
 interface QuoteWithLandco extends Quote {
   profiles: { company_name: string }
   pricing?: { total: number | null; per_person: number | null }
 }
 
-type QuoteWithPricing = Quote & { pricing?: { total: number | null; per_person: number | null } }
+type QuoteWithPricing = Quote & { pricing?: { total: number | null; per_person: number | null }; pricing_mode?: 'detailed' | 'summary' }
 
 interface GroupedQuotes {
   [landcoId: string]: {
@@ -29,20 +33,39 @@ interface Selection {
   finalized_at: string | null
 }
 
+const TRAVEL_TYPE_LABELS: Record<string, string> = {
+  corporate_incentive: '기업 인센티브',
+  corporate_workshop: '기업 워크숍/연수',
+  academic_government: '학술/관공서',
+  association: '협회/단체',
+  family: '가족/친목',
+  mice: 'MICE',
+  religion: '종교',
+  other: '기타',
+}
+const RELIGION_TYPE_LABELS: Record<string, string> = {
+  protestant: '기독교',
+  catholic: '천주교',
+  buddhist: '불교',
+  other: '기타',
+}
+
 export default function AgencyRequestDetail() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [request, setRequest] = useState<QuoteRequest | null>(null)
   const [grouped, setGrouped] = useState<GroupedQuotes>({})
   const [selection, setSelection] = useState<Selection | null>(null)
-  const [confirmTarget, setConfirmTarget] = useState<{ landcoId: string; quoteId: string } | null>(null)
+  const [confirmTarget, setConfirmTarget] = useState<{ landcoId: string; quoteId: string; total: number; companyName: string } | null>(null)
   const { openOrCreateRoom } = useChat()
-  const [preview, setPreview] = useState<{ url: string; name: string; previewHtml?: Record<string, string> } | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
+  const [markups, setMarkups] = useState<Record<string, AgencyCommission>>({})
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showCopyModal, setShowCopyModal] = useState(false)
   const [canceling, setCanceling] = useState(false)
   const [attachmentPreview, setAttachmentPreview] = useState<{ url: string; name: string } | null>(null)
+  const [paymentSchedule, setPaymentSchedule] = useState<PaymentSchedule | null>(null)
+  const [paymentInstallments, setPaymentInstallments] = useState<PaymentInstallment[]>([])
+  const [additionalSettlements, setAdditionalSettlements] = useState<AdditionalSettlement[]>([])
 
   async function handleCancel() {
     setCanceling(true)
@@ -72,14 +95,64 @@ export default function AgencyRequestDetail() {
       setGrouped(groups)
 
       // 현재 선택 상태 조회
+      let selectedQuoteId: string | null = null
       const selRes = await fetch(`/api/quotes/selection?requestId=${id}`)
       if (selRes.ok) {
         const selJson = await selRes.json()
         setSelection(selJson.selection ?? null)
+        selectedQuoteId = selJson.selection?.selected_quote_id ?? null
+      }
+
+      // Fetch agency markups
+      const markupsRes = await fetch(`/api/agency-commissions?requestId=${id}`)
+      if (markupsRes.ok) {
+        const { markups: markupsList } = await markupsRes.json()
+        const markupMap: Record<string, AgencyCommission> = {}
+        for (const m of markupsList) { markupMap[m.quote_id] = m }
+        setMarkups(markupMap)
+
+        // 글로벌 마크업 초기화: 선택된 견적의 마크업 우선, 없으면 첫 번째
+        const selectedMarkup = selectedQuoteId
+          ? markupsList.find((m: AgencyCommission) => m.quote_id === selectedQuoteId)
+          : null
+        const initMarkup = selectedMarkup ?? markupsList[0]
+        if (initMarkup) {
+          setGlobalMarkup({ perPerson: initMarkup.commission_per_person, total: initMarkup.commission_total })
+        }
+      }
+
+      // Fetch payment schedule
+      const scheduleRes = await fetch(`/api/payment-schedule?requestId=${id}`)
+      if (scheduleRes.ok) {
+        const { schedule, installments } = await scheduleRes.json()
+        setPaymentSchedule(schedule)
+        setPaymentInstallments(installments ?? [])
+      }
+
+      if (json.request?.status === 'finalized') {
+        const addRes = await fetch(`/api/additional-settlements?requestId=${id}`)
+        if (addRes.ok) {
+          const { settlements } = await addRes.json()
+          setAdditionalSettlements(settlements ?? [])
+        }
       }
     }
     load()
   }, [id])
+
+  // 승인 대기 중일 때 30초 간격 폴링
+  useEffect(() => {
+    if (paymentSchedule?.approval_status !== 'pending') return
+    const interval = setInterval(async () => {
+      const res = await fetch(`/api/payment-schedule?requestId=${id}`)
+      if (res.ok) {
+        const { schedule, installments } = await res.json()
+        setPaymentSchedule(schedule)
+        setPaymentInstallments(installments ?? [])
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [id, paymentSchedule?.approval_status])
 
   async function handleConfirm(landcoId: string, quoteId: string) {
     const res = await fetch('/api/quotes/confirm', {
@@ -91,6 +164,28 @@ export default function AgencyRequestDetail() {
       setSelection({ landco_id: landcoId, selected_quote_id: quoteId, finalized_at: null })
       setRequest(prev => prev ? { ...prev, status: 'payment_pending' } : prev)
     }
+  }
+
+  const [globalMarkup, setGlobalMarkup] = useState<{ perPerson: number; total: number }>({ perPerson: 0, total: 0 })
+
+  async function handleGlobalMarkupChange(perPerson: number, total: number) {
+    setGlobalMarkup({ perPerson, total })
+    // 모든 견적의 최신 버전에 동일 마크업 저장
+    const allQuoteIds = Object.values(grouped).map(g => {
+      const sorted = [...g.quotes].sort((a, b) => b.version - a.version)
+      return sorted[0]?.id
+    }).filter(Boolean) as string[]
+
+    const newMarkups: Record<string, AgencyCommission> = {}
+    for (const qid of allQuoteIds) {
+      newMarkups[qid] = { ...markups[qid], quote_id: qid, commission_per_person: perPerson, commission_total: total } as AgencyCommission
+      fetch('/api/agency-commissions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quoteId: qid, markupPerPerson: perPerson, markupTotal: total }),
+      })
+    }
+    setMarkups(prev => ({ ...prev, ...newMarkups }))
   }
 
   if (!request) return <div className="p-8 text-gray-400">로딩 중...</div>
@@ -105,27 +200,41 @@ export default function AgencyRequestDetail() {
   return (
     <>
       {confirmTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="text-base font-bold text-gray-900 mb-1">견적서 확정</h3>
-            <p className="text-sm text-gray-500 mt-2">이 견적서로 확정하시겠습니까?</p>
-            <p className="text-xs text-gray-400 mt-1">확정 후에는 변경이 어렵습니다.</p>
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                onClick={() => setConfirmTarget(null)}
-                className="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
-              >
-                취소
-              </button>
-              <button
-                onClick={() => { handleConfirm(confirmTarget.landcoId, confirmTarget.quoteId); setConfirmTarget(null) }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-              >
-                확정하기
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmMarkupModal
+          landcoTotal={confirmTarget.total}
+          totalPeople={total}
+          initialPerPerson={markups[confirmTarget.quoteId]?.commission_per_person ?? 0}
+          initialTotal={markups[confirmTarget.quoteId]?.commission_total ?? 0}
+          landcoName={confirmTarget.companyName}
+          onConfirm={async (markupPerPerson, markupTotal) => {
+            const commRes = await fetch('/api/agency-commissions', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                quoteId: confirmTarget.quoteId,
+                markupPerPerson,
+                markupTotal,
+              }),
+            })
+            if (!commRes.ok) {
+              alert('커미션 저장에 실패했습니다.')
+              return
+            }
+            setGlobalMarkup({ perPerson: markupPerPerson, total: markupTotal })
+            setMarkups(prev => ({
+              ...prev,
+              [confirmTarget.quoteId]: {
+                ...prev[confirmTarget.quoteId],
+                commission_per_person: markupPerPerson,
+                commission_total: markupTotal,
+              },
+            }))
+            await handleConfirm(confirmTarget.landcoId, confirmTarget.quoteId)
+            setConfirmTarget(null)
+            window.location.reload()
+          }}
+          onClose={() => setConfirmTarget(null)}
+        />
       )}
       {showCopyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -179,16 +288,11 @@ export default function AgencyRequestDetail() {
           onClose={() => setAttachmentPreview(null)}
         />
       )}
-      {preview && (
-        <ExcelPreviewModal
-          fileUrl={preview.url}
-          fileName={preview.name}
-          previewHtml={preview.previewHtml}
-          onClose={() => setPreview(null)}
-        />
-      )}
       <div className="p-8 max-w-4xl mx-auto">
       <BackButton href="/agency" />
+      {request.display_id && (
+        <p className="text-xs text-gray-400 mb-1 font-mono">{request.display_id}</p>
+      )}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">{request.event_name}</h1>
         <div className="flex gap-2">
@@ -218,33 +322,33 @@ export default function AgencyRequestDetail() {
       </div>
 
       {/* 견적 조건 카드 */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6 overflow-hidden">
+      <div className="rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
         {/* 헤더: 목적지 + 마감 */}
-        <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
+          <h3 className="text-sm font-bold text-white">견적 정보</h3>
           <div className="flex items-center gap-2">
-            <span className="text-base font-bold text-gray-900">{getCountryName(request.destination_country)}</span>
-            <span className="text-gray-300">·</span>
-            <span className="text-base font-semibold text-gray-700">{request.destination_city}</span>
-            {request.quote_type === 'land' ? (
-              <span className="ml-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">랜드</span>
-            ) : (
-              <span className="ml-1 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">호텔+랜드</span>
-            )}
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-400">견적 마감</p>
-            <p className="text-sm font-semibold text-red-500">
-              {formatDate(request.deadline)}
-              {deadlineDays >= 0
-                ? <span className="ml-1.5 text-xs font-medium bg-red-50 text-red-400 px-1.5 py-0.5 rounded-full">D-{deadlineDays}</span>
-                : <span className="ml-1.5 text-xs font-medium bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">마감됨</span>
-              }
-            </p>
+            <span className="text-xs text-gray-300">{formatDate(request.deadline)}</span>
+            {deadlineDays >= 0
+              ? <span className="text-[10px] font-medium bg-red-500/30 text-red-300 px-2 py-0.5 rounded-full">D-{deadlineDays}</span>
+              : <span className="text-[10px] font-medium bg-white/20 text-gray-300 px-2 py-0.5 rounded-full">마감됨</span>
+            }
           </div>
         </div>
 
+        {/* 목적지 */}
+        <div className="bg-white px-6 py-3 border-b border-gray-100 flex items-center gap-2">
+          <span className="text-sm font-bold text-gray-900">{getCountryName(request.destination_country)}</span>
+          <span className="text-gray-300">·</span>
+          <span className="text-sm font-semibold text-gray-700">{request.destination_city}</span>
+          {request.quote_type === 'land' ? (
+            <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">랜드</span>
+          ) : (
+            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">호텔+랜드</span>
+          )}
+        </div>
+
         {/* 여행 기간 */}
-        <div className="px-6 py-4 border-b border-gray-100">
+        <div className="bg-white px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-4">
             <div className="flex-1 min-w-0">
               <p className="text-xs text-gray-400 mb-0.5">출발</p>
@@ -263,7 +367,7 @@ export default function AgencyRequestDetail() {
 
         {/* 항공 스케줄 */}
         {request.flight_schedule && (request.flight_schedule.outbound || request.flight_schedule.inbound) && (
-          <div className="px-6 py-4 border-b border-gray-100">
+          <div className="bg-white px-6 py-4 border-b border-gray-100">
             <p className="text-xs text-gray-400 mb-2">항공 스케줄</p>
             <div className="space-y-2">
               {(['outbound', 'inbound'] as const).map(dir => {
@@ -288,7 +392,7 @@ export default function AgencyRequestDetail() {
         )}
 
         {/* 인원 + 호텔 */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-start gap-8">
+        <div className="bg-white px-6 py-4 border-b border-gray-100 flex items-start gap-8">
           <div>
             <p className="text-xs text-gray-400 mb-1">인원</p>
             <p className="text-lg font-bold text-gray-900">{total}<span className="text-sm font-normal text-gray-500 ml-0.5">명</span></p>
@@ -304,7 +408,7 @@ export default function AgencyRequestDetail() {
         </div>
 
         {/* 옵션 행 */}
-        <div className="px-6 py-3 space-y-2">
+        <div className="bg-white px-6 py-3 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-400">쇼핑 옵션</span>
             {request.shopping_option === true
@@ -332,18 +436,27 @@ export default function AgencyRequestDetail() {
                 : <span className="text-xs px-3 py-1 rounded-full bg-gray-50 text-gray-300 font-medium border border-gray-100">미지정</span>
             }
           </div>
+          {request.travel_type && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400">여행 유형</span>
+              <span className="text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-100">
+                {TRAVEL_TYPE_LABELS[request.travel_type] ?? request.travel_type}
+                {request.religion_type && ` (${RELIGION_TYPE_LABELS[request.religion_type] ?? request.religion_type})`}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* 요청사항 */}
         {request.notes && (
-          <div className="px-6 py-4 border-t border-gray-100">
+          <div className="bg-white px-6 py-4 border-t border-gray-100">
             <p className="text-xs text-gray-400 mb-1">요청사항</p>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{request.notes}</p>
           </div>
         )}
         {/* 첨부파일 */}
         {(request as QuoteRequest & { attachment_url?: string; attachment_name?: string }).attachment_url && (
-          <div className="px-6 py-4 border-t border-gray-100">
+          <div className="bg-white px-6 py-4 border-t border-gray-100">
             <p className="text-xs text-gray-400 mb-2">첨부파일</p>
             <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
               <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -383,32 +496,111 @@ export default function AgencyRequestDetail() {
         )}
       </div>
 
-      {request.status === 'payment_pending' && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 mb-6">
-          <span className="text-2xl">⏳</span>
-          <div>
-            <p className="text-sm font-semibold text-amber-700">입금 대기 중입니다</p>
-            <p className="text-xs text-amber-600 mt-0.5">랜드사의 입금 확인을 기다리고 있습니다.</p>
-          </div>
+      {(request.status === 'payment_pending' || request.status === 'finalized' || request.status === 'closed') && paymentSchedule && (
+        <div className="mb-6">
+          <PaymentScheduleCard
+            schedule={paymentSchedule}
+            installments={paymentInstallments}
+            departDate={request.depart_date}
+            returnDate={request.return_date}
+            onSwitchToImmediate={async () => {
+              await fetch('/api/payment-schedule', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId: id, templateType: 'one_time' }),
+              })
+              const res = await fetch(`/api/payment-schedule?requestId=${id}`)
+              if (res.ok) {
+                const { schedule, installments } = await res.json()
+                setPaymentSchedule(schedule)
+                setPaymentInstallments(installments ?? [])
+              }
+            }}
+            onSwitchToDefault={async () => {
+              await fetch('/api/payment-schedule', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId: id, templateType: 'default' }),
+              })
+              const res = await fetch(`/api/payment-schedule?requestId=${id}`)
+              if (res.ok) {
+                const { schedule, installments } = await res.json()
+                setPaymentSchedule(schedule)
+                setPaymentInstallments(installments ?? [])
+              }
+            }}
+            onSwitchToPostTravel={async () => {
+              await fetch('/api/payment-schedule', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId: id, templateType: 'post_travel' }),
+              })
+              const res = await fetch(`/api/payment-schedule?requestId=${id}`)
+              if (res.ok) {
+                const { schedule, installments } = await res.json()
+                setPaymentSchedule(schedule)
+                setPaymentInstallments(installments ?? [])
+              }
+            }}
+            isCancelled={request.status === 'closed'}
+          />
         </div>
       )}
 
-      <h2 className="text-lg font-semibold mb-4">
-        랜드사 견적서
-        <span className="text-gray-400 font-normal text-sm ml-2">{landcoCount}개 랜드사 제출</span>
-      </h2>
+      {request.status === 'finalized' && (
+        <AdditionalSettlementSection
+          requestId={id}
+          settlements={additionalSettlements}
+          onCreated={async () => {
+            const res = await fetch(`/api/additional-settlements?requestId=${id}`)
+            if (res.ok) {
+              const { settlements } = await res.json()
+              setAdditionalSettlements(settlements ?? [])
+            }
+            const schedRes = await fetch(`/api/payment-schedule?requestId=${id}`)
+            if (schedRes.ok) {
+              const { schedule, installments } = await schedRes.json()
+              setPaymentSchedule(schedule)
+              setPaymentInstallments(installments ?? [])
+            }
+          }}
+          role="agency"
+        />
+      )}
+
+      <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-sm font-bold text-white">랜드사 견적서</h2>
+            {landcoCount > 0 && (
+              <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">{landcoCount}개 랜드사</span>
+            )}
+          </div>
+          {landcoCount > 0 && (
+            <div className="-mr-3">
+              <MarkupInput
+                totalPeople={total}
+                initialPerPerson={globalMarkup.perPerson}
+                initialTotal={globalMarkup.total}
+                onChange={(pp, t) => handleGlobalMarkupChange(pp, t)}
+                disabled={request.status === 'finalized' || request.status === 'payment_pending'}
+              />
+            </div>
+          )}
+        </div>
 
       {landcoCount === 0 ? (
-        <div className="text-center py-16 text-gray-400 bg-white rounded-lg shadow-sm">
+        <div className="text-center py-16 text-gray-400 bg-white">
           아직 제출된 견적서가 없습니다.
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="bg-white divide-y divide-gray-100">
           {Object.entries(grouped).map(([landcoId, { company_name, quotes }]) => {
             const sortedQuotes = [...quotes].sort((a, b) => b.version - a.version)
             const latestQuote = sortedQuotes[0]
             return (
-              <div key={landcoId} className="bg-white rounded-lg shadow-sm p-5">
+              <div key={landcoId} className="p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold">{company_name}</h3>
                   <div className="flex items-center gap-2">
@@ -438,32 +630,31 @@ export default function AgencyRequestDetail() {
                             {new Date(q.submitted_at).toLocaleString('ko-KR')}
                           </span>
                           <button
-                            onClick={async () => {
-                              setPreviewLoading(true)
-                              setPreview({ url: q.file_url, name: q.file_name })
-                              try {
-                                const res = await fetch(`/api/quotes/${q.id}/preview`)
-                                if (res.ok) {
-                                  const json = await res.json()
-                                  setPreview({ url: q.file_url, name: q.file_name, previewHtml: json.previewHtml })
-                                }
-                              } finally {
-                                setPreviewLoading(false)
-                              }
+                            onClick={() => {
+                              const params = globalMarkup.total > 0 ? `?markup=${globalMarkup.total}` : ''
+                              window.open(`/agency/quotes/${q.id}${params}`, '_blank')
                             }}
-                            disabled={previewLoading}
-                            className="border border-gray-300 text-gray-600 rounded-lg px-3 py-1 text-xs font-medium bg-white hover:bg-gray-50 whitespace-nowrap disabled:opacity-50"
+                            className="text-xs text-[#009CF0] border border-[#009CF0] px-2.5 py-1 rounded-md hover:bg-blue-50 transition-colors whitespace-nowrap shrink-0"
                           >
                             미리보기
                           </button>
-                          <a
-                            href={q.file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="bg-[#009CF0] text-white rounded-lg px-3 py-1 text-xs font-medium hover:bg-[#0088D9] whitespace-nowrap"
+                          <button
+                            onClick={async () => {
+                              const params = globalMarkup.total > 0 ? `?markup=${globalMarkup.total}` : ''
+                              const res = await fetch(`/api/quotes/${q.id}/download${params}`)
+                              if (!res.ok) return
+                              const blob = await res.blob()
+                              const url = URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = q.file_name
+                              a.click()
+                              URL.revokeObjectURL(url)
+                            }}
+                            className="text-xs text-gray-600 border border-gray-300 px-2.5 py-1 rounded-md hover:bg-gray-100 transition-colors whitespace-nowrap shrink-0"
                           >
-                            ↓ 다운로드
-                          </a>
+                            다운로드
+                          </button>
                         </div>
                       </div>
                       <div className="flex items-center justify-between mt-1.5">
@@ -478,6 +669,11 @@ export default function AgencyRequestDetail() {
                               1인당 <span className="font-semibold text-blue-600">{Math.ceil(q.pricing.per_person).toLocaleString('ko-KR')}원</span>
                             </span>
                           )}
+                          {q.pricing_mode === 'summary' ? (
+                            <span className="text-xs font-medium text-amber-500">항목별 내역 없음</span>
+                          ) : (
+                            <span className="text-xs font-medium text-emerald-500">항목별 내역 포함</span>
+                          )}
                         </div>
                         <div>
                           {selection?.selected_quote_id === q.id && request.status === 'finalized' ? (
@@ -486,11 +682,16 @@ export default function AgencyRequestDetail() {
                             </span>
                           ) : selection?.selected_quote_id === q.id && request.status === 'payment_pending' ? (
                             <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-medium">
-                              입금 대기 중
+                              결제 대기 중
                             </span>
-                          ) : request.status !== 'finalized' && request.status !== 'payment_pending' && (
+                          ) : request.status !== 'finalized' && request.status !== 'payment_pending' && request.status !== 'closed' && (
                             <button
-                              onClick={() => setConfirmTarget({ landcoId, quoteId: q.id })}
+                              onClick={() => setConfirmTarget({
+                                landcoId,
+                                quoteId: q.id,
+                                total: q.pricing?.total ?? 0,
+                                companyName: company_name,
+                              })}
                               className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700"
                             >
                               이 견적서로 확정
@@ -506,6 +707,7 @@ export default function AgencyRequestDetail() {
           })}
         </div>
       )}
+      </div>
     </div>
     </>
   )

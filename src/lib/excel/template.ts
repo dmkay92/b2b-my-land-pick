@@ -15,6 +15,7 @@ interface TemplateOptions {
   leaders?: number
   includes?: string
   excludes?: string
+  markup_krw?: number  // KRW 기준 여행사 마크업 (일정표 합계에 추가)
 }
 
 const HEADER_BLACK = 'FF000000'  // 검정 (헤더)
@@ -86,6 +87,13 @@ function addInfoSection(workbook: ExcelJS.Workbook, sheet: ExcelJS.Worksheet, to
     { label: '출발일', value: formatDateWithDay(opts.depart_date) },
     { label: '도착일', value: formatDateWithDay(opts.return_date) },
   ]
+
+  if (opts.includes) {
+    infoRows.push({ label: '포함사항', value: opts.includes.split('\n').filter(Boolean).join(', ') })
+  }
+  if (opts.excludes) {
+    infoRows.push({ label: '불포함사항', value: opts.excludes.split('\n').filter(Boolean).join(', ') })
+  }
 
   // row 1: 브랜드 행
   addBrandRow(workbook, sheet, totalCols)
@@ -463,6 +471,71 @@ export async function generateFilledQuoteTemplate(
     }
   }
 
+  // 일정표 하단: 총액 / 1인당 요약 (KRW 환산)
+  const pricingCategories = ['호텔', '차량', '식사', '입장료', '가이드비용', '기타'] as const
+  const scheduleExchangeRates = draft.pricing.exchangeRates ?? {}
+  const scheduleToKrw = (amount: number, currency: string) => {
+    if (currency === 'KRW') return amount
+    const rate = scheduleExchangeRates[currency] ?? 0
+    return rate > 0 ? amount * rate : 0
+  }
+  let pricingGrandTotal = 0
+  for (const cat of pricingCategories) {
+    for (const r of (draft.pricing[cat] ?? [])) {
+      const cur = r.currency ?? 'KRW'
+      const rowTotal = (r.price ?? 0) * (r.count ?? 0) * (r.quantity ?? 0)
+      pricingGrandTotal += scheduleToKrw(rowTotal, cur)
+    }
+  }
+  pricingGrandTotal = Math.round(pricingGrandTotal) + (opts.markup_krw ?? 0)
+
+  // 빈 행 하나
+  scheduleSheet.addRow([])
+
+  const summaryBorder = {
+    top: { style: 'thin' as const, color: { argb: 'FF333333' } },
+    bottom: { style: 'thin' as const, color: { argb: 'FF333333' } },
+    left: { style: 'thin' as const, color: { argb: 'FF333333' } },
+    right: { style: 'thin' as const, color: { argb: 'FF333333' } },
+  }
+
+  const totalRowNum = scheduleSheet.rowCount + 1
+  scheduleSheet.addRow(['총 합계', '', '', '', pricingGrandTotal > 0 ? pricingGrandTotal : '', ''])
+  scheduleSheet.mergeCells(`A${totalRowNum}:D${totalRowNum}`)
+  scheduleSheet.mergeCells(`E${totalRowNum}:F${totalRowNum}`)
+  scheduleSheet.getRow(totalRowNum).height = 25
+  const totalLabelCell = scheduleSheet.getCell(`A${totalRowNum}`)
+  totalLabelCell.font = { size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+  totalLabelCell.alignment = { vertical: 'middle', horizontal: 'center' }
+  totalLabelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF333333' } }
+  totalLabelCell.border = summaryBorder
+  const totalValueCell = scheduleSheet.getCell(`E${totalRowNum}`)
+  totalValueCell.font = { size: 10, bold: true }
+  totalValueCell.numFmt = '#,##0"원"'
+  totalValueCell.alignment = { vertical: 'middle', horizontal: 'center' }
+  totalValueCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
+  totalValueCell.border = summaryBorder
+
+  if (opts.total_people && opts.total_people > 0 && pricingGrandTotal > 0) {
+    const perPerson = Math.round(pricingGrandTotal / opts.total_people)
+    const ppRowNum = scheduleSheet.rowCount + 1
+    scheduleSheet.addRow(['1인당', '', '', '', perPerson, ''])
+    scheduleSheet.mergeCells(`A${ppRowNum}:D${ppRowNum}`)
+    scheduleSheet.mergeCells(`E${ppRowNum}:F${ppRowNum}`)
+    scheduleSheet.getRow(ppRowNum).height = 25
+    const ppLabelCell = scheduleSheet.getCell(`A${ppRowNum}`)
+    ppLabelCell.font = { size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+    ppLabelCell.alignment = { vertical: 'middle', horizontal: 'center' }
+    ppLabelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF555555' } }
+    ppLabelCell.border = summaryBorder
+    const ppValueCell = scheduleSheet.getCell(`E${ppRowNum}`)
+    ppValueCell.font = { size: 10, bold: true, color: { argb: 'FF0055CC' } }
+    ppValueCell.numFmt = '#,##0"원"'
+    ppValueCell.alignment = { vertical: 'middle', horizontal: 'center' }
+    ppValueCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
+    ppValueCell.border = summaryBorder
+  }
+
   // ── 시트 2: 견적서 ──────────────────────────────────────────
   const quoteSheet = workbook.addWorksheet('견적서')
   quoteSheet.views = [{ showGridLines: false }]
@@ -564,6 +637,7 @@ export async function generateFilledQuoteTemplate(
     const rows = draft.pricing[cat] ?? []
     const catStartRow = rowIndex
     let catTotalKrw = 0
+    let catTotalRaw = 0  // 원본 통화 합계 (소계 표시용)
 
     // 카테고리 내 통화 단일 여부 판별
     const catCurrencies = rows.length > 0 ? [...new Set(rows.map(r => r.currency ?? 'KRW'))] : []
@@ -599,6 +673,7 @@ export async function generateFilledQuoteTemplate(
         const cur = pRow.currency ?? 'KRW'
         const rowTotal = (pRow.price ?? 0) * (pRow.count ?? 1) * (pRow.quantity ?? 1)
         catTotalKrw += toKrw(rowTotal, cur)
+        catTotalRaw += rowTotal
         currencyTotals[cur] = (currencyTotals[cur] ?? 0) + rowTotal
         const row = quoteSheet.getRow(rowIndex)
         row.getCell(1).value = ri === 0 ? cat : ''
@@ -642,7 +717,7 @@ export async function generateFilledQuoteTemplate(
     subtotalRow.getCell(4).value = catCurrency
     subtotalRow.getCell(4).font = { bold: true, size: 10 }
     subtotalRow.getCell(4).alignment = { vertical: 'middle', horizontal: 'center' }
-    subtotalRow.getCell(8).value = { formula: `SUM(H${catStartRow}:H${rowIndex - 1})`, result: catTotalKrw }
+    subtotalRow.getCell(8).value = { formula: `SUM(H${catStartRow}:H${rowIndex - 1})`, result: catTotalRaw }
     subtotalRow.getCell(8).numFmt = '#,##0'
     subtotalRow.getCell(8).font = { bold: true, size: 10 }
     subtotalRow.getCell(8).alignment = { vertical: 'middle', horizontal: 'right' }
@@ -713,42 +788,40 @@ export async function generateFilledQuoteTemplate(
     }
   }
 
-  // 총합계 행 (D열부터 시작, A:C 빈칸)
+  // 총합계 행 (D열: 레이블, H열: 금액)
   const totalRow = quoteSheet.getRow(rowIndex)
   quoteSheet.mergeCells(`D${rowIndex}:G${rowIndex}`)
   totalRow.getCell(4).value = '총 합계'
-  totalRow.getCell(4).font = { bold: true }
-  totalRow.getCell(4).alignment = { horizontal: 'right', vertical: 'middle' }
+  totalRow.getCell(4).font = { size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+  totalRow.getCell(4).alignment = { horizontal: 'center', vertical: 'middle' }
+  totalRow.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF333333' } }
   totalRow.getCell(8).value = grandTotalKrw
-  totalRow.getCell(8).numFmt = '#,##0'
-  totalRow.getCell(8).font = { bold: true }
-  totalRow.getCell(8).alignment = { vertical: 'middle', horizontal: 'right' }
+  totalRow.getCell(8).numFmt = '#,##0"원"'
+  totalRow.getCell(8).font = { size: 10, bold: true }
+  totalRow.getCell(8).alignment = { vertical: 'middle', horizontal: 'center' }
+  totalRow.getCell(8).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
   totalRow.height = 25
-  for (let c = 4; c <= 8; c++) {
-    totalRow.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
-    applyBlackBorder(totalRow.getCell(c))
-  }
+  for (let c = 4; c <= 8; c++) applyBlackBorder(totalRow.getCell(c))
   rowIndex++
 
   const perPerson = opts.total_people > 0 ? Math.round(grandTotalKrw / opts.total_people) : 0
 
-  // 1인당 금액 행 (D열부터 시작, A:C 빈칸)
+  // 1인당 금액 행
   const perPersonRow = quoteSheet.getRow(rowIndex)
   quoteSheet.mergeCells(`D${rowIndex}:G${rowIndex}`)
-  perPersonRow.getCell(4).value = '1인당 금액'
-  perPersonRow.getCell(4).font = { bold: true }
-  perPersonRow.getCell(4).alignment = { horizontal: 'right', vertical: 'middle' }
+  perPersonRow.getCell(4).value = '1인당'
+  perPersonRow.getCell(4).font = { size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
+  perPersonRow.getCell(4).alignment = { horizontal: 'center', vertical: 'middle' }
+  perPersonRow.getCell(4).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF555555' } }
   perPersonRow.getCell(8).value = opts.total_people > 0
     ? { formula: `H${rowIndex - 1}/${opts.total_people}`, result: perPerson }
     : 0
-  perPersonRow.getCell(8).numFmt = '#,##0'
-  perPersonRow.getCell(8).font = { bold: true }
-  perPersonRow.getCell(8).alignment = { vertical: 'middle', horizontal: 'right' }
+  perPersonRow.getCell(8).numFmt = '#,##0"원"'
+  perPersonRow.getCell(8).font = { size: 10, bold: true, color: { argb: 'FF0055CC' } }
+  perPersonRow.getCell(8).alignment = { vertical: 'middle', horizontal: 'center' }
+  perPersonRow.getCell(8).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ACCENT_GREEN } }
   perPersonRow.height = 25
-  for (let c = 4; c <= 8; c++) {
-    perPersonRow.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDBEEFF' } }
-    applyBlackBorder(perPersonRow.getCell(c))
-  }
+  for (let c = 4; c <= 8; c++) applyBlackBorder(perPersonRow.getCell(c))
 
   // 합계 섹션 전체를 하나의 검정 외곽 테두리로 묶음
   applyQuoteSumBorder(sumSectionStart, rowIndex)

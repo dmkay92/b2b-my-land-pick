@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { getAuthorizedLandco } from '@/lib/supabase/auth-helpers'
 import { generateFilledQuoteTemplate } from '@/lib/excel/template'
 import { calculateTotalPeople } from '@/lib/utils'
@@ -7,10 +8,15 @@ import { sendQuoteSubmittedEmail } from '@/lib/email/notifications'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
   const { user, error } = await getAuthorizedLandco(supabase)
   if (error) return error
 
-  const { requestId } = await request.json() as { requestId: string }
+  const { requestId, pricing_mode: submittedPricingMode } = await request.json() as { requestId: string; pricing_mode?: 'detailed' | 'summary' }
 
   if (!requestId) {
     return NextResponse.json({ error: 'requestId가 필요합니다.' }, { status: 400 })
@@ -30,7 +36,7 @@ export async function POST(request: NextRequest) {
   // 2. draft 조회
   const { data: draft, error: draftError } = await supabase
     .from('quote_drafts')
-    .select('itinerary, pricing')
+    .select('itinerary, pricing, pricing_mode, summary_total, summary_per_person, includes, excludes')
     .eq('request_id', requestId)
     .eq('landco_id', user!.id)
     .single()
@@ -67,8 +73,8 @@ export async function POST(request: NextRequest) {
       children: qr.children ?? 0,
       infants: qr.infants ?? 0,
       leaders: qr.leaders ?? 0,
-      includes: '',
-      excludes: '',
+      includes: draft.includes ?? '',
+      excludes: draft.excludes ?? '',
     },
     {
       itinerary: draft.itinerary,
@@ -107,7 +113,7 @@ export async function POST(request: NextRequest) {
     .createSignedUrl(officialPath, 60 * 60 * 24 * 365)
 
   // 7. DB insert
-  const { data, error: insertError } = await supabase
+  const { data, error: insertError } = await admin
     .from('quotes')
     .insert({
       request_id: requestId,
@@ -115,6 +121,13 @@ export async function POST(request: NextRequest) {
       version: nextVersion,
       file_url: urlData?.signedUrl ?? officialPath,
       file_name: fileName,
+      itinerary: draft.itinerary,
+      pricing: draft.pricing,
+      pricing_mode: submittedPricingMode ?? draft.pricing_mode ?? 'detailed',
+      summary_total: draft.summary_total ?? 0,
+      summary_per_person: draft.summary_per_person ?? 0,
+      includes: draft.includes ?? null,
+      excludes: draft.excludes ?? null,
     })
     .select()
     .single()
@@ -125,7 +138,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 8. quote_requests status 업데이트
-  await supabase
+  await admin
     .from('quote_requests')
     .update({ status: 'in_progress' })
     .eq('id', requestId)
@@ -144,7 +157,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 10. draft 삭제
-  await supabase
+  await admin
     .from('quote_drafts')
     .delete()
     .eq('request_id', requestId)

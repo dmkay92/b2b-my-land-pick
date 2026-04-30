@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { getAuthorizedLandco } from '@/lib/supabase/auth-helpers'
 import type { ItineraryDay, PricingData } from '@/lib/supabase/types'
 
@@ -63,14 +64,25 @@ export async function PUT(request: NextRequest) {
     requestId: string
     itinerary: ItineraryDay[]
     pricing: PricingData
+    pricing_mode?: 'detailed' | 'summary'
+    summary_total?: number
+    summary_per_person?: number
+    includes?: string | null
+    excludes?: string | null
   }
-  const { requestId, itinerary, pricing } = body
+  const { requestId, itinerary, pricing, pricing_mode, summary_total, summary_per_person, includes, excludes } = body
 
   if (!requestId || !itinerary || !pricing) {
     return NextResponse.json({ error: 'requestId, itinerary, pricing이 모두 필요합니다.' }, { status: 400 })
   }
 
-  const { data: draft, error: upsertError } = await supabase
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const { data: draft, error: upsertError } = await admin
     .from('quote_drafts')
     .upsert(
       {
@@ -78,6 +90,11 @@ export async function PUT(request: NextRequest) {
         landco_id: user!.id,
         itinerary,
         pricing,
+        pricing_mode: pricing_mode ?? 'detailed',
+        summary_total: summary_total ?? 0,
+        summary_per_person: summary_per_person ?? 0,
+        includes: includes ?? null,
+        excludes: excludes ?? null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'request_id,landco_id' },
