@@ -53,7 +53,7 @@ export async function POST(
 
     if (schedule) {
       const dueDate = new Date()
-      dueDate.setDate(dueDate.getDate() + 7)
+      dueDate.setDate(dueDate.getDate() + 14)
 
       await admin.from('payment_installments').insert({
         schedule_id: schedule.id,
