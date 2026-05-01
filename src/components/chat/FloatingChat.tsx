@@ -158,6 +158,50 @@ function ApprovalResultCard({ msg }: { msg: { content: string | null; metadata?:
   )
 }
 
+function RefundRequestCard({ msg }: { msg: { content: string | null } }) {
+  return (
+    <div style={{
+      width: '90%', padding: '12px 16px', borderRadius: '12px',
+      backgroundColor: '#fef2f2', border: '1px solid #fecaca',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+    }}>
+      <div style={{ fontSize: '11px', color: '#991b1b', fontWeight: 600, marginBottom: '6px' }}>행사 취소 및 환불 요청</div>
+      <div style={{ fontSize: '13px', color: '#b91c1c', lineHeight: 1.5 }}>{msg.content ?? ''}</div>
+    </div>
+  )
+}
+
+function DeductionClaimCard({ msg }: { msg: { content: string | null } }) {
+  return (
+    <div style={{
+      width: '90%', padding: '12px 16px', borderRadius: '12px',
+      backgroundColor: '#fdf4ff', border: '1px solid #e9d5ff',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+    }}>
+      <div style={{ fontSize: '11px', color: '#7e22ce', fontWeight: 600, marginBottom: '6px' }}>공제 신청</div>
+      <div style={{ fontSize: '13px', color: '#6b21a8', lineHeight: 1.5 }}>{msg.content ?? ''}</div>
+    </div>
+  )
+}
+
+function DeductionClaimResultCard({ msg }: { msg: { content: string | null; metadata?: Record<string, unknown> | null } }) {
+  const action = (msg.metadata as { action?: string } | undefined)?.action
+  const isApproved = action === 'approve'
+  return (
+    <div style={{
+      width: '90%', padding: '10px 14px', borderRadius: '12px',
+      backgroundColor: isApproved ? '#ecfdf5' : '#fef2f2',
+      border: `1px solid ${isApproved ? '#a7f3d0' : '#fecaca'}`,
+      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+    }}>
+      <div style={{ fontSize: '11px', color: isApproved ? '#065f46' : '#991b1b', fontWeight: 600, marginBottom: '4px' }}>
+        {isApproved ? '공제 승인' : '공제 거부'}
+      </div>
+      <div style={{ fontSize: '13px', color: isApproved ? '#047857' : '#b91c1c', lineHeight: 1.5 }}>{msg.content ?? ''}</div>
+    </div>
+  )
+}
+
 function FileBubble({ isMine, fileName, onDownload }: { isMine: boolean; fileName: string; onDownload: () => void }) {
   const [hovered, setHovered] = useState(false)
   return (
@@ -339,7 +383,7 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
           const nextMinuteKey = next ? new Date(next.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : null
           const isLastInGroup = !next || next.sender_id !== msg.sender_id || nextMinuteKey !== minuteKey
           return (
-            <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: ['approval_request', 'approval_result', 'additional_settlement', 'additional_settlement_approved', 'additional_settlement_rejected'].includes(msg.message_type ?? '') ? 'center' : isMine ? 'flex-end' : 'flex-start' }}>
+            <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: ['approval_request', 'approval_result', 'additional_settlement', 'additional_settlement_approved', 'additional_settlement_rejected', 'refund_request', 'deduction_claim', 'deduction_claim_result'].includes(msg.message_type ?? '') ? 'center' : isMine ? 'flex-end' : 'flex-start' }}>
               {msg.message_type === 'approval_request' ? (
                 <ApprovalRequestCard msg={msg} currentUserId={currentUserId ?? ''} resolved={
                   messages.some(m => m.message_type === 'approval_result' && (m.metadata as { schedule_id?: string } | undefined)?.schedule_id === (msg.metadata as { schedule_id?: string } | undefined)?.schedule_id)
@@ -370,6 +414,12 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
                 }} />
               ) : msg.message_type === 'additional_settlement_approved' || msg.message_type === 'additional_settlement_rejected' ? (
                 <AdditionalSettlementResultCard msg={msg} />
+              ) : msg.message_type === 'refund_request' ? (
+                <RefundRequestCard msg={msg} />
+              ) : msg.message_type === 'deduction_claim' ? (
+                <DeductionClaimCard msg={msg} />
+              ) : msg.message_type === 'deduction_claim_result' ? (
+                <DeductionClaimResultCard msg={msg} />
               ) : msg.file_url ? (
                 <FileBubble
                   isMine={isMine}

@@ -338,6 +338,26 @@ export interface AdditionalSettlement {
   created_at: string
 }
 
+export interface DeductionClaimItem {
+  name: string
+  amount: number
+}
+
+export interface DeductionClaim {
+  id: string
+  request_id: string
+  landco_id: string
+  status: 'pending' | 'approved' | 'rejected'
+  items: DeductionClaimItem[]
+  memo: string | null
+  receipt_urls: string[]
+  total_amount: number
+  approved_amount: number | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  created_at: string
+}
+
 export interface PaymentTransaction {
   id: string
   display_id?: string | null

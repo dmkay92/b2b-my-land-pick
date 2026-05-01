@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { formatDate, formatDateWithDay, calculateTotalPeople, hotelGradeLabel, getCountryName } from '@/lib/utils'
-import type { QuoteRequest, Quote, AdditionalSettlement } from '@/lib/supabase/types'
+import type { QuoteRequest, Quote, AdditionalSettlement, DeductionClaim } from '@/lib/supabase/types'
 import { useChat } from '@/lib/chat/ChatContext'
 import { AttachmentPreviewModal } from '@/components/AttachmentPreviewModal'
 import { BackButton } from '@/components/BackButton'
 import AdditionalSettlementSection from '@/components/AdditionalSettlementSection'
+import DeductionClaimSection from '@/components/DeductionClaimSection'
 import MarkupInput from '@/components/MarkupInput'
 import ConfirmMarkupModal from '@/components/ConfirmMarkupModal'
 import PaymentScheduleCard from '@/components/PaymentScheduleCard'
@@ -62,10 +63,13 @@ export default function AgencyRequestDetail() {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showCopyModal, setShowCopyModal] = useState(false)
   const [canceling, setCanceling] = useState(false)
+  const [showRefundModal, setShowRefundModal] = useState(false)
+  const [refunding, setRefunding] = useState(false)
   const [attachmentPreview, setAttachmentPreview] = useState<{ url: string; name: string } | null>(null)
   const [paymentSchedule, setPaymentSchedule] = useState<PaymentSchedule | null>(null)
   const [paymentInstallments, setPaymentInstallments] = useState<PaymentInstallment[]>([])
   const [additionalSettlements, setAdditionalSettlements] = useState<AdditionalSettlement[]>([])
+  const [deductionClaims, setDeductionClaims] = useState<DeductionClaim[]>([])
 
   async function handleCancel() {
     setCanceling(true)
@@ -134,6 +138,14 @@ export default function AgencyRequestDetail() {
         if (addRes.ok) {
           const { settlements } = await addRes.json()
           setAdditionalSettlements(settlements ?? [])
+        }
+      }
+
+      if (json.request?.status === 'closed') {
+        const dcRes = await fetch(`/api/deduction-claims?requestId=${id}`)
+        if (dcRes.ok) {
+          const { claims } = await dcRes.json()
+          setDeductionClaims(claims ?? [])
         }
       }
     }
@@ -281,6 +293,74 @@ export default function AgencyRequestDetail() {
           </div>
         </div>
       )}
+      {/* 환불 요청 모달 */}
+      {showRefundModal && request && (() => {
+        const today = new Date()
+        const departDate = new Date(request.depart_date)
+        const daysLeft = Math.ceil((departDate.getTime() - today.getTime()) / 86400000)
+        let refundRate: number, policyText: string, policyColor: string
+        if (daysLeft >= 7) {
+          refundRate = 100; policyText = '견적가의 100% 환불 (실비 및 취소 수수료 공제)'; policyColor = 'text-emerald-700 bg-emerald-50'
+        } else if (daysLeft >= 1) {
+          refundRate = 50; policyText = '견적가의 50% 환불 (실비 초과분 추가 공제 가능)'; policyColor = 'text-amber-700 bg-amber-50'
+        } else {
+          refundRate = 0; policyText = '환불 불가 (출발 당일 또는 노쇼)'; policyColor = 'text-red-700 bg-red-50'
+        }
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+              <div className="px-6 pt-6 pb-4 border-b border-gray-100">
+                <h3 className="text-base font-bold text-gray-900">행사 취소 및 환불 요청</h3>
+                <p className="text-xs text-gray-500 mt-1">{request.event_name}</p>
+              </div>
+              <div className="px-6 py-5 space-y-4">
+                <div className={`rounded-lg p-4 ${policyColor}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold">출발까지 {daysLeft > 0 ? `D-${daysLeft}` : daysLeft === 0 ? 'D-Day' : `D+${Math.abs(daysLeft)}`}</span>
+                    <span className="text-lg font-bold">환불 {refundRate}%</span>
+                  </div>
+                  <p className="text-xs leading-relaxed">{policyText}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <p className="text-xs font-bold text-gray-700">취소 규정</p>
+                  <div className="text-[11px] text-gray-500 space-y-1.5 leading-relaxed">
+                    <p><span className="font-semibold text-gray-600">출발 7일 이전:</span> 견적가의 100% 환불 (실비 및 취소 수수료 공제)</p>
+                    <p><span className="font-semibold text-gray-600">출발 1~6일 이전:</span> 견적가의 50% 환불 (실비 초과분 추가 공제)</p>
+                    <p><span className="font-semibold text-gray-600">출발 당일/노쇼:</span> 환불 불가</p>
+                  </div>
+                </div>
+              </div>
+              <div className="px-6 py-4 border-t border-gray-100 flex gap-2">
+                <button
+                  onClick={() => setShowRefundModal(false)}
+                  className="flex-1 py-2.5 rounded-xl text-sm text-gray-500 border border-gray-200 hover:bg-gray-50"
+                >
+                  닫기
+                </button>
+                <button
+                  onClick={async () => {
+                    setRefunding(true)
+                    const res = await fetch(`/api/requests/${id}/refund`, { method: 'POST' })
+                    setRefunding(false)
+                    if (res.ok) {
+                      setShowRefundModal(false)
+                      setRequest(prev => prev ? { ...prev, status: 'closed' } : prev)
+                    } else {
+                      const json = await res.json().catch(() => ({}))
+                      alert(json.error || '요청에 실패했습니다.')
+                    }
+                  }}
+                  disabled={refunding}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-red-500 text-white hover:bg-red-600 disabled:opacity-50"
+                >
+                  {refunding ? '처리 중...' : '환불 요청'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {attachmentPreview && (
         <AttachmentPreviewModal
           url={attachmentPreview.url}
@@ -310,13 +390,22 @@ export default function AgencyRequestDetail() {
               ✏️ 수정
             </button>
           )}
-          {request.status !== 'finalized' && request.status !== 'closed' && (
-            <button
-              onClick={() => setShowCancelModal(true)}
-              className="border border-red-300 text-red-500 px-4 py-2 rounded-lg text-sm font-medium bg-white hover:bg-red-50"
-            >
-              견적 취소
-            </button>
+          {request.status !== 'closed' && (
+            (request.status === 'payment_pending' || request.status === 'finalized') ? (
+              <button
+                onClick={() => setShowRefundModal(true)}
+                className="border border-red-300 text-red-500 px-4 py-2 rounded-lg text-sm font-medium bg-white hover:bg-red-50"
+              >
+                행사 취소
+              </button>
+            ) : request.status !== 'payment_pending' && request.status !== 'finalized' && (
+              <button
+                onClick={() => setShowCancelModal(true)}
+                className="border border-red-300 text-red-500 px-4 py-2 rounded-lg text-sm font-medium bg-white hover:bg-red-50"
+              >
+                견적 취소
+              </button>
+            )
           )}
         </div>
       </div>
@@ -565,6 +654,23 @@ export default function AgencyRequestDetail() {
             }
           }}
           role="agency"
+        />
+      )}
+
+      {request.status === 'closed' && (
+        <DeductionClaimSection
+          requestId={id}
+          claims={deductionClaims}
+          onUpdated={async () => {
+            const res = await fetch(`/api/deduction-claims?requestId=${id}`)
+            if (res.ok) { const { claims } = await res.json(); setDeductionClaims(claims ?? []) }
+          }}
+          role="agency"
+          paidTotal={paymentInstallments.reduce((sum, i) => sum + i.paid_amount, 0)}
+          totalCustomerPrice={paymentSchedule?.total_amount}
+          landcoQuoteTotal={paymentSchedule ? paymentSchedule.total_amount - globalMarkup.total : undefined}
+          agencyCommission={globalMarkup.total}
+          daysUntilDepart={Math.ceil((new Date(request.depart_date).getTime() - new Date().getTime()) / 86400000)}
         />
       )}
 

@@ -23,6 +23,10 @@ const TYPE_LABEL: Record<string, string> = {
   additional_settlement_request: '추가 정산 요청이 접수되었습니다',
   additional_settlement_approved: '추가 정산이 승인되었습니다',
   additional_settlement_rejected: '추가 정산이 거부되었습니다',
+  refund_request: '행사 취소 및 환불이 요청되었습니다',
+  deduction_claim_request: '공제 신청이 접수되었습니다',
+  deduction_claim_approved: '공제 신청이 승인되었습니다',
+  deduction_claim_rejected: '공제 신청이 거부되었습니다',
 }
 
 export function NotificationBell({ userId }: { userId: string }) {
