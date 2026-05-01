@@ -273,9 +273,19 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
                   <div className="flex items-center justify-between pt-2 border-t border-gray-200">
                     <span className="text-sm font-bold text-gray-900">{calc.customerFinalRefund >= 0 ? '고객 환불액' : '고객 추가 청구'}</span>
                     <span className={`text-sm font-bold ${calc.customerFinalRefund > 0 ? 'text-blue-600' : calc.customerFinalRefund < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                      {calc.customerFinalRefund < 0 ? `+${fmt(Math.abs(calc.customerFinalRefund))}원` : `${fmt(calc.customerFinalRefund)}원`}
+                      {fmt(calc.customerFinalRefund)}원
                     </span>
                   </div>
+                  {calc.customerFinalRefund < 0 && role === 'agency' && (
+                    <div className="mt-2">
+                      <button
+                        onClick={() => window.open(`/api/invoice?requestId=${requestId}`, '_blank')}
+                        className="w-full py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700"
+                      >
+                        {fmt(Math.abs(calc.customerFinalRefund))}원 추가 결제하기
+                      </button>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -313,12 +323,24 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
                     </div>
                   )}
                   {calc && (
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-200">
-                      <span className="text-sm font-bold text-gray-900">{calc.customerFinalRefund >= 0 ? '고객 환불액' : '고객 추가 청구'}</span>
-                      <span className={`text-sm font-bold ${calc.customerFinalRefund > 0 ? 'text-blue-600' : calc.customerFinalRefund < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                        {calc.customerFinalRefund < 0 ? `+${fmt(Math.abs(calc.customerFinalRefund))}원` : `${fmt(calc.customerFinalRefund)}원`}
-                      </span>
-                    </div>
+                    <>
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-200">
+                        <span className="text-sm font-bold text-gray-900">{calc.customerFinalRefund >= 0 ? '고객 환불액' : '고객 추가 청구'}</span>
+                        <span className={`text-sm font-bold ${calc.customerFinalRefund > 0 ? 'text-blue-600' : calc.customerFinalRefund < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                          {fmt(calc.customerFinalRefund)}원
+                        </span>
+                      </div>
+                      {calc.customerFinalRefund < 0 && role === 'agency' && (
+                        <div className="mt-2">
+                          <button
+                            onClick={() => window.open(`/api/invoice?requestId=${requestId}`, '_blank')}
+                            className="w-full py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700"
+                          >
+                            {fmt(Math.abs(calc.customerFinalRefund))}원 추가 결제하기
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </>
               )}
