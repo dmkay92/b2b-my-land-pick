@@ -402,13 +402,6 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                         )}
                       </div>
                     )}
-                    {(inst.status === 'paid' || inst.status === 'partial') && inst.paid_amount > 0 && (
-                      <button
-                        className="px-3 py-1.5 text-xs font-medium text-amber-700 border border-amber-300 rounded-lg hover:bg-amber-50 transition-all active:scale-95 whitespace-nowrap"
-                      >
-                        환불요청
-                      </button>
-                    )}
                   </div>
                 </div>
 

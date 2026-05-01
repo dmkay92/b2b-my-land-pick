@@ -4,12 +4,13 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatDate, formatDateWithDay, calculateTotalPeople, hotelGradeLabel, getCountryName } from '@/lib/utils'
-import type { QuoteRequest, Quote, AdditionalSettlement } from '@/lib/supabase/types'
+import type { QuoteRequest, Quote, AdditionalSettlement, DeductionClaim } from '@/lib/supabase/types'
 
 type QuoteWithPricing = Quote & { pricing?: { total: number | null; per_person: number | null }; pricing_mode?: 'detailed' | 'summary' }
 import { AttachmentPreviewModal } from '@/components/AttachmentPreviewModal'
 import { BackButton } from '@/components/BackButton'
 import AdditionalSettlementSection from '@/components/AdditionalSettlementSection'
+import DeductionClaimSection from '@/components/DeductionClaimSection'
 
 export default function LandcoRequestDetail() {
   const { id } = useParams<{ id: string }>()
@@ -40,6 +41,7 @@ export default function LandcoRequestDetail() {
   const [paymentInstallments, setPaymentInstallments] = useState<{ id: string; label: string; rate: number; amount: number; paid_amount: number; due_date: string; status: string }[]>([])
   const [landcoQuoteTotal, setLandcoQuoteTotal] = useState<number | null>(null)
   const [additionalSettlements, setAdditionalSettlements] = useState<AdditionalSettlement[]>([])
+  const [deductionClaims, setDeductionClaims] = useState<DeductionClaim[]>([])
 
   useEffect(() => {
     async function load() {
@@ -55,7 +57,7 @@ export default function LandcoRequestDetail() {
           .sort((a, b) => b.version - a.version)
         setMyQuotes(myOnly)
 
-        if (json.request?.status === 'finalized' || json.request?.status === 'payment_pending') {
+        if (json.request?.status === 'finalized' || json.request?.status === 'payment_pending' || json.request?.status === 'closed') {
           const selRes = await fetch(`/api/quotes/selection?requestId=${id}`)
           if (selRes.ok) {
             const selJson = await selRes.json()
@@ -72,7 +74,7 @@ export default function LandcoRequestDetail() {
         }
 
         // 결제 일정 + 정산 데이터 로드
-        if (json.request?.status === 'payment_pending' || json.request?.status === 'finalized') {
+        if (json.request?.status === 'payment_pending' || json.request?.status === 'finalized' || json.request?.status === 'closed') {
           const schedRes = await fetch(`/api/payment-schedule?requestId=${id}`)
           if (schedRes.ok) {
             const { schedule, installments, settlement } = await schedRes.json()
@@ -87,6 +89,14 @@ export default function LandcoRequestDetail() {
           if (addRes.ok) {
             const { settlements } = await addRes.json()
             setAdditionalSettlements(settlements ?? [])
+          }
+        }
+
+        if (json.request?.status === 'closed') {
+          const dcRes = await fetch(`/api/deduction-claims?requestId=${id}`)
+          if (dcRes.ok) {
+            const { claims } = await dcRes.json()
+            setDeductionClaims(claims ?? [])
           }
         }
 
@@ -215,7 +225,7 @@ export default function LandcoRequestDetail() {
 
   if (!request) return <div className="p-8 text-gray-400">로딩 중...</div>
 
-  const isUploadDisabled = request.status === 'finalized' || request.status === 'payment_pending' || isAbandoned
+  const isUploadDisabled = request.status === 'finalized' || request.status === 'payment_pending' || request.status === 'closed' || isAbandoned
 
   const total = calculateTotalPeople(request)
   const nights = Math.round((new Date(request.return_date).getTime() - new Date(request.depart_date).getTime()) / 86400000)
@@ -656,7 +666,7 @@ export default function LandcoRequestDetail() {
       </div>
 
       {/* 결제 현황 */}
-      {(request.status === 'payment_pending' || request.status === 'finalized') && paymentSchedule && (
+      {(request.status === 'payment_pending' || request.status === 'finalized' || request.status === 'closed') && paymentSchedule && (
         <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
           <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
             <div className="flex items-center gap-2.5">
@@ -909,6 +919,23 @@ export default function LandcoRequestDetail() {
             }
           }}
           role="landco"
+        />
+      )}
+
+      {request.status === 'closed' && selectionResult === 'selected' && (
+        <DeductionClaimSection
+          requestId={id}
+          claims={deductionClaims}
+          onUpdated={async () => {
+            const res = await fetch(`/api/deduction-claims?requestId=${id}`)
+            if (res.ok) { const { claims } = await res.json(); setDeductionClaims(claims ?? []) }
+          }}
+          role="landco"
+          paidTotal={paymentInstallments.reduce((sum, i) => sum + i.paid_amount, 0)}
+          totalCustomerPrice={paymentSchedule?.total_amount}
+          landcoQuoteTotal={landcoQuoteTotal ?? undefined}
+          agencyCommission={paymentSchedule ? paymentSchedule.total_amount - (landcoQuoteTotal ?? paymentSchedule.total_amount) : undefined}
+          daysUntilDepart={Math.ceil((new Date(request.depart_date).getTime() - new Date().getTime()) / 86400000)}
         />
       )}
 

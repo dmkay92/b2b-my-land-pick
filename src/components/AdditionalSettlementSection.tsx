@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { AdditionalSettlement } from '@/lib/supabase/types'
+import FileDropZone from '@/components/FileDropZone'
 
 function fmt(n: number) { return n.toLocaleString('ko-KR') }
 
@@ -16,6 +17,7 @@ export default function AdditionalSettlementSection({ requestId, settlements, on
   const [showModal, setShowModal] = useState(false)
   const [items, setItems] = useState<{ name: string; amount: number }[]>([{ name: '', amount: 0 }])
   const [memo, setMemo] = useState('')
+  const [files, setFiles] = useState<File[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [reviewingId, setReviewingId] = useState<string | null>(null)
 
@@ -30,16 +32,32 @@ export default function AdditionalSettlementSection({ requestId, settlements, on
   async function handleSubmit() {
     if (items.some(i => !i.name.trim() || !i.amount)) return
     setSubmitting(true)
+
+    let receiptUrls: string[] = []
+    if (files.length > 0) {
+      for (const file of files) {
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('folder', `additional-settlements/${requestId}`)
+        const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData })
+        if (uploadRes.ok) {
+          const { path } = await uploadRes.json()
+          receiptUrls.push(path)
+        }
+      }
+    }
+
     const res = await fetch('/api/additional-settlements', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestId, items: items.map(i => ({ name: i.name, amount: Number(i.amount) })), memo: memo || undefined }),
+      body: JSON.stringify({ requestId, items: items.map(i => ({ name: i.name, amount: Number(i.amount) })), memo: memo || undefined, receiptUrls }),
     })
     setSubmitting(false)
     if (res.ok) {
       setShowModal(false)
       setItems([{ name: '', amount: 0 }])
       setMemo('')
+      setFiles([])
       onCreated()
     } else {
       const json = await res.json().catch(() => ({}))
@@ -99,6 +117,25 @@ export default function AdditionalSettlementSection({ requestId, settlements, on
                 ))}
               </div>
               {s.memo && <p className="text-xs text-gray-400 mt-1">{s.memo}</p>}
+              {s.receipt_urls && s.receipt_urls.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {s.receipt_urls.map((url, i) => (
+                    <button
+                      key={i}
+                      onClick={async () => {
+                        const res = await fetch(`/api/signed-url?path=${encodeURIComponent(url)}`)
+                        if (res.ok) {
+                          const { url: signedUrl } = await res.json()
+                          window.open(signedUrl, '_blank')
+                        }
+                      }}
+                      className="text-[11px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded hover:bg-blue-100"
+                    >
+                      첨부파일 {i + 1} ↗
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {role === 'agency' && s.status === 'pending' && (
                 <div className="flex gap-2 mt-3">
@@ -173,6 +210,8 @@ export default function AdditionalSettlementSection({ requestId, settlements, on
                 />
               </div>
 
+              <FileDropZone files={files} onChange={setFiles} />
+
               <div className="bg-gray-50 rounded-lg p-3 flex justify-between items-center">
                 <span className="text-xs text-gray-500">합계</span>
                 <span className="text-base font-bold text-gray-900">{fmt(total)}원</span>
@@ -181,7 +220,7 @@ export default function AdditionalSettlementSection({ requestId, settlements, on
 
             <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
               <button
-                onClick={() => { setShowModal(false); setItems([{ name: '', amount: 0 }]); setMemo('') }}
+                onClick={() => { setShowModal(false); setItems([{ name: '', amount: 0 }]); setMemo(''); setFiles([]) }}
                 className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 취소

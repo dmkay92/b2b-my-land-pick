@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import DeductionClaimSection from '@/components/DeductionClaimSection'
+import type { DeductionClaim } from '@/lib/supabase/types'
 
 function fmt(n: number) { return n.toLocaleString('ko-KR') }
 
@@ -34,6 +36,20 @@ export default function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterStatus>('pending')
   const [actingId, setActingId] = useState<string | null>(null)
+  const [allClaims, setAllClaims] = useState<(DeductionClaim & { quote_requests?: { event_name: string; display_id: string | null; agency_id: string } })[]>([])
+  const [claimsLoading, setClaimsLoading] = useState(true)
+  const [claimFilter, setClaimFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending')
+
+  async function loadClaims() {
+    setClaimsLoading(true)
+    const param = claimFilter === 'all' ? '' : `?status=${claimFilter}`
+    const res = await fetch(`/api/deduction-claims${param}`)
+    if (res.ok) {
+      const { claims } = await res.json()
+      setAllClaims(claims ?? [])
+    }
+    setClaimsLoading(false)
+  }
 
   async function load() {
     setLoading(true)
@@ -46,6 +62,7 @@ export default function AdminPaymentsPage() {
   }
 
   useEffect(() => { load() }, [filter])
+  useEffect(() => { loadClaims() }, [claimFilter])
 
   async function handleAction(id: string, action: 'paid' | 'pending') {
     const label = action === 'paid' ? '결제완료 처리' : '결제대기로 되돌리기'
@@ -174,6 +191,62 @@ export default function AdminPaymentsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* 공제 검토 섹션 */}
+      <h2 className="text-xl font-bold text-gray-900 mt-10 mb-4">공제 관리</h2>
+      <div className="flex gap-2 mb-4">
+        {([
+          { key: 'pending' as const, label: '검토 대기' },
+          { key: 'approved' as const, label: '승인됨' },
+          { key: 'rejected' as const, label: '거부됨' },
+          { key: 'all' as const, label: '전체' },
+        ]).map(f => (
+          <button
+            key={f.key}
+            onClick={() => setClaimFilter(f.key)}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+              claimFilter === f.key ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+      {claimsLoading ? (
+        <p className="text-sm text-gray-400">로딩 중...</p>
+      ) : allClaims.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-8 text-center">
+          <p className="text-sm text-gray-400">공제 신청 내역이 없습니다.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {Object.entries(
+            allClaims.reduce<Record<string, typeof allClaims>>((acc, c) => {
+              const key = c.request_id
+              if (!acc[key]) acc[key] = []
+              acc[key].push(c)
+              return acc
+            }, {})
+          ).map(([requestId, claims]) => (
+            <div key={requestId}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm font-bold text-gray-900">
+                  {claims[0]?.quote_requests?.event_name ?? '행사명 없음'}
+                </span>
+                <span className="text-[10px] text-gray-400 font-mono">
+                  {claims[0]?.quote_requests?.display_id ?? requestId.slice(0, 8)}
+                </span>
+              </div>
+              <DeductionClaimSection
+                requestId={requestId}
+                claims={claims}
+                onUpdated={loadClaims}
+                role="admin"
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
