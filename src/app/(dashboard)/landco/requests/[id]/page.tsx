@@ -665,6 +665,94 @@ export default function LandcoRequestDetail() {
         </div>
       </div>
 
+      {/* 제출 이력 */}
+      <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+        <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
+          <h2 className="text-sm font-bold text-white">제출 이력</h2>
+          <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">{myQuotes.length}개 버전</span>
+        </div>
+        <div className="bg-white p-6">
+        {myQuotes.length === 0 ? (
+          <p className="text-gray-400 text-sm">아직 제출된 견적서가 없습니다.</p>
+        ) : (
+          <div className="space-y-2">
+            {myQuotes.map(q => (
+              <div key={q.id} className="py-2 border-b last:border-0">
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${
+                    selectedQuoteId === q.id
+                      ? 'bg-purple-100 text-purple-700'
+                      : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    v{q.version}
+                  </span>
+                  <span className="text-sm text-gray-600 truncate min-w-0 flex-1">{q.file_name}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-gray-400 whitespace-nowrap">{new Date(q.submitted_at).toLocaleString('ko-KR')}</span>
+                    <button
+                      onClick={() => window.open(`/landco/quotes/${q.id}`, '_blank')}
+                      className="text-xs text-[#009CF0] border border-[#009CF0] px-2.5 py-1 rounded-md hover:bg-blue-50 transition-colors whitespace-nowrap shrink-0"
+                    >
+                      미리보기
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const res = await fetch(`/api/quotes/${q.id}/download`)
+                        if (!res.ok) return
+                        const blob = await res.blob()
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = q.file_name
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      }}
+                      className="text-xs text-gray-600 border border-gray-300 px-2.5 py-1 rounded-md hover:bg-gray-100 transition-colors whitespace-nowrap shrink-0"
+                    >
+                      다운로드
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTemplateModal({ quoteId: q.id, defaultName: q.file_name.replace('.xlsx', '') })
+                        setTemplateName(q.file_name.replace('.xlsx', ''))
+                      }}
+                      className="text-xs text-purple-600 border border-purple-300 px-2.5 py-1 rounded-md hover:bg-purple-50 transition-colors whitespace-nowrap shrink-0"
+                    >
+                      템플릿 저장
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-1.5">
+                  <div className="flex gap-4 ml-1">
+                    {q.pricing?.total != null && (
+                      <span className="text-xs text-gray-500">
+                        총 합계 <span className="font-semibold text-gray-800">{q.pricing.total.toLocaleString('ko-KR')}원</span>
+                      </span>
+                    )}
+                    {q.pricing?.per_person != null && (
+                      <span className="text-xs text-gray-500">
+                        1인당 <span className="font-semibold text-blue-600">{Math.ceil(q.pricing.per_person).toLocaleString('ko-KR')}원</span>
+                      </span>
+                    )}
+                    {q.pricing_mode === 'summary' ? (
+                      <span className="text-xs font-medium text-amber-500">항목별 내역 없음</span>
+                    ) : (
+                      <span className="text-xs font-medium text-emerald-500">항목별 내역 포함</span>
+                    )}
+                  </div>
+                  {selectedQuoteId === q.id && (
+                    <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-medium">
+                      최종 확정됨
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        </div>
+      </div>
+
       {/* 결제 현황 */}
       {(request.status === 'payment_pending' || request.status === 'finalized' || request.status === 'closed') && paymentSchedule && (
         <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
@@ -939,93 +1027,6 @@ export default function LandcoRequestDetail() {
         />
       )}
 
-      {/* 제출 이력 */}
-      <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
-          <h2 className="text-sm font-bold text-white">제출 이력</h2>
-          <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">{myQuotes.length}개 버전</span>
-        </div>
-        <div className="bg-white p-6">
-        {myQuotes.length === 0 ? (
-          <p className="text-gray-400 text-sm">아직 제출된 견적서가 없습니다.</p>
-        ) : (
-          <div className="space-y-2">
-            {myQuotes.map(q => (
-              <div key={q.id} className="py-2 border-b last:border-0">
-                <div className="flex items-center gap-3">
-                  <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${
-                    selectedQuoteId === q.id
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'bg-blue-100 text-blue-700'
-                  }`}>
-                    v{q.version}
-                  </span>
-                  <span className="text-sm text-gray-600 truncate min-w-0 flex-1">{q.file_name}</span>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs text-gray-400 whitespace-nowrap">{new Date(q.submitted_at).toLocaleString('ko-KR')}</span>
-                    <button
-                      onClick={() => window.open(`/landco/quotes/${q.id}`, '_blank')}
-                      className="text-xs text-[#009CF0] border border-[#009CF0] px-2.5 py-1 rounded-md hover:bg-blue-50 transition-colors whitespace-nowrap shrink-0"
-                    >
-                      미리보기
-                    </button>
-                    <button
-                      onClick={async () => {
-                        const res = await fetch(`/api/quotes/${q.id}/download`)
-                        if (!res.ok) return
-                        const blob = await res.blob()
-                        const url = URL.createObjectURL(blob)
-                        const a = document.createElement('a')
-                        a.href = url
-                        a.download = q.file_name
-                        a.click()
-                        URL.revokeObjectURL(url)
-                      }}
-                      className="text-xs text-gray-600 border border-gray-300 px-2.5 py-1 rounded-md hover:bg-gray-100 transition-colors whitespace-nowrap shrink-0"
-                    >
-                      다운로드
-                    </button>
-                    <button
-                      onClick={() => {
-                        setTemplateModal({ quoteId: q.id, defaultName: q.file_name.replace('.xlsx', '') })
-                        setTemplateName(q.file_name.replace('.xlsx', ''))
-                      }}
-                      className="text-xs text-purple-600 border border-purple-300 px-2.5 py-1 rounded-md hover:bg-purple-50 transition-colors whitespace-nowrap shrink-0"
-                    >
-                      템플릿 저장
-                    </button>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between mt-1.5">
-                  <div className="flex gap-4 ml-1">
-                    {q.pricing?.total != null && (
-                      <span className="text-xs text-gray-500">
-                        총 합계 <span className="font-semibold text-gray-800">{q.pricing.total.toLocaleString('ko-KR')}원</span>
-                      </span>
-                    )}
-                    {q.pricing?.per_person != null && (
-                      <span className="text-xs text-gray-500">
-                        1인당 <span className="font-semibold text-blue-600">{Math.ceil(q.pricing.per_person).toLocaleString('ko-KR')}원</span>
-                      </span>
-                    )}
-                    {q.pricing_mode === 'summary' ? (
-                      <span className="text-xs font-medium text-amber-500">항목별 내역 없음</span>
-                    ) : (
-                      <span className="text-xs font-medium text-emerald-500">항목별 내역 포함</span>
-                    )}
-                  </div>
-                  {selectedQuoteId === q.id && (
-                    <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-medium">
-                      최종 확정됨
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        </div>
-      </div>
     </div>
     </>
   )

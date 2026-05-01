@@ -585,96 +585,7 @@ export default function AgencyRequestDetail() {
         )}
       </div>
 
-      {(request.status === 'payment_pending' || request.status === 'finalized' || request.status === 'closed') && paymentSchedule && (
-        <div className="mb-6">
-          <PaymentScheduleCard
-            schedule={paymentSchedule}
-            installments={paymentInstallments}
-            departDate={request.depart_date}
-            returnDate={request.return_date}
-            onSwitchToImmediate={async () => {
-              await fetch('/api/payment-schedule', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requestId: id, templateType: 'one_time' }),
-              })
-              const res = await fetch(`/api/payment-schedule?requestId=${id}`)
-              if (res.ok) {
-                const { schedule, installments } = await res.json()
-                setPaymentSchedule(schedule)
-                setPaymentInstallments(installments ?? [])
-              }
-            }}
-            onSwitchToDefault={async () => {
-              await fetch('/api/payment-schedule', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requestId: id, templateType: 'default' }),
-              })
-              const res = await fetch(`/api/payment-schedule?requestId=${id}`)
-              if (res.ok) {
-                const { schedule, installments } = await res.json()
-                setPaymentSchedule(schedule)
-                setPaymentInstallments(installments ?? [])
-              }
-            }}
-            onSwitchToPostTravel={async () => {
-              await fetch('/api/payment-schedule', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requestId: id, templateType: 'post_travel' }),
-              })
-              const res = await fetch(`/api/payment-schedule?requestId=${id}`)
-              if (res.ok) {
-                const { schedule, installments } = await res.json()
-                setPaymentSchedule(schedule)
-                setPaymentInstallments(installments ?? [])
-              }
-            }}
-            isCancelled={request.status === 'closed'}
-          />
-        </div>
-      )}
-
-      {request.status === 'finalized' && (
-        <AdditionalSettlementSection
-          requestId={id}
-          settlements={additionalSettlements}
-          onCreated={async () => {
-            const res = await fetch(`/api/additional-settlements?requestId=${id}`)
-            if (res.ok) {
-              const { settlements } = await res.json()
-              setAdditionalSettlements(settlements ?? [])
-            }
-            const schedRes = await fetch(`/api/payment-schedule?requestId=${id}`)
-            if (schedRes.ok) {
-              const { schedule, installments } = await schedRes.json()
-              setPaymentSchedule(schedule)
-              setPaymentInstallments(installments ?? [])
-            }
-          }}
-          role="agency"
-        />
-      )}
-
-      {request.status === 'closed' && (
-        <DeductionClaimSection
-          requestId={id}
-          claims={deductionClaims}
-          onUpdated={async () => {
-            const res = await fetch(`/api/deduction-claims?requestId=${id}`)
-            if (res.ok) { const { claims } = await res.json(); setDeductionClaims(claims ?? []) }
-          }}
-          role="agency"
-          paidTotal={paymentInstallments.reduce((sum, i) => sum + i.paid_amount, 0)}
-          totalCustomerPrice={paymentSchedule?.total_amount}
-          landcoQuoteTotal={paymentSchedule ? paymentSchedule.total_amount - globalMarkup.total : undefined}
-          agencyCommission={globalMarkup.total}
-          daysUntilDepart={Math.ceil((new Date(request.depart_date).getTime() - new Date().getTime()) / 86400000)}
-        />
-      )}
-
-      <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
           <div className="flex items-center gap-2.5">
@@ -814,6 +725,64 @@ export default function AgencyRequestDetail() {
         </div>
       )}
       </div>
+
+      {(request.status === 'payment_pending' || request.status === 'finalized' || request.status === 'closed') && paymentSchedule && (
+        <div className="mb-6">
+          <PaymentScheduleCard
+            schedule={paymentSchedule}
+            installments={paymentInstallments}
+            departDate={request.depart_date}
+            returnDate={request.return_date}
+            onSwitchToImmediate={async () => {
+              await fetch('/api/payment-schedule', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: id, templateType: 'one_time' }) })
+              const res = await fetch(`/api/payment-schedule?requestId=${id}`)
+              if (res.ok) { const { schedule, installments } = await res.json(); setPaymentSchedule(schedule); setPaymentInstallments(installments ?? []) }
+            }}
+            onSwitchToDefault={async () => {
+              await fetch('/api/payment-schedule', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: id, templateType: 'default' }) })
+              const res = await fetch(`/api/payment-schedule?requestId=${id}`)
+              if (res.ok) { const { schedule, installments } = await res.json(); setPaymentSchedule(schedule); setPaymentInstallments(installments ?? []) }
+            }}
+            onSwitchToPostTravel={async () => {
+              await fetch('/api/payment-schedule', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: id, templateType: 'post_travel' }) })
+              const res = await fetch(`/api/payment-schedule?requestId=${id}`)
+              if (res.ok) { const { schedule, installments } = await res.json(); setPaymentSchedule(schedule); setPaymentInstallments(installments ?? []) }
+            }}
+            isCancelled={request.status === 'closed'}
+          />
+        </div>
+      )}
+
+      {request.status === 'finalized' && (
+        <AdditionalSettlementSection
+          requestId={id}
+          settlements={additionalSettlements}
+          onCreated={async () => {
+            const res = await fetch(`/api/additional-settlements?requestId=${id}`)
+            if (res.ok) { const { settlements } = await res.json(); setAdditionalSettlements(settlements ?? []) }
+            const schedRes = await fetch(`/api/payment-schedule?requestId=${id}`)
+            if (schedRes.ok) { const { schedule, installments } = await schedRes.json(); setPaymentSchedule(schedule); setPaymentInstallments(installments ?? []) }
+          }}
+          role="agency"
+        />
+      )}
+
+      {request.status === 'closed' && (
+        <DeductionClaimSection
+          requestId={id}
+          claims={deductionClaims}
+          onUpdated={async () => {
+            const res = await fetch(`/api/deduction-claims?requestId=${id}`)
+            if (res.ok) { const { claims } = await res.json(); setDeductionClaims(claims ?? []) }
+          }}
+          role="agency"
+          paidTotal={paymentInstallments.reduce((sum, i) => sum + i.paid_amount, 0)}
+          totalCustomerPrice={paymentSchedule?.total_amount}
+          landcoQuoteTotal={paymentSchedule ? paymentSchedule.total_amount - globalMarkup.total : undefined}
+          agencyCommission={globalMarkup.total}
+          daysUntilDepart={Math.ceil((new Date(request.depart_date).getTime() - new Date().getTime()) / 86400000)}
+        />
+      )}
     </div>
     </>
   )
