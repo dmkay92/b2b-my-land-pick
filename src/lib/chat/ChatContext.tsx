@@ -80,6 +80,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const supabase = useMemo(() => createClient(), [])
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null)
   const [isOpen, setIsOpen] = useState(false)
+  const isOpenRef = useRef(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [rooms, setRooms] = useState<ChatRoom[]>([])
   const [roomUnreadCounts, setRoomUnreadCounts] = useState<Record<string, number>>({})
@@ -201,8 +202,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             if (prev.find(m => m.id === enriched.id)) return prev
             return [...prev, enriched]
           })
-          // 방이 열려 있으면 즉시 읽음 처리
-          if (activeRoomIdRef.current === roomId) {
+          // 방이 열려 있고 패널이 보이는 상태에서만 읽음 처리
+          if (activeRoomIdRef.current === roomId && isOpenRef.current) {
             markRoomRead(roomId)
           }
           // rooms의 last_msg_at 갱신
@@ -275,12 +276,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setActiveRoomId(roomId)
     activeRoomIdRef.current = roomId
     setIsOpen(true)
+    isOpenRef.current = true
     loadMessages(roomId)
     subscribeToRoom(roomId, () => markRoomRead(roomId))
   }, [loadMessages, subscribeToRoom, markRoomRead])
 
   const closeRoom = useCallback(() => {
     setIsOpen(false)
+    isOpenRef.current = false
     activeRoomIdRef.current = null
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current)
