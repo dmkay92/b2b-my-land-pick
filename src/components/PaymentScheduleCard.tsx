@@ -449,13 +449,13 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
         })()}
 
         {/* 추가 정산 회차 (rate === 0) */}
-        {installments.some(i => i.rate === 0) && (
+        {installments.some(i => i.rate === 0 && i.label !== '공제 추가 청구') && (
           <>
             <div className="px-5 py-2.5 bg-gray-100 border-t border-gray-200">
               <span className="text-[11px] font-bold text-gray-500">추가 정산</span>
             </div>
             <div className="bg-white">
-              {installments.filter(i => i.rate === 0).map((inst) => {
+              {installments.filter(i => i.rate === 0 && i.label !== '공제 추가 청구').map((inst) => {
                 const remaining = inst.amount - inst.paid_amount
                 const canPay = (inst.status === 'pending' || inst.status === 'partial' || inst.status === 'overdue') && schedule.approval_status === 'approved'
                 const progressPct = inst.amount > 0 ? Math.min(100, Math.round((inst.paid_amount / inst.amount) * 100)) : 0
@@ -491,6 +491,57 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                       <div className="mt-2 ml-10">
                         <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
                           <div className={`h-full rounded-full transition-all ${inst.status === 'paid' ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${progressPct}%` }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {/* 공제 추가 청구 (빨간 테마) */}
+        {installments.some(i => i.label === '공제 추가 청구') && (
+          <>
+            <div className="px-5 py-2.5 bg-red-50 border-t border-red-200">
+              <span className="text-[11px] font-bold text-red-600">공제 추가 청구</span>
+            </div>
+            <div className="bg-white">
+              {installments.filter(i => i.label === '공제 추가 청구').map((inst) => {
+                const remaining = inst.amount - inst.paid_amount
+                const canPay = (inst.status === 'pending' || inst.status === 'overdue')
+                const progressPct = inst.amount > 0 ? Math.min(100, Math.round((inst.paid_amount / inst.amount) * 100)) : 0
+                return (
+                  <div key={inst.id} className="px-5 py-4 border-t border-red-100">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${
+                          inst.status === 'paid' ? 'bg-emerald-500 text-white' :
+                          inst.status === 'cancelled' ? 'bg-gray-200 text-gray-400' :
+                          'bg-red-100 text-red-600 border border-red-200'
+                        }`}>
+                          {inst.status === 'paid' ? '✓' : inst.status === 'cancelled' ? '✕' : '!'}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-bold text-gray-900">{inst.label}</span>
+                            {statusBadge(inst.status)}
+                          </div>
+                          <span className="text-[11px] text-gray-500">{inst.due_date}까지</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-bold text-red-600">{fmt(inst.amount)}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></span>
+                        {!isCancelled && canPay && remaining > 0 && (
+                          <button onClick={() => openPayModal(inst, false)} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700">결제하기</button>
+                        )}
+                      </div>
+                    </div>
+                    {inst.paid_amount > 0 && (
+                      <div className="mt-2 ml-10">
+                        <div className="h-1 bg-red-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${inst.status === 'paid' ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${progressPct}%` }} />
                         </div>
                       </div>
                     )}

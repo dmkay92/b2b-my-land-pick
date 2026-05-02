@@ -26,6 +26,7 @@ const NAV_ITEMS: Record<'agency' | 'landco' | 'admin', { label: string; href: st
     { label: '여행사 리스트', href: '/admin/agencies', icon: '🏢' },
     { label: '랜드사 리스트', href: '/admin/landcos', icon: '🌏' },
     { label: '도시 관리', href: '/admin/cities', icon: '🏙️' },
+    { label: '정산 관리', href: '/admin/settlements', icon: '📊' },
     { label: '결제 관리', href: '/admin/payments', icon: '💰' },
   ],
 }

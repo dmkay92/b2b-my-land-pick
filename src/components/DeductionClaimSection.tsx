@@ -21,6 +21,7 @@ interface Props {
 
 export default function DeductionClaimSection({ requestId, claims, onUpdated, role, paidTotal, totalCustomerPrice, landcoQuoteTotal, agencyCommission, daysUntilDepart }: Props) {
   const [showModal, setShowModal] = useState(false)
+  const [showPayModal, setShowPayModal] = useState(false)
   const [items, setItems] = useState<{ name: string; amount: number }[]>([{ name: '', amount: 0 }])
   const [memo, setMemo] = useState('')
   const [files, setFiles] = useState<File[]>([])
@@ -101,14 +102,24 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
     <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
       <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-red-900 to-red-800">
         <h3 className="text-sm font-bold text-white">공제 신청 (행사 취소)</h3>
-        {role === 'landco' && (
-          <button
-            onClick={() => setShowModal(true)}
-            className="text-xs font-medium text-white bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg transition-colors"
-          >
-            + 공제 신청
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {role !== 'landco' && (
+            <button
+              onClick={() => window.open(`/api/invoice?requestId=${requestId}&type=deduction`, '_blank')}
+              className="text-[10px] text-white bg-white/15 border border-white/25 px-2.5 py-0.5 rounded-full hover:bg-white/25 transition-colors"
+            >
+              인보이스
+            </button>
+          )}
+          {role === 'landco' && (
+            <button
+              onClick={() => setShowModal(true)}
+              className="text-xs font-medium text-white bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg transition-colors"
+            >
+              + 공제 신청
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white">
@@ -277,13 +288,22 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
                     </span>
                   </div>
                   {calc.customerFinalRefund < 0 && role === 'agency' && (
-                    <div className="mt-2">
-                      <button
-                        onClick={() => window.open(`/api/invoice?requestId=${requestId}`, '_blank')}
-                        className="w-full py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700"
-                      >
-                        {fmt(Math.abs(calc.customerFinalRefund))}원 추가 결제하기
-                      </button>
+                    <div className="mt-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-sm bg-red-100 text-red-600 border border-red-200">!</div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-bold text-gray-900">공제 추가 청구</span>
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600">결제대기</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-bold text-red-600">{fmt(Math.abs(calc.customerFinalRefund))}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></span>
+                          <button onClick={() => setShowPayModal(true)} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700">결제하기</button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </>
@@ -331,13 +351,22 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
                         </span>
                       </div>
                       {calc.customerFinalRefund < 0 && role === 'agency' && (
-                        <div className="mt-2">
-                          <button
-                            onClick={() => window.open(`/api/invoice?requestId=${requestId}`, '_blank')}
-                            className="w-full py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700"
-                          >
-                            {fmt(Math.abs(calc.customerFinalRefund))}원 추가 결제하기
-                          </button>
+                        <div className="mt-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-sm bg-red-100 text-red-600 border border-red-200">!</div>
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm font-bold text-gray-900">공제 추가 청구</span>
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600">결제대기</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-base font-bold text-red-600">{fmt(Math.abs(calc.customerFinalRefund))}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></span>
+                              <button onClick={() => setShowPayModal(true)} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700">결제하기</button>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </>
@@ -421,6 +450,72 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
                 className="px-4 py-2 text-sm text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 {submitting ? '제출 중...' : `${fmt(total)}원 공제 신청`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 추가 결제 계좌이체 안내 모달 */}
+      {showPayModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-bold text-gray-900">추가 결제 안내</h3>
+              <p className="text-sm text-gray-500 mt-0.5">
+                공제 초과분 — {fmt(Math.abs(paidTotal ? paidTotal - approvedDeductions : 0))}원
+              </p>
+            </div>
+
+            <div className="px-5 py-5 space-y-3">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">은행</span>
+                  <span className="text-sm font-semibold text-gray-900">우리은행</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">계좌번호</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-red-700 tracking-wide">1005-604-520904</span>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText('1005604520904'); alert('계좌번호가 복사되었습니다.') }}
+                      className="text-[10px] text-red-600 bg-red-100 px-2 py-0.5 rounded hover:bg-red-200"
+                    >
+                      복사
+                    </button>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">예금주</span>
+                  <span className="text-sm font-semibold text-gray-900">(주)마이리얼트립</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-red-200 pt-2.5">
+                  <span className="text-xs font-medium text-gray-600">입금 금액</span>
+                  <span className="text-base font-bold text-red-700">{fmt(Math.abs(paidTotal ? paidTotal - approvedDeductions : 0))}원</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-400 text-center leading-relaxed">
+                입금 후 확인까지 영업일 기준 1~2일 소요됩니다.<br />
+                입금자명은 회사명으로 기재해주세요.
+              </p>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">💳</span>
+                    <span className="text-sm text-gray-400">카드결제</span>
+                  </div>
+                  <span className="text-[11px] bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full font-medium">서비스 준비중</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={() => setShowPayModal(false)}
+                className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                확인
               </button>
             </div>
           </div>
