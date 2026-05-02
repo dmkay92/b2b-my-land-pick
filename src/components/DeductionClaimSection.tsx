@@ -286,13 +286,22 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
                     </span>
                   </div>
                   {calc.customerFinalRefund < 0 && role === 'agency' && (
-                    <div className="mt-2">
-                      <button
-                        onClick={() => setShowPayModal(true)}
-                        className="w-full py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700"
-                      >
-                        {fmt(Math.abs(calc.customerFinalRefund))}원 추가 결제하기
-                      </button>
+                    <div className="mt-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-sm bg-red-100 text-red-600 border border-red-200">!</div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-bold text-gray-900">공제 추가 청구</span>
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600">결제대기</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-base font-bold text-red-600">{fmt(Math.abs(calc.customerFinalRefund))}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></span>
+                          <button onClick={() => setShowPayModal(true)} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700">결제하기</button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </>
@@ -340,13 +349,22 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
                         </span>
                       </div>
                       {calc.customerFinalRefund < 0 && role === 'agency' && (
-                        <div className="mt-2">
-                          <button
-                            onClick={() => setShowPayModal(true)}
-                            className="w-full py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700"
-                          >
-                            {fmt(Math.abs(calc.customerFinalRefund))}원 추가 결제하기
-                          </button>
+                        <div className="mt-3 px-4 py-3 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-sm bg-red-100 text-red-600 border border-red-200">!</div>
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm font-bold text-gray-900">공제 추가 청구</span>
+                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600">결제대기</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-base font-bold text-red-600">{fmt(Math.abs(calc.customerFinalRefund))}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></span>
+                              <button onClick={() => setShowPayModal(true)} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700">결제하기</button>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </>

@@ -59,6 +59,40 @@ export async function POST(
 
   await admin.from('deduction_claims').update(updateData).eq('id', id)
 
+  // 승인 시: 전체 공제액이 결제완료액 초과하면 추가 청구 installment 생성/갱신
+  if (action === 'approve') {
+    const { data: allClaims } = await admin.from('deduction_claims').select('approved_amount, total_amount')
+      .eq('request_id', claim.request_id).eq('status', 'approved')
+    const totalDeduction = (allClaims ?? []).reduce((s: number, c: { approved_amount: number | null; total_amount: number }) => s + (c.approved_amount ?? c.total_amount), 0)
+
+    const { data: schedule } = await admin.from('payment_schedules').select('id').eq('request_id', claim.request_id).single()
+    if (schedule) {
+      const { data: installments } = await admin.from('payment_installments').select('paid_amount').eq('schedule_id', schedule.id)
+      const paidTotal = (installments ?? []).reduce((s: number, i: { paid_amount: number }) => s + i.paid_amount, 0)
+
+      const excess = totalDeduction - paidTotal
+      if (excess > 0) {
+        // 기존 공제 추가 청구 installment가 있으면 업데이트, 없으면 생성
+        const { data: existing } = await admin.from('payment_installments').select('id')
+          .eq('schedule_id', schedule.id).eq('label', '공제 추가 청구').maybeSingle()
+
+        const dueDate = new Date()
+        dueDate.setDate(dueDate.getDate() + 14)
+
+        if (existing) {
+          await admin.from('payment_installments').update({
+            amount: excess, due_date: dueDate.toISOString().slice(0, 10), status: 'pending', updated_at: new Date().toISOString(),
+          }).eq('id', existing.id)
+        } else {
+          await admin.from('payment_installments').insert({
+            schedule_id: schedule.id, label: '공제 추가 청구', rate: 0,
+            amount: excess, paid_amount: 0, due_date: dueDate.toISOString().slice(0, 10), status: 'pending',
+          })
+        }
+      }
+    }
+  }
+
   // Notify landco
   const notifType = action === 'approve' ? 'deduction_claim_approved' : 'deduction_claim_rejected'
   await admin.from('notifications').insert({
