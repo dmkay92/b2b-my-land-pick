@@ -686,25 +686,40 @@ export function FloatingChat() {
         if (cursor === 'pointer' || cursor === 'text') return
         el = el.parentElement
       }
+      if (activeRoomId) lastRoomIdRef.current = activeRoomId
+      closeRoom()
       setPanelVisible(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [panelVisible])
+  }, [panelVisible, activeRoomId, closeRoom])
+
+  const lastRoomIdRef = useRef<string | null>(null)
 
   const handleToggle = async () => {
     if (panelVisible) {
+      // 최소화: 읽음 처리 중단
+      if (activeRoomId) lastRoomIdRef.current = activeRoomId
+      closeRoom()
       setPanelVisible(false)
     } else {
-      if (!isOpen && !showList) {
+      // 다시 열기: 이전 방이 있으면 복원
+      if (lastRoomIdRef.current) {
+        openRoom(lastRoomIdRef.current)
+        setPanelVisible(true)
+      } else if (!isOpen && !showList) {
         await loadRooms()
         setShowList(true)
+        setPanelVisible(true)
+      } else {
+        setPanelVisible(true)
       }
-      setPanelVisible(true)
     }
   }
 
   const handleClose = () => {
+    if (activeRoomId) lastRoomIdRef.current = activeRoomId
+    closeRoom()
     setPanelVisible(false)
   }
 
