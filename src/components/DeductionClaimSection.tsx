@@ -103,12 +103,14 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
       <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-red-900 to-red-800">
         <h3 className="text-sm font-bold text-white">공제 신청 (행사 취소)</h3>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => window.open(`/api/invoice?requestId=${requestId}&type=deduction`, '_blank')}
-            className="text-[10px] text-white bg-white/15 border border-white/25 px-2.5 py-0.5 rounded-full hover:bg-white/25 transition-colors"
-          >
-            인보이스
-          </button>
+          {role !== 'landco' && (
+            <button
+              onClick={() => window.open(`/api/invoice?requestId=${requestId}&type=deduction`, '_blank')}
+              className="text-[10px] text-white bg-white/15 border border-white/25 px-2.5 py-0.5 rounded-full hover:bg-white/25 transition-colors"
+            >
+              인보이스
+            </button>
+          )}
           {role === 'landco' && (
             <button
               onClick={() => setShowModal(true)}
