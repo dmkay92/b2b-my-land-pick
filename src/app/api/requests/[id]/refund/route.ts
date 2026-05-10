@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { sendCancellationEmail } from '@/lib/email/notifications'
 
 function getAdmin() {
   return createAdminClient(
@@ -81,6 +82,18 @@ export async function POST(
       type: 'refund_request',
       payload: { request_id: id, event_name: qr.event_name, refund_rate: refundRate },
     })
+
+    // 랜드사에게 취소 이메일 발송
+    const { data: landcoProfile } = await admin
+      .from('profiles').select('email').eq('id', sel.landco_id).single()
+    if (landcoProfile?.email) {
+      await sendCancellationEmail({
+        to: landcoProfile.email,
+        event_name: qr.event_name,
+        request_id: id,
+        refund_rate: refundRate,
+      })
+    }
 
     // 채팅 메시지
     let { data: room } = await admin
