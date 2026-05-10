@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
             .from('quote_requests').select('event_name').eq('id', room.request_id).single()
 
           if (agency?.email) {
-            const senderProfile = msg.sender as { company_name: string } | null
+            const senderProfile = msg.sender as unknown as { company_name: string } | null
             await sendUnreadMessageEmail({
               to: agency.email,
               sender_name: senderProfile?.company_name ?? '',
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
             .from('quote_requests').select('event_name').eq('id', room.request_id).single()
 
           if (landco?.email) {
-            const senderProfile = msg.sender as { company_name: string } | null
+            const senderProfile = msg.sender as unknown as { company_name: string } | null
             await sendUnreadMessageEmail({
               to: landco.email,
               sender_name: senderProfile?.company_name ?? '',
