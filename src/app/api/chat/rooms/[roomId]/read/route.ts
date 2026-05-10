@@ -28,10 +28,12 @@ export async function PATCH(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const col = room.agency_id === user.id ? 'agency_last_read_at' : 'landco_last_read_at'
+  const isAgency = room.agency_id === user.id
+  const readCol = isAgency ? 'agency_last_read_at' : 'landco_last_read_at'
+  const emailCol = isAgency ? 'agency_email_sent_at' : 'landco_email_sent_at'
   const { error } = await admin
     .from('chat_rooms')
-    .update({ [col]: new Date().toISOString() })
+    .update({ [readCol]: new Date().toISOString(), [emailCol]: null })
     .eq('id', roomId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

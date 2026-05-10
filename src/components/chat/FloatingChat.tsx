@@ -686,24 +686,26 @@ export function FloatingChat() {
         if (cursor === 'pointer' || cursor === 'text') return
         el = el.parentElement
       }
-      if (activeRoomId) lastRoomIdRef.current = activeRoomId
-      closeRoom()
       setPanelVisible(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [panelVisible, activeRoomId, closeRoom])
+  }, [panelVisible])
 
   const lastRoomIdRef = useRef<string | null>(null)
 
+  // 패널이 닫힐 때 읽음 처리 중단
+  useEffect(() => {
+    if (!panelVisible && activeRoomId) {
+      lastRoomIdRef.current = activeRoomId
+      closeRoom()
+    }
+  }, [panelVisible]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleToggle = async () => {
     if (panelVisible) {
-      // 최소화: 읽음 처리 중단
-      if (activeRoomId) lastRoomIdRef.current = activeRoomId
-      closeRoom()
       setPanelVisible(false)
     } else {
-      // 다시 열기: 이전 방이 있으면 복원
       if (lastRoomIdRef.current) {
         openRoom(lastRoomIdRef.current)
         setPanelVisible(true)
@@ -718,8 +720,6 @@ export function FloatingChat() {
   }
 
   const handleClose = () => {
-    if (activeRoomId) lastRoomIdRef.current = activeRoomId
-    closeRoom()
     setPanelVisible(false)
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { sendSettlementApprovedEmail } from '@/lib/email/notifications'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -56,6 +57,21 @@ export async function POST(request: NextRequest) {
       type: notifType,
       payload: { request_id: schedule.request_id, schedule_id: scheduleId },
     })
+  }
+
+  // 승인 시 여행사에게 이메일 발송
+  if (action === 'approve' && agencyId) {
+    const { data: agencyProfile } = await admin
+      .from('profiles').select('email').eq('id', agencyId).single()
+    const { data: qr } = await admin
+      .from('quote_requests').select('event_name').eq('id', schedule.request_id).single()
+    if (agencyProfile?.email) {
+      await sendSettlementApprovedEmail({
+        to: agencyProfile.email,
+        event_name: qr?.event_name ?? '',
+        request_id: schedule.request_id,
+      })
+    }
   }
 
   // 채팅방에 결과 메시지

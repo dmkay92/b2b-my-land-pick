@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { buildInstallments, getDefaultTemplateType } from '@/lib/payment/schedule'
 import { calculateTotalPeople } from '@/lib/utils'
+import { sendSettlementRequestEmail } from '@/lib/email/notifications'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -126,6 +127,17 @@ export async function PUT(request: NextRequest) {
         type: 'post_travel_approval_request',
         payload: { request_id: requestId, schedule_id: schedule.id, event_name: qr?.event_name },
       })
+
+      // 랜드사에 정산 승인 요청 이메일
+      const { data: landcoProfile } = await putAdmin
+        .from('profiles').select('email').eq('id', selection.landco_id).single()
+      if (landcoProfile?.email) {
+        await sendSettlementRequestEmail({
+          to: landcoProfile.email,
+          event_name: qr?.event_name ?? '',
+          request_id: requestId,
+        })
+      }
 
       // 채팅방 찾기 (없으면 생성) + 시스템 메시지 발송
       let { data: room } = await putAdmin

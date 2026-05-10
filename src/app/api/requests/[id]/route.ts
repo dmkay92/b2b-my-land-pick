@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { extractQuotePricing } from '@/lib/excel/parse'
+import { sendRequestUpdatedEmail } from '@/lib/email/notifications'
 
 export async function GET(
   _request: NextRequest,
@@ -136,6 +137,55 @@ export async function PATCH(
   }).eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // 해당 국가+도시 담당 랜드사들에게 수정 알림 발송
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+
+  const country = body.destination_country
+  const city = body.destination_city
+
+  const { data: allLandcos } = await admin
+    .from('profiles')
+    .select('id, service_areas, country_codes')
+    .eq('role', 'landco')
+    .eq('status', 'approved')
+
+  const matchingLandcos = (allLandcos ?? []).filter(l => {
+    const areas = (l.service_areas ?? []) as { country: string; city: string }[]
+    if (areas.length > 0) {
+      return areas.some(a => a.country === country && a.city === city)
+    }
+    return (l.country_codes ?? []).includes(country)
+  })
+
+  if (matchingLandcos.length > 0) {
+    const notifications = matchingLandcos.map(l => ({
+      user_id: l.id,
+      type: 'request_updated',
+      payload: { request_id: id, event_name: body.event_name },
+    }))
+    await admin.from('notifications').insert(notifications)
+
+    // 매칭된 랜드사들에게 수정 이메일 발송
+    const landcoEmails = await Promise.all(
+      matchingLandcos.map(async l => {
+        const { data } = await admin.from('profiles').select('email').eq('id', l.id).single()
+        return data?.email
+      })
+    )
+    const validEmails = landcoEmails.filter((e): e is string => !!e)
+    if (validEmails.length > 0) {
+      await sendRequestUpdatedEmail({
+        to: validEmails,
+        event_name: body.event_name,
+        request_id: id,
+      })
+    }
+  }
 
   return NextResponse.json({ success: true })
 }

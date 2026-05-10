@@ -39,14 +39,14 @@ export async function POST(request: NextRequest) {
     payload: { request_id: requestId, event_name: qr?.event_name },
   })
 
-  // 랜드사 이메일 알림
-  const { data: landco } = await supabase
-    .from('profiles').select('email, company_name').eq('id', selection.landco_id).single()
-  if (landco) {
+  // 여행사에게 최종 확정 이메일 알림
+  const { data: agency } = await supabase
+    .from('profiles').select('email').eq('id', user.id).single()
+  if (agency?.email) {
     await sendFinalizedEmail({
-      to: landco.email,
-      company_name: landco.company_name,
+      to: agency.email,
       event_name: qr?.event_name ?? '',
+      request_id: requestId,
     })
   }
 
