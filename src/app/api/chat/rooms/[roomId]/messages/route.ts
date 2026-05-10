@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { sendChatMessageEmail } from '@/lib/email/notifications'
 
 // GET /api/chat/rooms/[roomId]/messages
 export async function GET(
@@ -64,22 +63,6 @@ export async function POST(
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // 상대방에게 이메일 알림
-  const recipientId = room.agency_id === user.id ? room.landco_id : room.agency_id
-  const { data: sender } = await supabase
-    .from('profiles').select('company_name').eq('id', user.id).single()
-  const { data: recipient } = await supabase
-    .from('profiles').select('email').eq('id', recipientId).single()
-
-  if (recipient?.email) {
-    await sendChatMessageEmail({
-      to: recipient.email,
-      sender_name: sender?.company_name ?? '',
-      event_name: (room.request as { event_name: string })?.event_name ?? '',
-      request_id: room.request_id,
-    })
-  }
 
   return NextResponse.json({ message }, { status: 201 })
 }
