@@ -156,7 +156,7 @@ export default function AdminSettlementsPage() {
 
     return calculateSettlement({
       landcoQuoteTotal: Number(s.landco_quote_total),
-      agencyCommission: Number(s.agency_commission ?? 0),
+      agencyCommission: Number(s.agency_markup ?? 0),
       totalCustomerPrice: Number(s.gmv),
       paidAmount: s.paymentSummary.paid,
       approvedDeduction: s.deductionSummary.total,
@@ -197,14 +197,14 @@ export default function AdminSettlementsPage() {
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">정산 ID</th>
-              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">요청 / 행사명</th>
-              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">여행사</th>
-              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">랜드사</th>
-              <th className="text-center text-xs font-semibold text-gray-500 px-4 py-3">여행기간</th>
-              <th className="text-center text-xs font-semibold text-gray-500 px-4 py-3">상태</th>
-              <th className="text-right text-xs font-semibold text-gray-500 px-4 py-3">총 고객가</th>
-              <th className="text-right text-xs font-semibold text-gray-500 px-4 py-3">결제완료</th>
+              <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">REQ ID</th>
+              <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">행사명</th>
+              <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">구분</th>
+              <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">정산 상태</th>
+              <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">총 고객가</th>
+              <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">결제완료</th>
+              <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">공제액</th>
+              <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">환불액</th>
             </tr>
           </thead>
           <tbody>
@@ -215,38 +215,50 @@ export default function AdminSettlementsPage() {
             ) : (
               settlements.map(s => {
                 const qr = s.quote_requests
+                const isCancelled = qr?.status === 'closed'
+                const calc = getCalc(s)
                 return (
                   <tr
                     key={s.id}
                     onClick={() => openDetail(s)}
-                    className="border-b border-gray-50 hover:bg-gray-50/50 cursor-pointer"
+                    className={`border-b border-gray-50 hover:bg-gray-50/50 cursor-pointer ${isCancelled ? 'bg-red-50/30' : ''}`}
                   >
-                    <td className="px-4 py-3">
-                      <span className="text-xs font-mono text-gray-500">{s.display_id ?? s.id.slice(0, 8)}</span>
+                    <td className="px-3 py-3">
+                      <span className="text-xs font-mono text-blue-600">{qr?.display_id ?? '-'}</span>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="text-xs font-mono text-blue-600">{qr?.display_id ?? '-'}</div>
+                    <td className="px-3 py-3">
                       <div className="text-sm font-medium text-gray-900">{qr?.event_name ?? '-'}</div>
+                      <div className="text-[10px] text-gray-400">{s.agency?.company_name} → {s.landco?.company_name}</div>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-gray-700">{s.agency?.company_name ?? '-'}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-gray-700">{s.landco?.company_name ?? '-'}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="text-xs text-gray-500">
-                        {qr?.depart_date?.slice(0, 10)} ~ {qr?.return_date?.slice(0, 10)}
+                    <td className="px-3 py-3 text-center">
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isCancelled ? 'bg-red-100 text-red-600' : 'bg-emerald-50 text-emerald-700'}`}>
+                        {isCancelled ? '행사 취소' : '여행 완료'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 py-3 text-center">
                       {statusBadge(s.settlement_status)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-3 text-right">
                       <span className="text-sm font-semibold text-gray-900">{fmt(Number(s.gmv))}원</span>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-3 text-right">
                       <span className="text-sm text-gray-700">{fmt(s.paymentSummary.paid)}원</span>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {s.deductionSummary.total > 0 ? (
+                        <span className="text-sm text-red-600">{fmt(s.deductionSummary.total)}원</span>
+                      ) : (
+                        <span className="text-sm text-gray-300">-</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      {calc.customerRefund > 0 ? (
+                        <span className="text-sm text-blue-600">{fmt(calc.customerRefund)}원</span>
+                      ) : calc.agencyAdditionalCharge > 0 ? (
+                        <span className="text-sm text-red-600">+{fmt(calc.agencyAdditionalCharge)}원</span>
+                      ) : (
+                        <span className="text-sm text-gray-300">-</span>
+                      )}
                     </td>
                   </tr>
                 )
@@ -288,25 +300,68 @@ export default function AdminSettlementsPage() {
                 <h3 className="text-sm font-bold text-gray-700 mb-3">정산 계산</h3>
                 {(() => {
                   const calc = getCalc(selected)
+                  const isCancelled = selected.quote_requests?.status === 'closed'
+                  const landcoQuoteTotal = Number(selected.landco_quote_total)
+                  const agencyCommission = Number(selected.agency_markup ?? 0)
+                  const gmv = Number(selected.gmv)
+
                   return (
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                      <CalcRow label="랜드사 견적가" value={`${fmt(calc.landcoBase)}원`} />
-                      <CalcRow label="플랫폼 수수료 (5%)" value={`-${fmt(calc.platformFee)}원`} sub />
-                      {selected.deductionSummary.total > 0 && (
-                        <CalcRow label={`공제 (${selected.deductionSummary.count}건)`} value={`-${fmt(selected.deductionSummary.total)}원`} sub />
-                      )}
-                      <div className="border-t border-gray-200 pt-2 mt-2">
-                        <CalcRow label="랜드사 정산금" value={`${fmt(calc.landcoPayout)}원`} bold highlight="purple" />
+                    <div className="space-y-3">
+                      {/* 견적 구성 */}
+                      <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1.5">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">견적 구성</p>
+                        <CalcRow label="랜드사 견적가" value={`${fmt(landcoQuoteTotal)}원`} />
+                        <CalcRow label="여행사 수수료" value={`${fmt(agencyCommission)}원`} sub />
+                        <div className="border-t border-gray-200 pt-1.5 mt-1.5">
+                          <CalcRow label="총 고객가 (GMV)" value={`${fmt(gmv)}원`} bold />
+                        </div>
                       </div>
-                      <div className="border-t border-gray-200 pt-2 mt-2">
-                        <CalcRow label="여행사 수수료" value={`${fmt(calc.agencyPayout)}원`} />
-                        <CalcRow label="플랫폼 수익" value={`${fmt(calc.platformRevenue)}원`} />
-                        {calc.customerRefund > 0 && (
-                          <CalcRow label="고객 환불액" value={`${fmt(calc.customerRefund)}원`} highlight="red" />
+
+                      {/* 결제 / 환불 */}
+                      <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1.5">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">결제 / 환불</p>
+                        <CalcRow label="결제완료액" value={`${fmt(selected.paymentSummary.paid)}원`} />
+                        {isCancelled && (
+                          <>
+                            <CalcRow label={`환불 비율`} value={calc.refundRateLabel} sub />
+                            {selected.deductionSummary.total > 0 && (
+                              <CalcRow label={`실비 공제 (${selected.deductionSummary.count}건)`} value={`-${fmt(selected.deductionSummary.total)}원`} sub highlight="red" />
+                            )}
+                            {calc.customerRefund > 0 && (
+                              <div className="border-t border-gray-200 pt-1.5 mt-1.5">
+                                <CalcRow label="고객 환불액" value={`${fmt(calc.customerRefund)}원`} bold highlight="blue" />
+                              </div>
+                            )}
+                            {calc.agencyAdditionalCharge > 0 && (
+                              <div className="border-t border-gray-200 pt-1.5 mt-1.5">
+                                <CalcRow label="여행사 추가 청구" value={`+${fmt(calc.agencyAdditionalCharge)}원`} bold highlight="red" />
+                              </div>
+                            )}
+                          </>
                         )}
-                        {calc.agencyAdditionalCharge > 0 && (
-                          <CalcRow label="여행사 추가 청구" value={`${fmt(calc.agencyAdditionalCharge)}원`} highlight="red" />
+                      </div>
+
+                      {/* 정산 배분 */}
+                      <div className="bg-purple-50 rounded-lg p-4 text-sm space-y-1.5 border border-purple-100">
+                        <p className="text-[10px] font-bold text-purple-400 uppercase mb-2">정산 배분</p>
+                        <div className="flex justify-between">
+                          <span className="text-gray-700">랜드사 지급</span>
+                          <span className="font-bold text-purple-700">{fmt(calc.landcoPayout)}원</span>
+                        </div>
+                        {calc.platformFee > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500 text-xs pl-2">플랫폼 수수료 (5%)</span>
+                            <span className="text-xs text-gray-500">-{fmt(calc.platformFee)}원</span>
+                          </div>
                         )}
+                        <div className="flex justify-between">
+                          <span className="text-gray-700">여행사 수수료</span>
+                          <span className="font-semibold text-gray-900">{fmt(calc.agencyPayout)}원</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-700">플랫폼 수익</span>
+                          <span className="font-semibold text-emerald-700">{fmt(calc.platformRevenue)}원</span>
+                        </div>
                       </div>
                     </div>
                   )
@@ -439,9 +494,9 @@ function CalcRow({ label, value, sub, bold, highlight }: {
   value: string
   sub?: boolean
   bold?: boolean
-  highlight?: 'purple' | 'red'
+  highlight?: 'purple' | 'red' | 'blue'
 }) {
-  const textColor = highlight === 'purple' ? 'text-purple-700' : highlight === 'red' ? 'text-red-600' : 'text-gray-900'
+  const textColor = highlight === 'purple' ? 'text-purple-700' : highlight === 'red' ? 'text-red-600' : highlight === 'blue' ? 'text-blue-600' : 'text-gray-900'
   return (
     <div className={`flex justify-between ${sub ? 'pl-4' : ''}`}>
       <span className={`${sub ? 'text-gray-400' : 'text-gray-600'}`}>{label}</span>

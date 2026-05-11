@@ -41,7 +41,17 @@ export function SignupWizard() {
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(DRAFT_KEY)
-      if (raw) setDraft(JSON.parse(raw))
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        // OCR 결과의 사업자번호 하이픈 정리
+        if (parsed.ocr?.biz?.business_registration_number) {
+          parsed.ocr.biz.business_registration_number = parsed.ocr.biz.business_registration_number.replace(/[^0-9]/g, '')
+        }
+        if (parsed.basicInfo?.business_registration_number) {
+          parsed.basicInfo.business_registration_number = parsed.basicInfo.business_registration_number.replace(/[^0-9]/g, '')
+        }
+        setDraft(parsed)
+      }
     } catch {}
   }, [])
 
@@ -58,6 +68,15 @@ export function SignupWizard() {
     submitCalledRef.current = true
 
     if (!draft.basicInfo || !draft.bankInfo) return
+
+    // 서류 미첨부 시 Step 2로 돌려보내기
+    if (!bizFileRef.current || !bankFileRef.current) {
+      submitCalledRef.current = false
+      setSubmitError(null)
+      updateDraft({ step: 2 })
+      alert('가입을 완료하려면 사업자등록증과 통장사본을 첨부해주세요.')
+      return
+    }
     setSubmitting(true)
     setSubmitError(null)
 
@@ -76,6 +95,7 @@ export function SignupWizard() {
     })
 
     if (signupError || !data.user) {
+      console.error('[signup] auth.signUp error:', signupError?.message, signupError?.status, JSON.stringify(signupError))
       setSubmitError(signupError?.message ?? '가입에 실패했습니다.')
       setSubmitting(false)
       submitCalledRef.current = false
@@ -160,6 +180,7 @@ export function SignupWizard() {
             bankFileRef.current = bankFile
             updateDraft({ ocr: { biz, bank }, step: 3 })
           }}
+          onSkip={() => updateDraft({ step: 3 })}
           onBack={() => updateDraft({ step: 1 })}
         />
       </div>

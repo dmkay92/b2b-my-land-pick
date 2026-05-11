@@ -107,12 +107,12 @@ export default function AdditionalSettlementSection({ requestId, settlements, on
                     {s.status === 'approved' ? '승인됨' : s.status === 'rejected' ? '거부됨' : '검토중'}
                   </span>
                 </div>
-                <span className="text-sm font-bold text-gray-900">{fmt(s.total_amount)}원</span>
+                <span className={`text-sm font-bold ${s.total_amount < 0 ? 'text-red-600' : 'text-gray-900'}`}>{s.total_amount < 0 ? '-' + fmt(Math.abs(s.total_amount)) : fmt(s.total_amount)}원</span>
               </div>
               <div className="flex flex-wrap gap-1.5 mb-1">
                 {s.items.map((item, i) => (
-                  <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                    {item.name} {fmt(item.amount)}원
+                  <span key={i} className={`text-xs px-2 py-0.5 rounded ${item.amount < 0 ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
+                    {item.name} {item.amount < 0 ? '-' + fmt(Math.abs(item.amount)) : fmt(item.amount)}원
                   </span>
                 ))}
               </div>
@@ -165,7 +165,7 @@ export default function AdditionalSettlementSection({ requestId, settlements, on
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="text-base font-bold text-gray-900">추가 정산 요청</h3>
-              <p className="text-xs text-gray-500 mt-0.5">여행 중 발생한 추가 비용을 요청합니다.</p>
+              <p className="text-xs text-gray-500 mt-0.5">추가 비용 또는 감소분(인원 축소 등)을 요청합니다. 감소 시 금액 앞에 - 를 입력하세요.</p>
             </div>
 
             <div className="px-5 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
@@ -181,13 +181,15 @@ export default function AdditionalSettlementSection({ requestId, settlements, on
                     <input
                       type="text"
                       inputMode="numeric"
-                      value={item.amount ? fmt(item.amount) : ''}
+                      value={item.amount ? (item.amount < 0 ? '-' + fmt(Math.abs(item.amount)) : fmt(item.amount)) : ''}
                       onChange={e => {
+                        const isNegative = e.target.value.includes('-')
                         const raw = e.target.value.replace(/[^0-9]/g, '')
-                        updateItem(idx, 'amount', Number(raw) || 0)
+                        const num = Number(raw) || 0
+                        updateItem(idx, 'amount', isNegative ? -num : num)
                       }}
-                      placeholder="금액"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-right pr-6 focus:outline-none focus:border-blue-400"
+                      placeholder="금액 (감소 시 -)"
+                      className={`w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-right pr-6 focus:outline-none focus:border-blue-400 ${item.amount < 0 ? 'text-red-600' : ''}`}
                     />
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">원</span>
                   </div>
@@ -214,7 +216,7 @@ export default function AdditionalSettlementSection({ requestId, settlements, on
 
               <div className="bg-gray-50 rounded-lg p-3 flex justify-between items-center">
                 <span className="text-xs text-gray-500">합계</span>
-                <span className="text-base font-bold text-gray-900">{fmt(total)}원</span>
+                <span className={`text-base font-bold ${total < 0 ? 'text-red-600' : 'text-gray-900'}`}>{total < 0 ? '-' + fmt(Math.abs(total)) : fmt(total)}원</span>
               </div>
             </div>
 
@@ -230,7 +232,7 @@ export default function AdditionalSettlementSection({ requestId, settlements, on
                 disabled={submitting || items.some(i => !i.name.trim() || !i.amount) || total === 0}
                 className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
-                {submitting ? '제출 중...' : `${fmt(total)}원 요청`}
+                {submitting ? '제출 중...' : `${total < 0 ? '-' + fmt(Math.abs(total)) : fmt(total)}원 요청`}
               </button>
             </div>
           </div>

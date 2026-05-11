@@ -398,7 +398,7 @@ export default function AgencyRequestDetail() {
               >
                 행사 취소
               </button>
-            ) : request.status !== 'payment_pending' && request.status !== 'finalized' && (
+            ) : (request.status as string) !== 'payment_pending' && (request.status as string) !== 'finalized' && (
               <button
                 onClick={() => setShowCancelModal(true)}
                 className="border border-red-300 text-red-500 px-4 py-2 rounded-lg text-sm font-medium bg-white hover:bg-red-50"

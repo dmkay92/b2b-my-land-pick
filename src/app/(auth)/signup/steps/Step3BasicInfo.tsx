@@ -68,7 +68,7 @@ const COUNTRY_CODES = [
 
 export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
   const [values, setValues] = useState<BasicInfoValues>({
-    business_registration_number: initial?.business_registration_number ?? ocr?.business_registration_number ?? '',
+    business_registration_number: (initial?.business_registration_number ?? ocr?.business_registration_number ?? '').replace(/[^0-9]/g, '').slice(0, 10),
     company_name: initial?.company_name ?? ocr?.company_name ?? '',
     representative_name: initial?.representative_name ?? ocr?.representative_name ?? '',
     email: initial?.email ?? '',
@@ -109,6 +109,9 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
         .then(data => {
           setBrnStatus(data.valid ? 'valid' : 'invalid')
           setBrnMessage(data.message ?? '')
+          if (data.valid) {
+            setValues(prev => ({ ...prev, business_registration_number: `${brn.slice(0,3)}-${brn.slice(3,5)}-${brn.slice(5)}` }))
+          }
         })
         .catch(() => setBrnStatus('idle'))
     }
@@ -156,8 +159,8 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
     if (values.password !== passwordConfirm) return
     onNext({
       ...values,
-      phone_mobile: values.phone_mobile ? `${mobileCc} ${values.phone_mobile}` : '',
-      phone_landline: values.phone_landline ? `${landlineCc} ${values.phone_landline}` : '',
+      phone_mobile: values.phone_mobile ? (values.phone_mobile.startsWith('+') ? values.phone_mobile : `${mobileCc} ${values.phone_mobile}`) : '',
+      phone_landline: values.phone_landline ? (values.phone_landline.startsWith('+') ? values.phone_landline : `${landlineCc} ${values.phone_landline}`) : '',
     })
   }
 
@@ -186,7 +189,13 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
               <input
                 type="text"
                 value={values[key]}
-                onChange={e => set(key, e.target.value)}
+                onChange={e => {
+                  if (key === 'business_registration_number') {
+                    set(key, e.target.value.replace(/[^0-9]/g, '').slice(0, 10))
+                  } else {
+                    set(key, e.target.value)
+                  }
+                }}
                 className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
               {key === 'business_registration_number' && (

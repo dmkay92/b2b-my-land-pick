@@ -98,12 +98,15 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
     .reduce((sum, c) => sum + (c.approved_amount ?? c.total_amount), 0)
   const refundAmount = paidTotal ? paidTotal - approvedDeductions : null
 
+  // 결제 미이행 취소: 결제완료액이 0원이면 취소 수수료/공제 없음
+  const noPaidCancellation = (paidTotal ?? 0) === 0
+
   return (
     <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
       <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-red-900 to-red-800">
         <h3 className="text-sm font-bold text-white">공제 신청 (행사 취소)</h3>
         <div className="flex items-center gap-2">
-          {role !== 'landco' && (
+          {role !== 'landco' && !noPaidCancellation && (
             <button
               onClick={() => window.open(`/api/invoice?requestId=${requestId}&type=deduction`, '_blank')}
               className="text-[10px] text-white bg-white/15 border border-white/25 px-2.5 py-0.5 rounded-full hover:bg-white/25 transition-colors"
@@ -111,7 +114,7 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
               인보이스
             </button>
           )}
-          {role === 'landco' && (
+          {role === 'landco' && !noPaidCancellation && (
             <button
               onClick={() => setShowModal(true)}
               className="text-xs font-medium text-white bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg transition-colors"
@@ -234,6 +237,24 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
 
         {/* Summary */}
         {(() => {
+          // 결제 미이행 취소: 수수료/공제 없음
+          if (noPaidCancellation) {
+            return (
+              <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
+                <div className="text-[10px] text-gray-400 mb-1">결제 미이행 취소</div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">결제완료액</span>
+                  <span className="text-xs text-gray-700">0원</span>
+                </div>
+                <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-200">
+                  <span className="text-sm font-bold text-gray-900">취소 수수료</span>
+                  <span className="text-sm font-bold text-gray-900">0원</span>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">결제 확정 전 취소 건으로 취소 수수료 및 공제가 발생하지 않습니다.</p>
+              </div>
+            )
+          }
+
           const hasCalcData = totalCustomerPrice && landcoQuoteTotal != null && agencyCommission != null && daysUntilDepart != null
           const calc = hasCalcData ? calculateRefund({
             totalCustomerPrice: totalCustomerPrice!,

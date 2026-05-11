@@ -82,6 +82,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '권한이 없습니다.' }, { status: 403 })
   }
 
+  // 결제 미이행 취소: 결제완료액이 0원이면 공제 신청 불가
+  const { data: installments } = await admin
+    .from('payment_installments').select('paid_amount')
+    .eq('request_id', requestId)
+  const paidTotal = (installments ?? []).reduce((sum, i) => sum + (i.paid_amount ?? 0), 0)
+  if (paidTotal === 0) {
+    return NextResponse.json({ error: '결제 확정 전 취소 건은 공제 신청이 불가합니다.' }, { status: 400 })
+  }
+
   const totalAmount = items.reduce((sum, item) => sum + item.amount, 0)
 
   const { data: claim, error: insertError } = await admin

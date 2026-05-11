@@ -23,17 +23,36 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // request_id → display_id 매핑
+  const requestIds = [...new Set(
+    (notifications ?? [])
+      .map((n: Record<string, unknown>) => (n.payload as Record<string, unknown>)?.request_id)
+      .filter(Boolean) as string[]
+  )]
+  const displayIdMap: Record<string, string> = {}
+  if (requestIds.length > 0) {
+    const { data: reqs } = await admin
+      .from('quote_requests').select('id, display_id').in('id', requestIds)
+    reqs?.forEach(r => { if (r.display_id) displayIdMap[r.id] = r.display_id })
+  }
+
   // 액션 가능한 알림의 실제 상태를 enrichment
   const enriched = await Promise.all((notifications ?? []).map(async (n: Record<string, unknown>) => {
-    if (n.type === 'additional_settlement_request' && (n.payload as Record<string, unknown>)?.settlement_id) {
-      const { data } = await admin.from('additional_settlements').select('status').eq('id', (n.payload as Record<string, unknown>).settlement_id).maybeSingle()
-      return { ...n, action_status: data?.status ?? 'pending' }
+    const payload = n.payload as Record<string, unknown>
+    const requestId = payload?.request_id as string | undefined
+    const enrichedPayload = requestId && displayIdMap[requestId]
+      ? { ...payload, display_id: displayIdMap[requestId] }
+      : payload
+
+    if (n.type === 'additional_settlement_request' && payload?.settlement_id) {
+      const { data } = await admin.from('additional_settlements').select('status').eq('id', payload.settlement_id).maybeSingle()
+      return { ...n, payload: enrichedPayload, action_status: data?.status ?? 'pending' }
     }
-    if (n.type === 'post_travel_approval_request' && (n.payload as Record<string, unknown>)?.schedule_id) {
-      const { data } = await admin.from('payment_schedules').select('approval_status').eq('id', (n.payload as Record<string, unknown>).schedule_id).maybeSingle()
-      return { ...n, action_status: data?.approval_status ?? 'pending' }
+    if (n.type === 'post_travel_approval_request' && payload?.schedule_id) {
+      const { data } = await admin.from('payment_schedules').select('approval_status').eq('id', payload.schedule_id).maybeSingle()
+      return { ...n, payload: enrichedPayload, action_status: data?.approval_status ?? 'pending' }
     }
-    return n
+    return { ...n, payload: enrichedPayload }
   }))
 
   return NextResponse.json({ notifications: enriched })

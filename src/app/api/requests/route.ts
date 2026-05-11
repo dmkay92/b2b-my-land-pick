@@ -59,7 +59,10 @@ export async function POST(request: NextRequest) {
     religion_type: body.travel_type === 'religion' ? (body.religion_type || null) : null,
   }).select().single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[POST /api/requests] insert error:', error.message, error.details, error.hint)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   // 해당 국가+도시를 담당하는 랜드사 찾기
   const admin = createAdminClient(

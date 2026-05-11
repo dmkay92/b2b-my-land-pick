@@ -65,6 +65,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'OCR 결과를 파싱할 수 없습니다.' }, { status: 422 })
     }
     const parsed = JSON.parse(jsonMatch[0])
+    if (type === 'biz' && parsed.business_registration_number) {
+      parsed.business_registration_number = parsed.business_registration_number.replace(/[^0-9]/g, '')
+    }
     return NextResponse.json({ result: parsed })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

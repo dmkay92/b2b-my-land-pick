@@ -32,9 +32,10 @@ export async function GET(request: NextRequest) {
 
   // 관련 데이터 별도 조회
   const settlements = await Promise.all((rawSettlements ?? []).map(async (s) => {
-    const { data: qr } = await admin.from('quote_requests').select('id, display_id, event_name, depart_date, return_date, destination_country, destination_city, adults, children, infants, leaders, status, updated_at').eq('id', s.request_id).single()
-    const { data: agency } = await admin.from('profiles').select('id, company_name, bank_name, bank_account, bank_holder').eq('id', s.agency_id).single()
-    const { data: landco } = await admin.from('profiles').select('id, company_name, business_registration_number, representative_name, bank_name, bank_account, bank_holder').eq('id', s.landco_id).single()
+    const { data: qr, error: qrErr } = await admin.from('quote_requests').select('id, display_id, event_name, depart_date, return_date, destination_country, destination_city, adults, children, infants, leaders, status, created_at').eq('id', s.request_id).maybeSingle()
+    const { data: agency } = await admin.from('profiles').select('id, company_name, bank_name, bank_account, bank_holder').eq('id', s.agency_id).maybeSingle()
+    const { data: landco } = await admin.from('profiles').select('id, company_name, business_registration_number, representative_name, bank_name, bank_account, bank_holder').eq('id', s.landco_id).maybeSingle()
+    if (qrErr) console.error('[settlements] qr error:', s.request_id, qrErr.message)
     return { ...s, quote_requests: qr, agency, landco }
   }))
 

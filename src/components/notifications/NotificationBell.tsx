@@ -1,21 +1,25 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
 interface Notification {
   id: string
   type: string
-  payload: { request_id?: string; event_name?: string; schedule_id?: string }
+  payload: { request_id?: string; event_name?: string; schedule_id?: string; display_id?: string; settlement_id?: string }
   read_at: string | null
   created_at: string
+  action_status?: string | null
 }
 
 const TYPE_LABEL: Record<string, string> = {
   quote_selected: '견적서가 선택되었습니다',
   quote_finalized: '견적이 최종 확정되었습니다',
   new_request: '새 견적 요청이 접수되었습니다',
+  request_updated: '견적 요청이 수정되었습니다',
+  quote_submitted: '새 견적서가 제출되었습니다',
   post_travel_approval_request: '여행 후 정산 승인 요청이 있습니다',
   post_travel_approved: '여행 후 정산이 승인되었습니다',
   post_travel_rejected: '여행 후 정산이 거부되었습니다',
@@ -29,8 +33,9 @@ const TYPE_LABEL: Record<string, string> = {
   deduction_claim_rejected: '공제 신청이 거부되었습니다',
 }
 
-export function NotificationBell({ userId }: { userId: string }) {
+export function NotificationBell({ userId, role }: { userId: string; role: 'agency' | 'landco' | 'admin' }) {
   const supabase = createClient()
+  const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
   const [actingId, setActingId] = useState<string | null>(null)
@@ -139,14 +144,24 @@ export function NotificationBell({ userId }: { userId: string }) {
             {notifications.map((n) => (
               <div
                 key={n.id}
-                className={`px-4 py-3 text-sm transition-colors ${
+                className={`px-4 py-3 text-sm transition-colors cursor-pointer hover:bg-gray-50 ${
                   n.read_at ? 'text-gray-500 bg-white' : 'text-gray-800 font-medium bg-blue-50'
                 }`}
+                onClick={() => {
+                  if (n.payload.request_id) {
+                    const base = role === 'admin' ? '/admin/payments' : `/${role}/requests/${n.payload.request_id}`
+                    router.push(base)
+                    setOpen(false)
+                  }
+                }}
               >
                 <div className="flex items-start gap-2.5">
                   <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${n.read_at ? 'bg-transparent' : 'bg-blue-500'}`} />
                   <div className="flex-1">
                     <p>{TYPE_LABEL[n.type] ?? n.type}</p>
+                    {n.payload.display_id && (
+                      <p className="text-[10px] text-blue-500 font-mono mt-0.5">{n.payload.display_id}</p>
+                    )}
                     {n.payload.event_name && (
                       <p className="text-xs text-gray-400 mt-0.5">{n.payload.event_name}</p>
                     )}

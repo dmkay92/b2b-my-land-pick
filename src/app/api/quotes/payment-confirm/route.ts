@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
   if (agency) {
     await sendFinalizedEmail({
       to: agency.email,
-      company_name: agency.company_name,
       event_name: qr.event_name ?? '',
+      request_id: requestId,
     })
   }
 

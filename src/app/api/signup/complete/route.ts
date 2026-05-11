@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
     document_biz_url,
     document_bank_url,
     country_codes,
+    service_areas,
   } = await req.json()
 
   if (!userId) {
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
     document_biz_url: document_biz_url || null,
     document_bank_url: document_bank_url || null,
     ...(Array.isArray(country_codes) ? { country_codes } : {}),
+    ...(Array.isArray(service_areas) ? { service_areas } : {}),
   }).eq('id', userId)
 
   if (error) {

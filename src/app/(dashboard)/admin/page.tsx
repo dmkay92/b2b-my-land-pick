@@ -4,13 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/lib/supabase/types'
-
-const COUNTRY_OPTIONS = [
-  { code: 'JP', name: '일본' },
-  { code: 'CN', name: '중국' },
-  { code: 'VN', name: '베트남' },
-  { code: 'FR', name: '프랑스' },
-]
+import CitySearchSelect from '@/components/CitySearchSelect'
 
 export default function AdminPage() {
   const supabase = createClient()
@@ -28,13 +22,24 @@ export default function AdminPage() {
 
   // 상세 모달
   const [detailModal, setDetailModal] = useState<{ user: Profile } | null>(null)
-  const [selectedCodes, setSelectedCodes] = useState<string[]>([])
+  const [editServiceAreas, setEditServiceAreas] = useState<{ country: string; city: string }[]>([])
+  const [saCountry, setSaCountry] = useState('')
+  const [saCities, setSaCities] = useState<string[]>([])
+  const [availableCountries, setAvailableCountries] = useState<{ code: string; name: string }[]>([])
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [signedUrls, setSignedUrls] = useState<{ biz: string | null; bank: string | null }>({ biz: null, bank: null })
 
+  useEffect(() => {
+    fetch('/api/cities').then(r => r.json()).then(d => setAvailableCountries(d.countries ?? []))
+  }, [])
+
+  const getCountryName = (code: string) => availableCountries.find(c => c.code === code)?.name || code
+
   async function openDetailModal(user: Profile) {
-    setSelectedCodes([])
+    setEditServiceAreas(user.service_areas ?? [])
+    setSaCountry('')
+    setSaCities([])
     setSignedUrls({ biz: null, bank: null })
     setDetailModal({ user })
 
@@ -139,6 +144,7 @@ export default function AdminPage() {
     setSaving(true)
     setSaveError(null)
     const { user } = detailModal
+    const countryCodes = [...new Set(editServiceAreas.map(a => a.country))]
     const [approveRes, countryRes] = await Promise.all([
       fetch('/api/admin/approve', {
         method: 'POST',
@@ -148,7 +154,7 @@ export default function AdminPage() {
       fetch('/api/admin/assign-countries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ landcoId: user.id, countryCodes: selectedCodes }),
+        body: JSON.stringify({ landcoId: user.id, countryCodes, serviceAreas: editServiceAreas }),
       }),
     ])
     setSaving(false)
@@ -418,31 +424,85 @@ export default function AdminPage() {
                 </div>
               </section>
 
-              {/* 랜드사 국가 선택 */}
+              {/* 랜드사 담당 지역 */}
               {detailModal.user.role === 'landco' && (
                 <section>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">담당 국가 지정</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {COUNTRY_OPTIONS.map(country => {
-                      const selected = selectedCodes.includes(country.code)
-                      return (
-                        <button
-                          key={country.code}
-                          type="button"
-                          onClick={() => setSelectedCodes(prev =>
-                            prev.includes(country.code) ? prev.filter(c => c !== country.code) : [...prev, country.code]
-                          )}
-                          className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                            selected ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
-                          }`}
-                        >
-                          {country.name}
-                        </button>
-                      )
-                    })}
+                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">담당 지역</h4>
+
+                  {editServiceAreas.length > 0 && (
+                    <div className="space-y-2 mb-4">
+                      {Object.entries(
+                        editServiceAreas.reduce<Record<string, string[]>>((acc, a) => {
+                          if (!acc[a.country]) acc[a.country] = []
+                          acc[a.country].push(a.city)
+                          return acc
+                        }, {})
+                      ).map(([country, cities]) => (
+                        <div key={country} className="bg-gray-50 rounded-lg p-2.5">
+                          <p className="text-[10px] font-bold text-gray-400 mb-1.5">{getCountryName(country)}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {cities.map(city => (
+                              <span key={city} className="inline-flex items-center gap-1 bg-white border border-blue-200 text-blue-700 text-[11px] px-2 py-0.5 rounded-full">
+                                {city}
+                                <button
+                                  onClick={() => setEditServiceAreas(prev => prev.filter(a => !(a.country === country && a.city === city)))}
+                                  className="text-blue-300 hover:text-blue-600"
+                                >&times;</button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {editServiceAreas.length === 0 && (
+                    <p className="text-xs text-gray-300 mb-3">등록된 담당 지역이 없습니다.</p>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="relative">
+                      <select
+                        value={saCountry}
+                        onChange={e => { setSaCountry(e.target.value); setSaCities([]) }}
+                        className="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:border-blue-400 bg-white"
+                      >
+                        <option value="">국가 선택</option>
+                        {availableCountries.map(c => (
+                          <option key={c.code} value={c.code}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      {saCountry ? (
+                        <CitySearchSelect
+                          countryCode={saCountry}
+                          selected={saCities}
+                          onChange={v => setSaCities(v as string[])}
+                          multiple
+                          placeholder="도시 검색"
+                        />
+                      ) : (
+                        <input disabled placeholder="국가를 먼저 선택" className="w-full border border-gray-200 rounded-lg px-2.5 py-2 text-xs bg-gray-50 text-gray-300" />
+                      )}
+                    </div>
                   </div>
-                  {selectedCodes.length === 0 && (
-                    <p className="text-xs text-amber-500 mt-1">승인 시 국가를 1개 이상 선택해주세요.</p>
+                  {saCities.length > 0 && (
+                    <button
+                      onClick={() => {
+                        const newAreas = saCities
+                          .filter(city => !editServiceAreas.some(a => a.country === saCountry && a.city === city))
+                          .map(city => ({ country: saCountry, city }))
+                        setEditServiceAreas(prev => [...prev, ...newAreas])
+                        setSaCities([])
+                        setSaCountry('')
+                      }}
+                      className="mt-2 w-full py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      + {saCities.length}개 도시 추가
+                    </button>
+                  )}
+                  {editServiceAreas.length === 0 && (
+                    <p className="text-xs text-amber-500 mt-2">승인 시 담당 지역을 1개 이상 선택해주세요.</p>
                   )}
                 </section>
               )}
@@ -466,7 +526,7 @@ export default function AdminPage() {
               {detailModal.user.role === 'landco' ? (
                 <button
                   onClick={handleApproveWithCountries}
-                  disabled={saving || selectedCodes.length === 0}
+                  disabled={saving || editServiceAreas.length === 0}
                   className="flex-1 px-4 py-2.5 rounded-xl text-sm bg-green-500 text-white hover:bg-green-600 transition-colors disabled:opacity-40"
                 >
                   {saving ? '처리 중...' : '승인'}
