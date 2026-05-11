@@ -754,7 +754,7 @@ export default function LandcoRequestDetail() {
       </div>
 
       {/* 결제 현황 */}
-      {(request.status === 'payment_pending' || request.status === 'finalized' || request.status === 'closed') && paymentSchedule && (
+      {(request.status === 'payment_pending' || request.status === 'finalized' || request.status === 'closed') && selectionResult === 'selected' && paymentSchedule && (
         <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
           <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
             <div className="flex items-center gap-2.5">
@@ -951,7 +951,7 @@ export default function LandcoRequestDetail() {
       )}
 
       {/* 결제확인 — paymentSchedule이 없을 때 fallback */}
-      {request.status === 'payment_pending' && !paymentSchedule && !paymentConfirmed && (
+      {request.status === 'payment_pending' && selectionResult === 'selected' && !paymentSchedule && !paymentConfirmed && (
         <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
           <div className="flex items-center px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
             <h3 className="text-sm font-bold text-white">결제 확인</h3>
@@ -977,7 +977,7 @@ export default function LandcoRequestDetail() {
           </div>
         </div>
       )}
-      {!paymentSchedule && paymentConfirmed && (
+      {!paymentSchedule && paymentConfirmed && selectionResult === 'selected' && (
         <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-5 py-4 mb-6">
           <span className="text-2xl">✅</span>
           <div>

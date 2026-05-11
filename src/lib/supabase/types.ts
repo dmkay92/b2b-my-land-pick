@@ -120,7 +120,7 @@ export interface Message {
 export interface AdminActionLog {
   id: string
   target_user_id: string
-  action_type: 'status_change' | 'email_change' | 'country_change' | 'service_areas_change'
+  action_type: 'status_change' | 'email_change' | 'country_change' | 'service_areas_change' | 'profile_update'
   detail: Record<string, unknown>
   created_at: string
 }
@@ -193,6 +193,7 @@ export interface Notification {
   payload: Record<string, unknown>
   read_at: string | null
   created_at: string
+  action_status?: string | null
 }
 
 export interface SignupOcrResult {

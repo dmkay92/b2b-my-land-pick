@@ -123,7 +123,7 @@ function AdditionalSettlementCard({ msg, currentUserId, onAction, resolved }: {
   )
 }
 
-function AdditionalSettlementResultCard({ msg }: { msg: { content: string | null; metadata?: Record<string, unknown> | null; message_type?: string } }) {
+function AdditionalSettlementResultCard({ msg }: { msg: { content: string | null; metadata?: Record<string, unknown> | null; message_type?: string | null } }) {
   const isApproved = msg.message_type === 'additional_settlement_approved'
   return (
     <div style={{

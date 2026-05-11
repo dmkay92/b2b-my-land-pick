@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
   const { data: installments } = await admin
     .from('payment_installments').select('*')
     .eq('schedule_id', schedule.id)
-    .order('rate', { ascending: false })
+    .order('due_date', { ascending: true })
 
   const regularInstallments = (installments ?? []).filter(i => i.rate > 0 && i.status !== 'cancelled')
   const additionalInstallments = (installments ?? []).filter(i => i.rate === 0 && i.status !== 'cancelled')

@@ -21,7 +21,7 @@ export default async function AgencyLayout({ children }: { children: React.React
   const rightSlot = (
     <>
       <AccountMenu email={user.email!} role="agency" companyName={profile.company_name} />
-      <NotificationBell userId={user.id} />
+      <NotificationBell userId={user.id} role="agency" />
       <LogoutButton />
     </>
   )

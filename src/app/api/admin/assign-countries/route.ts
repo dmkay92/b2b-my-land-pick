@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     .from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { landcoId, countryCodes } = await request.json()
+  const { landcoId, countryCodes, serviceAreas } = await request.json()
 
   if (!Array.isArray(countryCodes)) {
     return NextResponse.json({ error: 'Invalid countryCodes' }, { status: 400 })
@@ -27,7 +27,10 @@ export async function POST(request: NextRequest) {
     .from('profiles').select('country_codes').eq('id', landcoId).single()
 
   const { error } = await admin
-    .from('profiles').update({ country_codes: countryCodes }).eq('id', landcoId)
+    .from('profiles').update({
+      country_codes: countryCodes,
+      ...(Array.isArray(serviceAreas) ? { service_areas: serviceAreas } : {}),
+    }).eq('id', landcoId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

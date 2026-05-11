@@ -13,6 +13,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ valid: false, message: '사업자등록번호는 10자리입니다.' })
   }
 
+  // 테스트용 사업자번호 허용
+  const TEST_BRNS = ['1111111111', '2222222222', '3333333333', '4444444444', '5555555555']
+  if (TEST_BRNS.includes(clean)) {
+    return NextResponse.json({ valid: true, message: '테스트 사업자번호입니다.' })
+  }
+
   // 이미 가입된 사업자번호인지 확인
   const serviceClient = await createServiceClient()
   const { data: existing } = await serviceClient
@@ -31,8 +37,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const decodedKey = decodeURIComponent(serviceKey)
     const res = await fetch(
-      `https://api.odcloud.kr/api/nts-businessman/v1/status?serviceKey=${encodeURIComponent(serviceKey)}`,
+      `https://api.odcloud.kr/api/nts-businessman/v1/status?serviceKey=${encodeURIComponent(decodedKey)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -40,6 +47,8 @@ export async function POST(request: NextRequest) {
       }
     )
     const data = await res.json()
+    console.log('[validate-brn] serviceKey length:', serviceKey?.length, 'first10:', serviceKey?.slice(0, 10))
+    console.log('[validate-brn] b_no:', clean, 'status:', res.status, 'body:', JSON.stringify(data).slice(0, 500))
     const item = data?.data?.[0]
     if (!item) {
       return NextResponse.json({ valid: false, message: '사업자 정보를 조회할 수 없습니다.' })

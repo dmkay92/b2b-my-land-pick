@@ -9,6 +9,22 @@ import CitySearchSelect from '@/components/CitySearchSelect'
 
 type Status = 'approved' | 'rejected' | 'pending'
 
+function maskEmail(email: string | null): string {
+  if (!email) return '-'
+  const [local, domain] = email.split('@')
+  if (!domain) return email
+  return local.slice(0, 2) + '***@' + domain
+}
+function maskPhone(phone: string | null): string {
+  if (!phone) return '-'
+  return phone.replace(/(\d{2,4}[-)]?\s?)(\d{4})([-]?\d{4})$/, '$1****$3')
+}
+function maskAccount(account: string | null): string {
+  if (!account) return '-'
+  if (account.length <= 4) return account
+  return account.slice(0, 4) + '*'.repeat(account.length - 4)
+}
+
 const STATUS_STYLE: Record<Status, string> = {
   approved: 'bg-green-100 text-green-700',
   pending:  'bg-yellow-100 text-yellow-700',
@@ -119,6 +135,8 @@ export default function LandcosPage() {
   const [pendingStatus, setPendingStatus] = useState<Status | null>(null)
   const [logs, setLogs] = useState<AdminActionLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
+  const [unmasked, setUnmasked] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const modalRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -130,7 +148,18 @@ export default function LandcosPage() {
     else { setSortKey(key); setSortDir('asc') }
   }
 
-  const sorted = sortProfiles(landcos, sortKey, sortDir)
+  const filtered = searchQuery.trim()
+    ? landcos.filter(l => {
+        const q = searchQuery.trim().toLowerCase()
+        return (l.display_id ?? '').toLowerCase().includes(q)
+          || (l.company_name ?? '').toLowerCase().includes(q)
+          || (l.business_registration_number ?? '').toLowerCase().includes(q)
+          || (l.representative_name ?? '').toLowerCase().includes(q)
+          || (l.email ?? '').toLowerCase().includes(q)
+          || (l.partner_code ?? '').toLowerCase().includes(q)
+      })
+    : landcos
+  const sorted = sortProfiles(filtered, sortKey, sortDir)
 
   useEffect(() => {
     supabase
@@ -150,6 +179,7 @@ export default function LandcosPage() {
 
   async function openModal(landco: Profile) {
     setSelected(landco)
+    setUnmasked(false)
     setEditStatus(landco.status as Status)
     setEditEmail(landco.email)
     setEditingEmail(false)
@@ -251,7 +281,16 @@ export default function LandcosPage() {
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <BackButton href="/admin" />
-      <h1 className="text-2xl font-bold mb-6">랜드사 리스트 <span className="text-gray-400 font-normal text-lg">({landcos.length})</span></h1>
+      <h1 className="text-2xl font-bold mb-4">랜드사 리스트 <span className="text-gray-400 font-normal text-lg">({landcos.length})</span></h1>
+      <div className="mb-4">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="ID, 회사명, 사업자번호, 대표자명, 이메일, 거래처코드 검색"
+          className="w-full max-w-md border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-400 placeholder:text-gray-400"
+        />
+      </div>
       {landcos.length === 0 ? (
         <p className="text-gray-400">등록된 랜드사가 없습니다.</p>
       ) : (
@@ -281,7 +320,7 @@ export default function LandcosPage() {
                   <td className="px-5 py-3 font-medium text-gray-800 whitespace-nowrap">{landco.company_name}</td>
                   <td className="px-5 py-3 text-gray-500 font-mono text-xs">{landco.business_registration_number ?? '-'}</td>
                   <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{landco.representative_name ?? '-'}</td>
-                  <td className="px-5 py-3 text-gray-500">{landco.email}</td>
+                  <td className="px-5 py-3 text-gray-500">{maskEmail(landco.email)}</td>
                   <td className="px-5 py-3">
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLE[landco.status as Status]}`}>
                       {STATUS_LABEL[landco.status as Status]}
@@ -344,6 +383,16 @@ export default function LandcosPage() {
             </div>
 
             <div className="px-6 py-4 space-y-5">
+              {/* 마스킹 해제 버튼 */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setUnmasked(!unmasked)}
+                  className={`text-[11px] px-3 py-1 rounded-full border transition-colors ${unmasked ? 'bg-blue-50 border-blue-300 text-blue-600' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+                >
+                  {unmasked ? '마스킹 적용' : '마스킹 해제'}
+                </button>
+              </div>
+
               {/* 기본 정보 */}
               <section>
                 <div className="flex items-center justify-between mb-2">
@@ -364,9 +413,9 @@ export default function LandcosPage() {
                   ) : (
                     <>
                       <InfoRow label="대표자명" value={editRepName} />
-                      <InfoRow label="이메일" value={editEmail} />
+                      <InfoRow label="이메일" value={unmasked ? editEmail : maskEmail(editEmail)} />
                       <InfoRow label="유선" value={editPhoneLandline} />
-                      <InfoRow label="휴대폰" value={editPhoneMobile} />
+                      <InfoRow label="휴대폰" value={unmasked ? editPhoneMobile : maskPhone(editPhoneMobile)} />
                     </>
                   )}
                   <InfoRow label="가입일" value={new Date(selected.created_at).toLocaleDateString('ko-KR')} />
@@ -393,7 +442,7 @@ export default function LandcosPage() {
                   ) : (
                     <>
                       <InfoRow label="은행" value={editBankName} />
-                      <InfoRow label="계좌번호" value={editBankAccount} />
+                      <InfoRow label="계좌번호" value={unmasked ? editBankAccount : maskAccount(editBankAccount)} />
                       <InfoRow label="예금주" value={editBankHolder} />
                     </>
                   )}

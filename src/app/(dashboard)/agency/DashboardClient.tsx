@@ -482,6 +482,9 @@ export function AgencyDashboardClient({
                         className={`flex items-center justify-between rounded-xl p-4 shadow-sm transition-all hover:-translate-y-0.5 ${isDone ? 'bg-gray-50' : 'bg-white'}`}
                       >
                         <div className="flex-1">
+                          {req.display_id && (
+                            <p className="text-[10px] text-gray-400 font-mono mb-0.5">{req.display_id}</p>
+                          )}
                           <div className="flex items-center justify-between mb-1.5">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className={`text-[15px] font-semibold ${isDone ? 'text-gray-500' : 'text-gray-900'}`}>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendQuoteSubmittedEmail } from '@/lib/email/notifications'
 
 // GET: 현재 랜드사가 제출한 전체 견적 목록 (quote_requests 조인)
@@ -141,6 +142,18 @@ export async function POST(request: NextRequest) {
         request_id: requestId,
       })
     }
+
+    // 여행사에게 인앱 알림
+    const adminClient = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+    await adminClient.from('notifications').insert({
+      user_id: requestInfo.agency_id,
+      type: 'quote_submitted',
+      payload: { request_id: requestId, event_name: requestInfo.event_name, landco_name: landcoInfo?.company_name ?? '' },
+    })
   }
 
   return NextResponse.json({ data }, { status: 201 })

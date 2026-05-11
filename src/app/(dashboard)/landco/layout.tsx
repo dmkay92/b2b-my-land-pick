@@ -21,7 +21,7 @@ export default async function LandcoLayout({ children }: { children: React.React
   const rightSlot = (
     <>
       <AccountMenu email={user.email!} role="landco" companyName={profile.company_name} />
-      <NotificationBell userId={user.id} />
+      <NotificationBell userId={user.id} role="landco" />
       <LogoutButton />
     </>
   )

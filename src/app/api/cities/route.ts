@@ -24,10 +24,6 @@ const COUNTRY_NAMES: Record<string, string> = {
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   const country = request.nextUrl.searchParams.get('country')
   const activeOnly = request.nextUrl.searchParams.get('active') === 'true'
   const admin = getAdmin()

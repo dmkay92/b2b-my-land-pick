@@ -5,6 +5,7 @@ import type { SignupOcrResult, BankOcrResult } from '@/lib/supabase/types'
 
 interface Props {
   onComplete: (bizFile: File, bankFile: File, biz: SignupOcrResult, bank: BankOcrResult) => void
+  onSkip: () => void
   onBack: () => void
 }
 
@@ -79,7 +80,7 @@ async function runOcr(file: File, type: 'biz' | 'bank') {
   return json.result
 }
 
-export function Step2Documents({ onComplete, onBack }: Props) {
+export function Step2Documents({ onComplete, onSkip, onBack }: Props) {
   const [bizFile, setBizFile] = useState<File | null>(null)
   const [bankFile, setBankFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
@@ -147,6 +148,16 @@ export function Step2Documents({ onComplete, onBack }: Props) {
       )}
 
       {error && <p className="text-sm text-red-500">{error}</p>}
+
+      <button
+        type="button"
+        onClick={onSkip}
+        disabled={loading}
+        className="w-full text-sm text-gray-400 hover:text-blue-500 transition-colors py-1"
+      >
+        직접 입력할게요 →
+      </button>
+      <p className="text-xs text-red-400 text-center">* 서류는 가입 완료 전에 반드시 첨부해야 합니다.</p>
 
       <div className="flex gap-3">
         <button

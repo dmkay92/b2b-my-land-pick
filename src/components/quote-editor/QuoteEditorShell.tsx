@@ -323,8 +323,8 @@ export function QuoteEditorShell({ requestId }: Props) {
       if (json.pricing_mode) setPricingMode(json.pricing_mode)
       if (json.summary_total) setSummaryTotal(json.summary_total)
       if (json.summary_per_person) setSummaryPerPerson(json.summary_per_person)
-      setIncludes(json.draft?.includes ?? '')
-      setExcludes(json.draft?.excludes ?? '')
+      setIncludes(json.includes ?? '')
+      setExcludes(json.excludes ?? '')
       isDirtyRef.current = true
       setSaveStatus('unsaved')
     } catch {

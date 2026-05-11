@@ -156,7 +156,14 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  // 10. draft 삭제
+  // 10. 여행사에게 인앱 알림
+  await admin.from('notifications').insert({
+    user_id: qr.agency_id,
+    type: 'quote_submitted',
+    payload: { request_id: requestId, event_name: qr.event_name, landco_name: profile?.company_name ?? '' },
+  })
+
+  // 11. draft 삭제
   await admin
     .from('quote_drafts')
     .delete()
