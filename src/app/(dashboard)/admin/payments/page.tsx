@@ -16,6 +16,7 @@ interface Installment {
   due_date: string
   status: string
   paid_at: string | null
+  settlement_status: string | null
   payment_schedules: {
     request_id: string
     total_amount: number
@@ -36,6 +37,8 @@ export default function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<FilterStatus>('pending')
   const [actingId, setActingId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkActing, setBulkActing] = useState(false)
   const [allClaims, setAllClaims] = useState<(DeductionClaim & { quote_requests?: { event_name: string; display_id: string | null; agency_id: string } })[]>([])
   const [claimsLoading, setClaimsLoading] = useState(true)
   const [claimFilter, setClaimFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending')
@@ -61,8 +64,46 @@ export default function AdminPaymentsPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [filter])
+  useEffect(() => { load(); setSelectedIds(new Set()) }, [filter])
   useEffect(() => { loadClaims() }, [claimFilter])
+
+  const selectableIds = installments
+    .filter(i => i.status === 'paid' && i.settlement_status == null)
+    .map(i => i.id)
+
+  const allSelected = selectableIds.length > 0 && selectableIds.every(id => selectedIds.has(id))
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(selectableIds))
+    }
+  }
+
+  async function handleBulkSettlement() {
+    const ids = [...selectedIds]
+    if (ids.length === 0) return
+    if (!confirm(`${ids.length}건을 정산 검토로 넘기시겠습니까?`)) return
+    setBulkActing(true)
+    await fetch('/api/admin/settlement-ledger/bulk-create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installmentIds: ids }),
+    })
+    setBulkActing(false)
+    setSelectedIds(new Set())
+    load()
+  }
 
   async function handleAction(id: string, action: 'paid' | 'pending') {
     const label = action === 'paid' ? '결제완료 처리' : '결제대기로 되돌리기'
@@ -113,11 +154,41 @@ export default function AdminPaymentsPage() {
         ))}
       </div>
 
+      {/* 액션 바 */}
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          {selectedIds.size > 0 && (
+            <button
+              onClick={handleBulkSettlement}
+              disabled={bulkActing}
+              className="px-4 py-2 text-sm font-semibold rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+            >
+              {bulkActing ? '처리 중...' : `정산 검토로 넘기기 (${selectedIds.size}건)`}
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => window.open(`/api/admin/payments/export?status=${filter}`, '_blank')}
+          className="px-4 py-2 text-sm font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+        >
+          엑셀 다운로드
+        </button>
+      </div>
+
       {/* 테이블 */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-4 py-3 w-8">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  className="rounded border-gray-300"
+                  title="전체 선택"
+                />
+              </th>
               <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">결제 ID</th>
               <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">견적 요청</th>
               <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">여행사</th>
@@ -130,15 +201,26 @@ export default function AdminPaymentsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="text-center py-8 text-gray-400 text-sm">로딩 중...</td></tr>
+              <tr><td colSpan={9} className="text-center py-8 text-gray-400 text-sm">로딩 중...</td></tr>
             ) : installments.length === 0 ? (
-              <tr><td colSpan={8} className="text-center py-8 text-gray-400 text-sm">데이터가 없습니다.</td></tr>
+              <tr><td colSpan={9} className="text-center py-8 text-gray-400 text-sm">데이터가 없습니다.</td></tr>
             ) : (
               installments.map(inst => {
                 const qr = inst.payment_schedules?.quote_requests
                 const isOverdue = inst.status === 'pending' && inst.due_date < new Date().toISOString().slice(0, 10)
+                const isSelectable = inst.status === 'paid' && inst.settlement_status == null
                 return (
                   <tr key={inst.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    <td className="px-4 py-3 w-8">
+                      {isSelectable && (
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(inst.id)}
+                          onChange={() => toggleSelect(inst.id)}
+                          className="rounded border-gray-300"
+                        />
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span className="text-xs font-mono text-gray-500">{inst.display_id ?? inst.id.slice(0, 8)}</span>
                     </td>
@@ -162,7 +244,15 @@ export default function AdminPaymentsPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      {statusBadge(inst.status)}
+                      <div className="flex flex-col items-center gap-1">
+                        {statusBadge(inst.status)}
+                        {inst.settlement_status === 'reviewing' && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">정산검토중</span>
+                        )}
+                        {inst.settlement_status === 'settled' && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">정산완료</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-center">
                       {(inst.status === 'pending' || inst.status === 'overdue') && (
