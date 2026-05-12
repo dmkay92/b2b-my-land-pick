@@ -70,7 +70,11 @@ export async function PATCH(request: NextRequest) {
 
   const admin = getAdmin()
 
-  const { data: inst } = await admin.from('payment_installments').select('amount, status').eq('id', installmentId).single()
+  const { data: inst } = await admin
+    .from('payment_installments')
+    .select('amount, status, request_id, schedule_id')
+    .eq('id', installmentId)
+    .single()
   if (!inst) return NextResponse.json({ error: '결제 회차를 찾을 수 없습니다.' }, { status: 404 })
 
   if (action === 'paid') {
@@ -87,6 +91,65 @@ export async function PATCH(request: NextRequest) {
       paid_at: null,
       updated_at: new Date().toISOString(),
     }).eq('id', installmentId)
+  }
+
+  // Agency fee auto-transition: when action is 'paid', check if all regular
+  // installments (rate > 0) for the request are now paid, and if so transition
+  // settlement_ledger rows from 'accrued' to 'payable'.
+  if (action === 'paid') {
+    // 1. Resolve request_id — prefer column on installment, fall back to payment_schedules
+    let requestId: string | null = inst.request_id ?? null
+
+    if (!requestId && inst.schedule_id) {
+      const { data: schedule } = await admin
+        .from('payment_schedules')
+        .select('request_id')
+        .eq('id', inst.schedule_id)
+        .single()
+      requestId = schedule?.request_id ?? null
+    }
+
+    if (requestId) {
+      // 2. Fetch all regular installments (rate > 0) for this request via their schedule
+      const { data: allInstallments } = await admin
+        .from('payment_installments')
+        .select('id, status, rate')
+        .eq('request_id', requestId)
+
+      // Fall back: if request_id not on installments table, join via payment_schedules
+      let regularInstallments = allInstallments?.filter((r) => (r.rate ?? 0) > 0) ?? []
+
+      if (!allInstallments) {
+        // request_id lives only on payment_schedules — fetch via schedule join
+        const { data: scheduleRows } = await admin
+          .from('payment_schedules')
+          .select('id')
+          .eq('request_id', requestId)
+
+        const scheduleIds = scheduleRows?.map((s) => s.id) ?? []
+        if (scheduleIds.length > 0) {
+          const { data: instViaSchedule } = await admin
+            .from('payment_installments')
+            .select('id, status, rate')
+            .in('schedule_id', scheduleIds)
+
+          regularInstallments = instViaSchedule?.filter((r) => (r.rate ?? 0) > 0) ?? []
+        }
+      }
+
+      // 3. If every regular installment is now paid, transition settlement_ledger
+      const allPaid =
+        regularInstallments.length > 0 &&
+        regularInstallments.every((r) => r.status === 'paid' || r.id === installmentId)
+
+      if (allPaid) {
+        await admin
+          .from('settlement_ledger')
+          .update({ agency_payout_status: 'payable' })
+          .eq('request_id', requestId)
+          .eq('agency_payout_status', 'accrued')
+      }
+    }
   }
 
   return NextResponse.json({ success: true })
