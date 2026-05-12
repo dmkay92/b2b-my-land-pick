@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   } else if (tab === 'landco_paid') {
     query = query.eq('landco_payout_status', 'paid')
   } else if (tab === 'agency_payable') {
-    query = query.eq('agency_payout_status', 'payable')
+    query = query.in('agency_payout_status', ['accrued', 'payable'])
   } else if (tab === 'agency_paid') {
     query = query.eq('agency_payout_status', 'paid')
   }
