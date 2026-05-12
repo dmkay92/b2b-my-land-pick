@@ -201,10 +201,6 @@ export default function AdminPage() {
           <p className="text-xs text-gray-400 mt-1">결제 현황 조회 및 관리</p>
         </button>
         <button onClick={() => router.push('/admin/settlements')} className="bg-white rounded-xl shadow-sm p-5 text-left hover:shadow-md transition-shadow cursor-pointer border border-gray-100">
-          <p className="text-sm font-semibold text-gray-700">정산 현황</p>
-          <p className="text-xs text-gray-400 mt-1">건별 정산 현황 조회</p>
-        </button>
-        <button onClick={() => router.push('/admin/settlement-ledger')} className="bg-white rounded-xl shadow-sm p-5 text-left hover:shadow-md transition-shadow cursor-pointer border border-gray-100">
           <p className="text-sm font-semibold text-gray-700">정산 관리</p>
           <p className="text-xs text-gray-400 mt-1">정산 히스토리 및 지급 관리</p>
         </button>

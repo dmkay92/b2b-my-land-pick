@@ -1,506 +1,292 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
-import { calculateSettlement, type SettlementCalcResult } from '@/lib/settlement'
+import { useEffect, useState } from 'react'
 
 function fmt(n: number) { return n.toLocaleString('ko-KR') }
 
-type SettlementStatus = 'pending' | 'reviewing' | 'confirmed' | 'paid'
-type FilterStatus = SettlementStatus | 'all'
+type TabKey = 'reviewing' | 'confirmed' | 'landco_paid' | 'agency_payable' | 'agency_paid' | 'all'
 
-interface Settlement {
+interface LedgerRow {
   id: string
   display_id: string | null
   request_id: string
-  quote_id: string
-  landco_id: string
-  agency_id: string
-  landco_quote_total: number
-  platform_fee_rate: number
+  installment_id: string | null
+  paid_amount: number
   platform_fee: number
-  agency_markup: number
-  agency_commission_rate: number
-  agency_payout: number
-  landco_payout: number
-  gmv: number
-  settlement_status: SettlementStatus
-  confirmed_at: string | null
-  landco_paid_at: string | null
-  agency_paid_at: string | null
-  memo: string | null
+  agency_fee: number
+  landco_payout_amount: number
+  landco_payout_status: string
+  agency_payout_status: string
   created_at: string
-  quote_requests: {
-    id: string
+  request: {
     display_id: string | null
     event_name: string
-    depart_date: string
-    return_date: string
-    destination_country: string
-    destination_city: string
-    adults: number
-    children: number
-    infants: number
-    leaders: number
-    status: string
-    updated_at: string
-  }
-  agency: {
-    id: string
-    company_name: string
-    bank_name: string | null
-    bank_account: string | null
-    bank_holder: string | null
-  }
-  landco: {
-    id: string
-    company_name: string
-    business_registration_number: string | null
-    representative_name: string | null
-    bank_name: string | null
-    bank_account: string | null
-    bank_holder: string | null
-  }
-  paymentSummary: {
-    total: number
-    paid: number
-    count: number
-    paidCount: number
-  }
-  deductionSummary: {
-    total: number
-    count: number
+    depart_date: string | null
+    return_date: string | null
+    created_at: string
+  } | null
+  landco_company_name: string | null
+  agency_company_name: string | null
+  installment_display_id: string | null
+  installment_label: string | null
+}
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'reviewing', label: '검토중' },
+  { key: 'confirmed', label: '확정' },
+  { key: 'landco_paid', label: '랜드사 지급완료' },
+  { key: 'agency_payable', label: '여행사 지급대기' },
+  { key: 'agency_paid', label: '여행사 지급완료' },
+  { key: 'all', label: '전체' },
+]
+
+const TABS_WITH_BULK: Record<TabKey, { action: 'confirm' | 'landco_paid' | 'agency_paid'; label: string } | null> = {
+  reviewing: { action: 'confirm', label: '정산 확정' },
+  confirmed: { action: 'landco_paid', label: '랜드사 지급완료' },
+  agency_payable: { action: 'agency_paid', label: '여행사 지급완료' },
+  landco_paid: null,
+  agency_paid: null,
+  all: null,
+}
+
+function LandcoBadge({ status }: { status: string }) {
+  switch (status) {
+    case 'reviewing':
+      return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">검토중</span>
+    case 'confirmed':
+      return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">확정</span>
+    case 'paid':
+      return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">지급완료</span>
+    default:
+      return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{status}</span>
   }
 }
 
-const STATUS_LABELS: Record<SettlementStatus, string> = {
-  pending: '정산 대기',
-  reviewing: '검토 중',
-  confirmed: '정산 확정',
-  paid: '지급 완료',
-}
-
-function statusBadge(status: SettlementStatus) {
-  const styles: Record<SettlementStatus, string> = {
-    pending: 'bg-amber-50 text-amber-700',
-    reviewing: 'bg-blue-50 text-blue-600',
-    confirmed: 'bg-purple-50 text-purple-700',
-    paid: 'bg-emerald-50 text-emerald-700',
+function AgencyBadge({ status }: { status: string }) {
+  switch (status) {
+    case 'accrued':
+      return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">적립</span>
+    case 'payable':
+      return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">지급대기</span>
+    case 'paid':
+      return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">지급완료</span>
+    default:
+      return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{status}</span>
   }
-  return (
-    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${styles[status] ?? 'bg-gray-100 text-gray-500'}`}>
-      {STATUS_LABELS[status] ?? status}
-    </span>
-  )
 }
 
-export default function AdminSettlementsPage() {
-  const [settlements, setSettlements] = useState<Settlement[]>([])
+export default function AdminSettlementLedgerPage() {
+  const [tab, setTab] = useState<TabKey>('reviewing')
+  const [ledger, setLedger] = useState<LedgerRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<FilterStatus>('pending')
-  const [selected, setSelected] = useState<Settlement | null>(null)
-  const [acting, setActing] = useState(false)
-  const [memo, setMemo] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkActing, setBulkActing] = useState(false)
 
-  const load = useCallback(async () => {
+  const bulkConfig = TABS_WITH_BULK[tab]
+  const hasBulk = bulkConfig !== null
+
+  async function load() {
     setLoading(true)
-    const res = await fetch(`/api/admin/settlements?status=${filter}`)
+    const res = await fetch(`/api/admin/settlement-ledger?tab=${tab}`)
     if (res.ok) {
-      const { settlements: data } = await res.json()
-      setSettlements(data ?? [])
+      const { ledger: data } = await res.json()
+      setLedger(data ?? [])
     }
     setLoading(false)
-  }, [filter])
-
-  useEffect(() => { load() }, [load])
-
-  function openDetail(s: Settlement) {
-    setSelected(s)
-    setMemo(s.memo ?? '')
   }
 
-  function closeDetail() {
-    setSelected(null)
-    setMemo('')
+  useEffect(() => {
+    load()
+    setSelectedIds(new Set())
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
-  async function handleStatusChange(id: string, newStatus: string) {
-    const label = STATUS_LABELS[newStatus as SettlementStatus] ?? newStatus
-    if (!confirm(`"${label}" 상태로 변경하시겠습니까?`)) return
-    setActing(true)
-    await fetch('/api/admin/settlements', {
+  function toggleAll() {
+    if (selectedIds.size === ledger.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(ledger.map(r => r.id)))
+    }
+  }
+
+  async function handleBulk() {
+    if (!bulkConfig) return
+    if (selectedIds.size === 0) return
+    if (!confirm(`선택한 ${selectedIds.size}건을 "${bulkConfig.label}" 처리하시겠습니까?`)) return
+
+    setBulkActing(true)
+    await fetch('/api/admin/settlement-ledger/bulk-update', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status: newStatus }),
+      body: JSON.stringify({ ids: Array.from(selectedIds), action: bulkConfig.action }),
     })
-    setActing(false)
-    closeDetail()
+    setBulkActing(false)
+    setSelectedIds(new Set())
     load()
   }
 
-  async function handleSaveMemo(id: string) {
-    setActing(true)
-    await fetch('/api/admin/settlements', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, memo }),
-    })
-    setActing(false)
-    load()
-  }
-
-  function getCalc(s: Settlement): SettlementCalcResult {
-    const isCancelled = s.quote_requests?.status === 'closed'
-    const departDate = new Date(s.quote_requests?.depart_date)
-    const now = new Date()
-    const daysUntilDepart = Math.ceil((departDate.getTime() - now.getTime()) / 86400000)
-
-    return calculateSettlement({
-      landcoQuoteTotal: Number(s.landco_quote_total),
-      agencyCommission: Number(s.agency_markup ?? 0),
-      totalCustomerPrice: Number(s.gmv),
-      paidAmount: s.paymentSummary.paid,
-      approvedDeduction: s.deductionSummary.total,
-      isCancelled,
-      daysUntilDepart,
-    })
-  }
+  const colSpan = hasBulk ? 15 : 14
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-8 max-w-7xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">정산 관리</h1>
 
-      {/* 필터 탭 */}
-      <div className="flex gap-2 mb-4">
-        {([
-          { key: 'pending' as const, label: '정산 대기' },
-          { key: 'reviewing' as const, label: '검토 중' },
-          { key: 'confirmed' as const, label: '정산 확정' },
-          { key: 'paid' as const, label: '지급 완료' },
-          { key: 'all' as const, label: '전체' },
-        ]).map(f => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              filter === f.key
-                ? 'bg-gray-900 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+      {/* 탭 + 엑셀 다운로드 */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex gap-2 flex-wrap">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                tab === t.key
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <a
+          href={`/api/admin/settlement-ledger/export?tab=${tab}`}
+          target="_blank"
+          rel="noreferrer"
+          className="px-4 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+        >
+          엑셀 다운로드
+        </a>
       </div>
 
+      {/* 벌크 액션 버튼 */}
+      {hasBulk && (
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-sm text-gray-500">{selectedIds.size}건 선택됨</span>
+          <button
+            onClick={handleBulk}
+            disabled={selectedIds.size === 0 || bulkActing}
+            className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 transition-colors"
+          >
+            {bulkActing ? '처리 중...' : bulkConfig!.label}
+          </button>
+        </div>
+      )}
+
       {/* 테이블 */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <table className="w-full">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+        <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">REQ ID</th>
+              {hasBulk && (
+                <th className="px-3 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={ledger.length > 0 && selectedIds.size === ledger.length}
+                    onChange={toggleAll}
+                    className="rounded border-gray-300"
+                  />
+                </th>
+              )}
+              <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">요청ID</th>
+              <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">정산ID</th>
+              <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">결제ID</th>
               <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">행사명</th>
-              <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">구분</th>
-              <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">정산 상태</th>
-              <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">총 고객가</th>
-              <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">결제완료</th>
-              <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">공제액</th>
-              <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">환불액</th>
+              <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">여행사</th>
+              <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">랜드사</th>
+              <th className="text-left text-xs font-semibold text-gray-500 px-3 py-3">항목</th>
+              <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">납부액</th>
+              <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">플랫폼수수료</th>
+              <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">여행사수수료</th>
+              <th className="text-right text-xs font-semibold text-gray-500 px-3 py-3">랜드사정산금</th>
+              <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">랜드사상태</th>
+              <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">여행사상태</th>
+              <th className="text-center text-xs font-semibold text-gray-500 px-3 py-3">생성일</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="text-center py-8 text-gray-400 text-sm">로딩 중...</td></tr>
-            ) : settlements.length === 0 ? (
-              <tr><td colSpan={8} className="text-center py-8 text-gray-400 text-sm">데이터가 없습니다.</td></tr>
+              <tr>
+                <td colSpan={colSpan} className="text-center py-8 text-gray-400 text-sm">로딩 중...</td>
+              </tr>
+            ) : ledger.length === 0 ? (
+              <tr>
+                <td colSpan={colSpan} className="text-center py-8 text-gray-400 text-sm">데이터가 없습니다.</td>
+              </tr>
             ) : (
-              settlements.map(s => {
-                const qr = s.quote_requests
-                const isCancelled = qr?.status === 'closed'
-                const calc = getCalc(s)
-                return (
-                  <tr
-                    key={s.id}
-                    onClick={() => openDetail(s)}
-                    className={`border-b border-gray-50 hover:bg-gray-50/50 cursor-pointer ${isCancelled ? 'bg-red-50/30' : ''}`}
-                  >
-                    <td className="px-3 py-3">
-                      <span className="text-xs font-mono text-blue-600">{qr?.display_id ?? '-'}</span>
+              ledger.map(row => (
+                <tr
+                  key={row.id}
+                  className={`border-b border-gray-50 hover:bg-gray-50/50 ${
+                    hasBulk && selectedIds.has(row.id) ? 'bg-blue-50/30' : ''
+                  }`}
+                >
+                  {hasBulk && (
+                    <td className="px-3 py-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(row.id)}
+                        onChange={() => toggleSelect(row.id)}
+                        className="rounded border-gray-300"
+                      />
                     </td>
-                    <td className="px-3 py-3">
-                      <div className="text-sm font-medium text-gray-900">{qr?.event_name ?? '-'}</div>
-                      <div className="text-[10px] text-gray-400">{s.agency?.company_name} → {s.landco?.company_name}</div>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isCancelled ? 'bg-red-100 text-red-600' : 'bg-emerald-50 text-emerald-700'}`}>
-                        {isCancelled ? '행사 취소' : '여행 완료'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      {statusBadge(s.settlement_status)}
-                    </td>
-                    <td className="px-3 py-3 text-right">
-                      <span className="text-sm font-semibold text-gray-900">{fmt(Number(s.gmv))}원</span>
-                    </td>
-                    <td className="px-3 py-3 text-right">
-                      <span className="text-sm text-gray-700">{fmt(s.paymentSummary.paid)}원</span>
-                    </td>
-                    <td className="px-3 py-3 text-right">
-                      {s.deductionSummary.total > 0 ? (
-                        <span className="text-sm text-red-600">{fmt(s.deductionSummary.total)}원</span>
-                      ) : (
-                        <span className="text-sm text-gray-300">-</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-3 text-right">
-                      {calc.customerRefund > 0 ? (
-                        <span className="text-sm text-blue-600">{fmt(calc.customerRefund)}원</span>
-                      ) : calc.agencyAdditionalCharge > 0 ? (
-                        <span className="text-sm text-red-600">+{fmt(calc.agencyAdditionalCharge)}원</span>
-                      ) : (
-                        <span className="text-sm text-gray-300">-</span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })
+                  )}
+                  <td className="px-3 py-3">
+                    <span className="text-xs font-mono text-gray-400">{row.request?.display_id ?? '-'}</span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className="text-xs font-mono text-gray-500">{row.display_id ?? row.id.slice(0, 8)}</span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className="text-xs font-mono text-gray-400">{row.installment_display_id ?? '-'}</span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="text-sm font-medium text-gray-900 whitespace-nowrap">{row.request?.event_name ?? '-'}</div>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className="text-sm text-gray-700 whitespace-nowrap">{row.agency_company_name ?? '-'}</span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className="text-sm text-gray-700 whitespace-nowrap">{row.landco_company_name ?? '-'}</span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className="text-sm text-gray-900 whitespace-nowrap">{row.installment_label ?? '-'}</span>
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    <span className="text-sm font-semibold text-gray-900">{fmt(row.paid_amount ?? 0)}원</span>
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    <span className="text-sm text-gray-700">{fmt(row.platform_fee ?? 0)}원</span>
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    <span className="text-sm text-gray-700">{fmt(row.agency_fee ?? 0)}원</span>
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    <span className="text-sm font-semibold text-gray-900">{fmt(row.landco_payout_amount ?? 0)}원</span>
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <LandcoBadge status={row.landco_payout_status} />
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <AgencyBadge status={row.agency_payout_status} />
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <span className="text-xs text-gray-500">{row.created_at?.slice(0, 10) ?? '-'}</span>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
       </div>
-
-      {/* 상세 모달 */}
-      {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={closeDetail}>
-          <div
-            className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">정산 상세</h2>
-              <button onClick={closeDetail} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
-            </div>
-
-            <div className="px-6 py-5 space-y-6">
-              {/* 1. 기본 정보 */}
-              <section>
-                <h3 className="text-sm font-bold text-gray-700 mb-3">기본 정보</h3>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <InfoRow label="정산 ID" value={selected.display_id ?? selected.id.slice(0, 8)} />
-                  <InfoRow label="요청 ID" value={selected.quote_requests?.display_id ?? '-'} />
-                  <InfoRow label="행사명" value={selected.quote_requests?.event_name ?? '-'} />
-                  <InfoRow label="여행사" value={selected.agency?.company_name ?? '-'} />
-                  <InfoRow label="랜드사" value={selected.landco?.company_name ?? '-'} />
-                  <InfoRow label="여행기간" value={`${selected.quote_requests?.depart_date?.slice(0, 10)} ~ ${selected.quote_requests?.return_date?.slice(0, 10)}`} />
-                  <InfoRow label="취소 여부" value={selected.quote_requests?.status === 'closed' ? '취소됨' : '정상'} />
-                </div>
-              </section>
-
-              {/* 2. 정산 계산 */}
-              <section>
-                <h3 className="text-sm font-bold text-gray-700 mb-3">정산 계산</h3>
-                {(() => {
-                  const calc = getCalc(selected)
-                  const isCancelled = selected.quote_requests?.status === 'closed'
-                  const landcoQuoteTotal = Number(selected.landco_quote_total)
-                  const agencyCommission = Number(selected.agency_markup ?? 0)
-                  const gmv = Number(selected.gmv)
-
-                  return (
-                    <div className="space-y-3">
-                      {/* 견적 구성 */}
-                      <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1.5">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">견적 구성</p>
-                        <CalcRow label="랜드사 견적가" value={`${fmt(landcoQuoteTotal)}원`} />
-                        <CalcRow label="여행사 수수료" value={`${fmt(agencyCommission)}원`} sub />
-                        <div className="border-t border-gray-200 pt-1.5 mt-1.5">
-                          <CalcRow label="총 고객가 (GMV)" value={`${fmt(gmv)}원`} bold />
-                        </div>
-                      </div>
-
-                      {/* 결제 / 환불 */}
-                      <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1.5">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">결제 / 환불</p>
-                        <CalcRow label="결제완료액" value={`${fmt(selected.paymentSummary.paid)}원`} />
-                        {isCancelled && (
-                          <>
-                            <CalcRow label={`환불 비율`} value={calc.refundRateLabel} sub />
-                            {selected.deductionSummary.total > 0 && (
-                              <CalcRow label={`실비 공제 (${selected.deductionSummary.count}건)`} value={`-${fmt(selected.deductionSummary.total)}원`} sub highlight="red" />
-                            )}
-                            {calc.customerRefund > 0 && (
-                              <div className="border-t border-gray-200 pt-1.5 mt-1.5">
-                                <CalcRow label="고객 환불액" value={`${fmt(calc.customerRefund)}원`} bold highlight="blue" />
-                              </div>
-                            )}
-                            {calc.agencyAdditionalCharge > 0 && (
-                              <div className="border-t border-gray-200 pt-1.5 mt-1.5">
-                                <CalcRow label="여행사 추가 청구" value={`+${fmt(calc.agencyAdditionalCharge)}원`} bold highlight="red" />
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-
-                      {/* 정산 배분 */}
-                      <div className="bg-purple-50 rounded-lg p-4 text-sm space-y-1.5 border border-purple-100">
-                        <p className="text-[10px] font-bold text-purple-400 uppercase mb-2">정산 배분</p>
-                        <div className="flex justify-between">
-                          <span className="text-gray-700">랜드사 지급</span>
-                          <span className="font-bold text-purple-700">{fmt(calc.landcoPayout)}원</span>
-                        </div>
-                        {calc.platformFee > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-500 text-xs pl-2">플랫폼 수수료 (5%)</span>
-                            <span className="text-xs text-gray-500">-{fmt(calc.platformFee)}원</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span className="text-gray-700">여행사 수수료</span>
-                          <span className="font-semibold text-gray-900">{fmt(calc.agencyPayout)}원</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-700">플랫폼 수익</span>
-                          <span className="font-semibold text-emerald-700">{fmt(calc.platformRevenue)}원</span>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })()}
-              </section>
-
-              {/* 3. 결제 현황 */}
-              <section>
-                <h3 className="text-sm font-bold text-gray-700 mb-3">결제 현황</h3>
-                <div className="bg-gray-50 rounded-lg p-4 text-sm">
-                  <div className="flex justify-between mb-1">
-                    <span className="text-gray-500">총 결제 금액</span>
-                    <span className="font-semibold text-gray-900">{fmt(selected.paymentSummary.total)}원</span>
-                  </div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-gray-500">결제 완료</span>
-                    <span className="font-semibold text-emerald-600">{fmt(selected.paymentSummary.paid)}원</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">회차</span>
-                    <span className="text-gray-700">{selected.paymentSummary.paidCount} / {selected.paymentSummary.count} 완료</span>
-                  </div>
-                  {selected.paymentSummary.total > 0 && (
-                    <div className="mt-2">
-                      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-500 rounded-full transition-all"
-                          style={{ width: `${Math.min(100, (selected.paymentSummary.paid / selected.paymentSummary.total) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              {/* 4. 정산 액션 */}
-              <section>
-                <h3 className="text-sm font-bold text-gray-700 mb-3">정산 액션</h3>
-                <div className="flex flex-wrap gap-2">
-                  {selected.settlement_status === 'pending' && (
-                    <button
-                      onClick={() => handleStatusChange(selected.id, 'reviewing')}
-                      disabled={acting}
-                      className="px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      검토 시작
-                    </button>
-                  )}
-                  {selected.settlement_status === 'reviewing' && (
-                    <>
-                      <button
-                        onClick={() => handleStatusChange(selected.id, 'confirmed')}
-                        disabled={acting}
-                        className="px-4 py-2 text-sm font-semibold rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
-                      >
-                        정산 확정
-                      </button>
-                      <button
-                        onClick={() => window.open(`/api/admin/settlements/${selected.id}/statement`, '_blank')}
-                        className="px-4 py-2 text-sm font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
-                      >
-                        명세서 미리보기
-                      </button>
-                    </>
-                  )}
-                  {selected.settlement_status === 'confirmed' && (
-                    <>
-                      <button
-                        onClick={() => handleStatusChange(selected.id, 'paid')}
-                        disabled={acting}
-                        className="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-                      >
-                        랜드사 입금 완료
-                      </button>
-                      <button
-                        onClick={() => window.open(`/api/admin/settlements/${selected.id}/statement`, '_blank')}
-                        className="px-4 py-2 text-sm font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
-                      >
-                        명세서 다운로드
-                      </button>
-                    </>
-                  )}
-                  {selected.settlement_status === 'paid' && (
-                    <div className="px-4 py-2 text-sm font-semibold rounded-lg bg-emerald-50 text-emerald-700">
-                      지급 완료
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              {/* 5. 메모 */}
-              <section>
-                <h3 className="text-sm font-bold text-gray-700 mb-3">메모</h3>
-                <textarea
-                  value={memo}
-                  onChange={e => setMemo(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  rows={3}
-                  placeholder="관리자 메모를 입력하세요..."
-                />
-                <div className="flex justify-end mt-2">
-                  <button
-                    onClick={() => handleSaveMemo(selected.id)}
-                    disabled={acting}
-                    className="px-4 py-2 text-sm font-semibold rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50"
-                  >
-                    메모 저장
-                  </button>
-                </div>
-              </section>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex">
-      <span className="text-gray-400 w-20 flex-shrink-0">{label}</span>
-      <span className="text-gray-900 font-medium">{value}</span>
-    </div>
-  )
-}
-
-function CalcRow({ label, value, sub, bold, highlight }: {
-  label: string
-  value: string
-  sub?: boolean
-  bold?: boolean
-  highlight?: 'purple' | 'red' | 'blue'
-}) {
-  const textColor = highlight === 'purple' ? 'text-purple-700' : highlight === 'red' ? 'text-red-600' : highlight === 'blue' ? 'text-blue-600' : 'text-gray-900'
-  return (
-    <div className={`flex justify-between ${sub ? 'pl-4' : ''}`}>
-      <span className={`${sub ? 'text-gray-400' : 'text-gray-600'}`}>{label}</span>
-      <span className={`${bold ? 'font-bold text-base' : 'font-semibold'} ${textColor}`}>{value}</span>
     </div>
   )
 }
