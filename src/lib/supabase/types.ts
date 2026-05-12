@@ -375,3 +375,23 @@ export interface PaymentTransaction {
   created_at: string
   updated_at: string
 }
+
+export interface SettlementLedger {
+  id: string
+  display_id: string | null
+  request_id: string
+  installment_id: string
+  installment_label: string
+  installment_rate: number
+  paid_amount: number
+  platform_fee: number
+  agency_fee: number
+  landco_payout_amount: number
+  landco_payout_status: 'reviewing' | 'confirmed' | 'paid'
+  landco_confirmed_at: string | null
+  landco_paid_at: string | null
+  agency_payout_status: 'accrued' | 'payable' | 'paid'
+  agency_paid_at: string | null
+  created_by: string | null
+  created_at: string
+}
