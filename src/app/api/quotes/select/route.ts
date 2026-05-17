@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendQuoteSelectedEmail } from '@/lib/email/notifications'
+import { decryptField } from '@/lib/privacy'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -77,8 +78,9 @@ export async function POST(request: NextRequest) {
   const { data: landco } = await supabase
     .from('profiles').select('email, company_name').eq('id', landcoId).single()
   if (landco) {
+    const decryptedEmail = await decryptField(landco.email)
     await sendQuoteSelectedEmail({
-      to: landco.email,
+      to: decryptedEmail,
       company_name: landco.company_name,
       event_name: qr?.event_name ?? '',
       request_id: requestId,

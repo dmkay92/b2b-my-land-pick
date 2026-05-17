@@ -11,6 +11,14 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { lastReadAt } = await request.json() as { lastReadAt: Record<string, string> }
+
+  // admin은 미읽음 카운트 항상 0
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role === 'admin') {
+    const zeroCounts: Record<string, number> = {}
+    for (const k of Object.keys(lastReadAt)) zeroCounts[k] = 0
+    return NextResponse.json({ counts: zeroCounts })
+  }
   const roomIds = Object.keys(lastReadAt)
   if (roomIds.length === 0) return NextResponse.json({ counts: {} })
 

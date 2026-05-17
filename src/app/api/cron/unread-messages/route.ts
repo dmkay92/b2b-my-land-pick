@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendUnreadMessageEmail } from '@/lib/email/notifications'
 import { UNREAD_THRESHOLD_MINUTES } from '@/lib/email/constants'
+import { decryptField } from '@/lib/privacy'
 
 export async function GET(request: NextRequest) {
   // Vercel Cron 인증
@@ -51,9 +52,10 @@ export async function GET(request: NextRequest) {
             .from('quote_requests').select('event_name').eq('id', room.request_id).single()
 
           if (agency?.email) {
+            const decryptedAgencyEmail = await decryptField(agency.email)
             const senderProfile = msg.sender as unknown as { company_name: string } | null
             await sendUnreadMessageEmail({
-              to: agency.email,
+              to: decryptedAgencyEmail,
               sender_name: senderProfile?.company_name ?? '',
               event_name: qr?.event_name ?? '',
               request_id: room.request_id,
@@ -87,9 +89,10 @@ export async function GET(request: NextRequest) {
             .from('quote_requests').select('event_name').eq('id', room.request_id).single()
 
           if (landco?.email) {
+            const decryptedLandcoEmail = await decryptField(landco.email)
             const senderProfile = msg.sender as unknown as { company_name: string } | null
             await sendUnreadMessageEmail({
-              to: landco.email,
+              to: decryptedLandcoEmail,
               sender_name: senderProfile?.company_name ?? '',
               event_name: qr?.event_name ?? '',
               request_id: room.request_id,

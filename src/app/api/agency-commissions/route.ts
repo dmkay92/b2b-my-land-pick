@@ -10,7 +10,18 @@ export async function GET(request: NextRequest) {
   const requestId = request.nextUrl.searchParams.get('requestId')
   if (!requestId) return NextResponse.json({ error: 'requestId required' }, { status: 400 })
 
-  const { data: quotes } = await supabase
+  const { data: profile } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single()
+  const isAdmin = profile?.role === 'admin'
+
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+  const queryClient = isAdmin ? admin : supabase
+
+  const { data: quotes } = await queryClient
     .from('quotes')
     .select('id')
     .eq('request_id', requestId)
@@ -18,11 +29,17 @@ export async function GET(request: NextRequest) {
   const quoteIds = (quotes ?? []).map(q => q.id)
   if (quoteIds.length === 0) return NextResponse.json({ markups: [] })
 
-  const { data: markups, error } = await supabase
+  let query = queryClient
     .from('agency_commissions')
     .select('*')
-    .eq('agency_id', user.id)
     .in('quote_id', quoteIds)
+
+  // agency는 본인 것만, admin은 전체
+  if (!isAdmin) {
+    query = query.eq('agency_id', user.id)
+  }
+
+  const { data: markups, error } = await query
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ markups: markups ?? [] })

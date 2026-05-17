@@ -67,6 +67,7 @@ export interface QuoteRequest {
   travel_type: string | null
   religion_type: string | null
   status: QuoteRequestStatus
+  closed_at?: string | null
   created_at: string
   flight_schedule: FlightSchedule | null
 }

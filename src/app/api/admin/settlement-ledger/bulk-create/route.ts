@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { generateDisplayId } from '@/lib/display-id'
 
 function getAdmin() {
   return createAdminClient(
@@ -83,39 +84,40 @@ export async function POST(request: NextRequest) {
 
   // 4. settlement_ledger row 생성
   const now = new Date().toISOString()
-  const ledgerRows = installments
-    .filter(i => i.request_id)
-    .map(inst => {
-      const settlement = settlementMap[inst.request_id]
-      const paidAmt = inst.paid_amount ?? inst.amount ?? 0
-      const rate = inst.rate ?? 0
+  const filtered = installments.filter(i => i.request_id)
+  const ledgerRows = []
+  for (const inst of filtered) {
+    const settlement = settlementMap[inst.request_id]
+    const paidAmt = inst.paid_amount ?? inst.amount ?? 0
+    const rate = inst.rate ?? 0
 
-      let platformFee = 0
-      let agencyFee = 0
-      let landcoPayoutAmount = paidAmt
+    let platformFee = 0
+    let agencyFee = 0
+    let landcoPayoutAmount = paidAmt
 
-      if (rate > 0 && settlement && settlement.gmv > 0) {
-        platformFee = Math.round(paidAmt * (settlement.platform_fee / settlement.gmv))
-        agencyFee = Math.round(paidAmt * (settlement.agency_commission / settlement.gmv))
-        landcoPayoutAmount = paidAmt - platformFee - agencyFee
-      }
-      // rate = 0 (추가정산/공제): 모두 0, landco_payout_amount = paid_amount
+    if (rate > 0 && settlement && settlement.gmv > 0) {
+      platformFee = Math.round(paidAmt * (settlement.platform_fee / settlement.gmv))
+      agencyFee = Math.round(paidAmt * (settlement.agency_commission / settlement.gmv))
+      landcoPayoutAmount = paidAmt - platformFee - agencyFee
+    }
 
-      return {
-        request_id: inst.request_id,
-        installment_id: inst.id,
-        installment_label: inst.label ?? '',
-        installment_rate: rate,
-        paid_amount: paidAmt,
-        platform_fee: platformFee,
-        agency_fee: agencyFee,
-        landco_payout_amount: landcoPayoutAmount,
-        landco_payout_status: 'reviewing',
-        agency_payout_status: 'accrued',
-        created_by: user.id,
-        created_at: now,
-      }
+    const sldDisplayId = await generateDisplayId(admin, 'SLD')
+    ledgerRows.push({
+      request_id: inst.request_id,
+      installment_id: inst.id,
+      installment_label: inst.label ?? '',
+      installment_rate: rate,
+      paid_amount: paidAmt,
+      platform_fee: platformFee,
+      agency_fee: agencyFee,
+      landco_payout_amount: landcoPayoutAmount,
+      landco_payout_status: 'reviewing',
+      agency_payout_status: 'accrued',
+      created_by: user.id,
+      created_at: now,
+      display_id: sldDisplayId,
     })
+  }
 
   if (ledgerRows.length === 0) {
     return NextResponse.json({ error: 'request_id를 확인할 수 없어 처리할 건이 없습니다.' }, { status: 400 })

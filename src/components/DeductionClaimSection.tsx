@@ -250,7 +250,7 @@ export default function DeductionClaimSection({ requestId, claims, onUpdated, ro
                   <span className="text-sm font-bold text-gray-900">취소 수수료</span>
                   <span className="text-sm font-bold text-gray-900">0원</span>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">결제 확정 전 취소 건으로 취소 수수료 및 공제가 발생하지 않습니다.</p>
+                <p className="text-[10px] text-gray-400 mt-1">결제 전 취소 건으로 취소 수수료 및 공제가 발생하지 않습니다.</p>
               </div>
             )
           }

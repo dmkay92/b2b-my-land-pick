@@ -26,7 +26,7 @@ export async function POST(
 
   const { error } = await supabase
     .from('quote_requests')
-    .update({ status: 'closed' })
+    .update({ status: 'closed', closed_at: new Date().toISOString() })
     .eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

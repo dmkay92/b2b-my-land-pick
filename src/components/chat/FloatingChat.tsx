@@ -257,16 +257,30 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounter = useRef(0)
+  const prevMsgCountRef = useRef(0)
+  const chatContainerRef = useRef<HTMLDivElement>(null)
+  const isNearBottomRef = useRef(true)
+  const [hasNewBelow, setHasNewBelow] = useState(false)
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (messages.length > prevMsgCountRef.current) {
+      if (isNearBottomRef.current) {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      } else {
+        setHasNewBelow(true)
+      }
+    }
+    prevMsgCountRef.current = messages.length
   }, [messages])
 
   const activeRoom = rooms.find(r => r.id === activeRoomId)
+  const isAdmin = activeRoom ? currentUserId !== activeRoom.agency_id && currentUserId !== activeRoom.landco_id : false
   const otherName = activeRoom
-    ? (currentUserId === activeRoom.agency_id
-        ? (activeRoom.landco?.company_name ?? '랜드사')
-        : (activeRoom.agency?.company_name ?? '여행사'))
+    ? isAdmin
+      ? `${activeRoom.agency?.company_name ?? '여행사'} ↔ ${activeRoom.landco?.company_name ?? '랜드사'}`
+      : (currentUserId === activeRoom.agency_id
+          ? (activeRoom.landco?.company_name ?? '랜드사')
+          : (activeRoom.agency?.company_name ?? '여행사'))
     : ''
   const roomLabel = activeRoom
     ? `${otherName} · ${activeRoom.request?.event_name ?? '견적'}`
@@ -371,14 +385,36 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
         <button onClick={onClose} className="text-white hover:text-blue-200 text-base leading-none flex-shrink-0 px-1">✕</button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div
+        ref={chatContainerRef}
+        className="flex-1 overflow-y-auto p-4 bg-gray-50"
+        style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+        onScroll={() => {
+          const el = chatContainerRef.current
+          if (el) {
+            const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+            isNearBottomRef.current = nearBottom
+            if (nearBottom) setHasNewBelow(false)
+          }
+        }}
+      >
         {messages.length === 0 && (
           <p className="text-xs text-gray-400 text-center mt-8">메시지가 없습니다</p>
         )}
         {messages.map((msg, i) => {
-          const isMine = msg.sender_id === currentUserId
-          const unread = isMine && (!otherLastReadAt || otherLastReadAt < msg.created_at)
+          // admin: agency 메시지는 왼쪽, landco 메시지는 오른쪽
+          const isFromAdmin = activeRoom ? msg.sender_id !== activeRoom.agency_id && msg.sender_id !== activeRoom.landco_id : false
+          const isMine = isAdmin
+            ? isFromAdmin ? true : msg.sender_id === activeRoom?.landco_id
+            : msg.sender_id === currentUserId
+          const senderName = isAdmin
+            ? isFromAdmin ? '운영팀' : ((msg.sender as { company_name?: string } | null)?.company_name ?? '')
+            : isFromAdmin ? '운영팀' : ''
+          const unread = !isAdmin && isMine && (!otherLastReadAt || otherLastReadAt < msg.created_at)
           const minuteKey = new Date(msg.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+          const prev = messages[i - 1]
+          const prevMinuteKey = prev ? new Date(prev.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : null
+          const isFirstInGroup = !prev || prev.sender_id !== msg.sender_id || prevMinuteKey !== minuteKey
           const next = messages[i + 1]
           const nextMinuteKey = next ? new Date(next.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : null
           const isLastInGroup = !next || next.sender_id !== msg.sender_id || nextMinuteKey !== minuteKey
@@ -427,24 +463,49 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
                   onDownload={() => handleDownload(msg.file_url!, msg.file_name ?? '파일')}
                 />
               ) : (
-                <div style={{
-                  maxWidth: '72%',
-                  padding: '8px 12px',
-                  borderRadius: isMine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                  backgroundColor: isMine ? '#2563eb' : '#ffffff',
-                  color: isMine ? '#ffffff' : '#1f2937',
-                  fontSize: '14px',
-                  lineHeight: '1.4',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                  wordBreak: 'break-word',
-                }}>
-                  {msg.content}
-                </div>
+                <>
+                  {senderName && isFirstInGroup && (
+                    <span style={{ fontSize: '10px', color: isFromAdmin ? '#059669' : isMine ? '#7c3aed' : '#3b82f6', marginBottom: '2px', fontWeight: 600 }}>{senderName}</span>
+                  )}
+                  <div style={{
+                    maxWidth: '72%',
+                    padding: '8px 12px',
+                    borderRadius: isMine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                    backgroundColor: isFromAdmin ? '#059669' : isAdmin ? (isMine ? '#7c3aed' : '#3b82f6') : (isMine ? '#2563eb' : '#ffffff'),
+                    color: isFromAdmin || isAdmin || isMine ? '#ffffff' : '#1f2937',
+                    fontSize: '14px',
+                    lineHeight: '1.4',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                    wordBreak: 'break-word',
+                  }}>
+                    {msg.content}
+                  </div>
+                </>
               )}
               {isLastInGroup && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', flexDirection: isMine ? 'row-reverse' : 'row', paddingLeft: '4px', paddingRight: '4px' }}>
-                  {isMine && unread && (
-                    <span style={{ fontSize: '10px', color: '#facc15', fontWeight: 700, lineHeight: 1 }}>1</span>
+                  {isAdmin && activeRoom ? (() => {
+                    if (isFromAdmin) {
+                      // 운영팀 메시지: 여행사/랜드사 각각 읽음 여부
+                      const agencyUnread = !activeRoom.agency_last_read_at || activeRoom.agency_last_read_at < msg.created_at
+                      const landcoUnread = !activeRoom.landco_last_read_at || activeRoom.landco_last_read_at < msg.created_at
+                      if (!agencyUnread && !landcoUnread) return null
+                      return (
+                        <span style={{ fontSize: '9px', fontWeight: 600, lineHeight: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '1px' }}>
+                          {agencyUnread && <span style={{ color: '#60a5fa' }}>여 1</span>}
+                          {landcoUnread && <span style={{ color: '#a78bfa' }}>랜 1</span>}
+                        </span>
+                      )
+                    }
+                    // agency/landco 메시지: 상대방이 읽었는지
+                    const isFromAgency = msg.sender_id === activeRoom.agency_id
+                    const recipientReadAt = isFromAgency ? activeRoom.landco_last_read_at : activeRoom.agency_last_read_at
+                    const recipientUnread = !recipientReadAt || recipientReadAt < msg.created_at
+                    return recipientUnread ? <span style={{ fontSize: '10px', color: '#facc15', fontWeight: 700, lineHeight: 1 }}>1</span> : null
+                  })() : (
+                    isMine && unread && (
+                      <span style={{ fontSize: '10px', color: '#facc15', fontWeight: 700, lineHeight: 1 }}>1</span>
+                    )
                   )}
                   <span style={{ fontSize: '10px', color: '#9ca3af' }}>{minuteKey}</span>
                 </div>
@@ -455,6 +516,22 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
         <div ref={bottomRef} />
       </div>
 
+      {hasNewBelow && (
+        <button
+          onClick={() => {
+            bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+            setHasNewBelow(false)
+          }}
+          style={{
+            position: 'absolute', bottom: 70, left: '50%', transform: 'translateX(-50%)',
+            backgroundColor: '#2563eb', color: 'white', fontSize: '11px', fontWeight: 600,
+            padding: '6px 14px', borderRadius: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+            cursor: 'pointer', border: 'none', zIndex: 5,
+          }}
+        >
+          ↓ 새 메시지
+        </button>
+      )}
       <div style={{ borderTop: '1px solid #e5e7eb', backgroundColor: 'white', borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px', flexShrink: 0 }}>
         {/* 업로드 대기 파일 미리보기 */}
         {(uploading || pendingFile) && (
@@ -525,10 +602,13 @@ function ChatWindow({ onBack, onClose }: { onBack: () => void; onClose: () => vo
 function ChatRoomList({ filterMode, setFilterMode, onClose }: { filterMode: FilterMode; setFilterMode: (m: FilterMode) => void; onClose: () => void }) {
   const { rooms, openRoom, currentUserId, roomUnreadCounts } = useChat()
 
-  const getOtherName = (room: (typeof rooms)[0]) =>
-    currentUserId === room.agency_id
+  const getOtherName = (room: (typeof rooms)[0]) => {
+    const isRoomAdmin = currentUserId !== room.agency_id && currentUserId !== room.landco_id
+    if (isRoomAdmin) return `${room.agency?.company_name ?? '여행사'} ↔ ${room.landco?.company_name ?? '랜드사'}`
+    return currentUserId === room.agency_id
       ? (room.landco?.company_name ?? '랜드사')
       : (room.agency?.company_name ?? '여행사')
+  }
 
   type GroupItem = { label: string; subLabel: string; room: (typeof rooms)[0] }
   type GroupEntry = { key: string; label: string; items: GroupItem[] }

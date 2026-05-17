@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendCancellationEmail } from '@/lib/email/notifications'
+import { decryptField } from '@/lib/privacy'
 
 function getAdmin() {
   return createAdminClient(
@@ -51,7 +52,7 @@ export async function POST(
   }
 
   // 상태 변경 → closed
-  await admin.from('quote_requests').update({ status: 'closed' }).eq('id', id)
+  await admin.from('quote_requests').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('id', id)
 
   // 결제 회차 중 미결제 건 취소 처리
   const { data: schedule } = await admin.from('payment_schedules').select('id').eq('request_id', id).single()
@@ -87,8 +88,9 @@ export async function POST(
     const { data: landcoProfile } = await admin
       .from('profiles').select('email').eq('id', sel.landco_id).single()
     if (landcoProfile?.email) {
+      const decryptedEmail = await decryptField(landcoProfile.email)
       await sendCancellationEmail({
-        to: landcoProfile.email,
+        to: decryptedEmail,
         event_name: qr.event_name,
         request_id: id,
         refund_rate: refundRate,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { calculateSettlement } from '@/lib/settlement'
+import { decryptPii } from '@/lib/privacy'
 
 function getAdmin() {
   return createAdminClient(
@@ -46,12 +47,13 @@ export async function GET(
     .single()
   if (!qr) return new NextResponse('Quote request not found', { status: 404 })
 
-  // 랜드사 프로필
-  const { data: landco } = await admin
+  // 랜드사 프로필 (PII 복호화)
+  const { data: rawLandco } = await admin
     .from('profiles')
     .select('company_name, business_registration_number, representative_name, bank_name, bank_account, bank_holder')
     .eq('id', settlement.landco_id)
     .single()
+  const landco = rawLandco ? await decryptPii(rawLandco as Record<string, unknown>) as typeof rawLandco : null
 
   // 결제 현황
   const { data: schedule } = await admin

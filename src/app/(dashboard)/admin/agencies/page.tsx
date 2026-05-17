@@ -150,8 +150,22 @@ export default function AgenciesPage() {
       .select('*')
       .eq('role', 'agency')
       .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setAgencies(data ?? [])
+      .then(async ({ data }) => {
+        if (data && data.length > 0) {
+          const res = await fetch('/api/admin/decrypt-profiles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profiles: data }),
+          })
+          if (res.ok) {
+            const { profiles: decrypted } = await res.json()
+            setAgencies(decrypted)
+          } else {
+            setAgencies(data)
+          }
+        } else {
+          setAgencies(data ?? [])
+        }
         setLoading(false)
       })
   }, [])

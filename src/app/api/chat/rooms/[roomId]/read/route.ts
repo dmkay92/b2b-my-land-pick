@@ -24,8 +24,10 @@ export async function PATCH(
     .single()
 
   if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
+
+  // admin은 읽음 처리하지 않음 (agency/landco 미읽음 상태에 영향 안 줌)
   if (room.agency_id !== user.id && room.landco_id !== user.id) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    return NextResponse.json({ ok: true })
   }
 
   const isAgency = room.agency_id === user.id

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendQuoteSelectedEmail } from '@/lib/email/notifications'
+import { generateDisplayId } from '@/lib/display-id'
+import { decryptField } from '@/lib/privacy'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -51,8 +53,9 @@ export async function POST(request: NextRequest) {
   const { data: landco } = await supabase
     .from('profiles').select('email, company_name').eq('id', landcoId).single()
   if (landco) {
+    const decryptedEmail = await decryptField(landco.email)
     await sendQuoteSelectedEmail({
-      to: landco.email,
+      to: decryptedEmail,
       company_name: landco.company_name,
       event_name: qr?.event_name ?? '',
       request_id: requestId,
@@ -107,11 +110,13 @@ export async function POST(request: NextRequest) {
   const landcoPayout = landcoQuoteTotal - platformFee
   const gmv = landcoQuoteTotal + agencyMarkup
 
+  const settlementDisplayId = await generateDisplayId(admin, 'STL')
   const { error: settlementErr } = await admin.from('quote_settlements').upsert({
     request_id: requestId,
     quote_id: quoteId,
     landco_id: landcoId,
     agency_id: user.id,
+    display_id: settlementDisplayId,
     landco_quote_total: landcoQuoteTotal,
     platform_fee_rate: platformFeeRate,
     platform_fee: platformFee,
@@ -148,6 +153,7 @@ export async function POST(request: NextRequest) {
 
   const { data: settlement, error: settlementReadErr } = await admin
     .from('quote_settlements').select('id').eq('request_id', requestId).single()
+  const scheduleDisplayId = await generateDisplayId(admin, 'PSC')
   const { data: schedule, error: scheduleErr } = await admin
     .from('payment_schedules').upsert({
       request_id: requestId,
@@ -155,13 +161,16 @@ export async function POST(request: NextRequest) {
       template_type: templateType,
       total_amount: gmv,
       total_people: totalPeople,
+      display_id: scheduleDisplayId,
     }, { onConflict: 'request_id' }).select().single()
 
   if (schedule) {
     await admin.from('payment_installments').delete().eq('schedule_id', schedule.id)
     for (const inst of installmentDrafts) {
+      const instDisplayId = await generateDisplayId(admin, 'PIN')
       await admin.from('payment_installments').insert({
         schedule_id: schedule.id,
+        display_id: instDisplayId,
         ...inst,
       })
     }

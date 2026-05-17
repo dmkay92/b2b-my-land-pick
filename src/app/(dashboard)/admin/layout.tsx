@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { LogoutButton } from '@/components/LogoutButton'
 import { AccountMenu } from '@/components/AccountMenu'
 import { AgencySidebar } from '@/components/layout/AgencySidebar'
+import { ChatProvider } from '@/lib/chat/ChatContext'
+import { FloatingChat } from '@/components/chat/FloatingChat'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -24,7 +26,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </>
       }
     >
-      {children}
+      <ChatProvider>
+        {children}
+        <FloatingChat />
+      </ChatProvider>
     </AgencySidebar>
   )
 }

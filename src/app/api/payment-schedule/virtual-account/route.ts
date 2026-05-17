@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { generateDisplayId } from '@/lib/display-id'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -34,6 +36,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Create pending transaction (가상계좌는 수수료 없음)
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+  const txDisplayId = await generateDisplayId(adminClient, 'TXN')
+
   const { data: tx, error } = await supabase
     .from('payment_transactions').insert({
       installment_id: installmentId,
@@ -44,6 +53,7 @@ export async function POST(request: NextRequest) {
       payment_method: 'virtual_account',
       status: 'pending',
       virtual_account_info: virtualAccountInfo,
+      display_id: txDisplayId,
     }).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

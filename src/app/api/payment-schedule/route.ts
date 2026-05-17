@@ -4,6 +4,8 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { buildInstallments, getDefaultTemplateType } from '@/lib/payment/schedule'
 import { calculateTotalPeople } from '@/lib/utils'
 import { sendSettlementRequestEmail } from '@/lib/email/notifications'
+import { generateDisplayId } from '@/lib/display-id'
+import { decryptField } from '@/lib/privacy'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -104,8 +106,10 @@ export async function PUT(request: NextRequest) {
 
   const newInstallments = buildInstallments(targetType, schedule.total_amount, qr!.depart_date, qr!.return_date)
   for (const inst of newInstallments) {
+    const instDisplayId = await generateDisplayId(putAdmin, 'PIN')
     await putAdmin.from('payment_installments').insert({
       schedule_id: schedule.id,
+      display_id: instDisplayId,
       ...inst,
     })
   }
@@ -132,8 +136,9 @@ export async function PUT(request: NextRequest) {
       const { data: landcoProfile } = await putAdmin
         .from('profiles').select('email').eq('id', selection.landco_id).single()
       if (landcoProfile?.email) {
+        const decryptedEmail = await decryptField(landcoProfile.email)
         await sendSettlementRequestEmail({
-          to: landcoProfile.email,
+          to: decryptedEmail,
           event_name: qr?.event_name ?? '',
           request_id: requestId,
         })

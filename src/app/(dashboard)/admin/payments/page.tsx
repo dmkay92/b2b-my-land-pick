@@ -39,6 +39,7 @@ export default function AdminPaymentsPage() {
   const [actingId, setActingId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkActing, setBulkActing] = useState(false)
+  const [confirmModal, setConfirmModal] = useState<{ type: 'action'; id: string; action: 'paid' | 'pending'; label: string } | { type: 'bulk'; count: number } | null>(null)
   const [allClaims, setAllClaims] = useState<(DeductionClaim & { quote_requests?: { event_name: string; display_id: string | null; agency_id: string } })[]>([])
   const [claimsLoading, setClaimsLoading] = useState(true)
   const [claimFilter, setClaimFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending')
@@ -93,7 +94,11 @@ export default function AdminPaymentsPage() {
   async function handleBulkSettlement() {
     const ids = [...selectedIds]
     if (ids.length === 0) return
-    if (!confirm(`${ids.length}건을 정산 검토로 넘기시겠습니까?`)) return
+    setConfirmModal({ type: 'bulk', count: ids.length })
+  }
+
+  async function executeBulkSettlement() {
+    const ids = [...selectedIds]
     setBulkActing(true)
     await fetch('/api/admin/settlement-ledger/bulk-create', {
       method: 'POST',
@@ -107,7 +112,10 @@ export default function AdminPaymentsPage() {
 
   async function handleAction(id: string, action: 'paid' | 'pending') {
     const label = action === 'paid' ? '결제완료 처리' : '결제대기로 되돌리기'
-    if (!confirm(`${label}하시겠습니까?`)) return
+    setConfirmModal({ type: 'action', id, action, label })
+  }
+
+  async function executeAction(id: string, action: 'paid' | 'pending') {
     setActingId(id)
     await fetch('/api/admin/payments', {
       method: 'PATCH',
@@ -335,6 +343,62 @@ export default function AdminPaymentsPage() {
               />
             </div>
           ))}
+        </div>
+      )}
+      {/* 확인 모달 */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-bold text-gray-900">
+                {confirmModal.type === 'bulk' ? '정산 검토' : confirmModal.action === 'paid' ? '결제완료 처리' : '결제 되돌리기'}
+              </h3>
+            </div>
+            <div className="px-5 py-5 space-y-3">
+              {confirmModal.type === 'bulk' ? (
+                <p className="text-sm text-gray-700"><strong>{confirmModal.count}건</strong>을 정산 검토로 넘기시겠습니까?</p>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-700">
+                    {confirmModal.action === 'paid' ? '결제완료 처리' : '결제대기 상태로 되돌리기'}하시겠습니까?
+                  </p>
+                  {confirmModal.action === 'pending' && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <p className="text-xs text-amber-700">결제완료 상태를 되돌리면 결제대기 상태로 변경됩니다.</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="flex gap-2 px-5 py-4 border-t border-gray-100">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={async () => {
+                  if (confirmModal.type === 'bulk') {
+                    setConfirmModal(null)
+                    await executeBulkSettlement()
+                  } else {
+                    const { id: instId, action } = confirmModal
+                    setConfirmModal(null)
+                    await executeAction(instId, action)
+                  }
+                }}
+                disabled={!!actingId || bulkActing}
+                className={`flex-1 px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors ${
+                  confirmModal.type === 'bulk' ? 'bg-blue-600 hover:bg-blue-700' :
+                  confirmModal.action === 'paid' ? 'bg-emerald-500 hover:bg-emerald-600' :
+                  'bg-amber-500 hover:bg-amber-600'
+                }`}
+              >
+                {actingId || bulkActing ? '처리 중...' : '확인'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

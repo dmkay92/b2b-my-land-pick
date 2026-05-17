@@ -39,7 +39,7 @@ export async function POST(
   }
 
   // 1. quote_requests status → cancelled
-  await admin.from('quote_requests').update({ status: 'closed' }).eq('id', id)
+  await admin.from('quote_requests').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('id', id)
 
   // 2. 선택된 견적 status → rejected
   const { data: selectedQuote } = await admin

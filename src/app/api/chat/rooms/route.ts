@@ -85,8 +85,8 @@ export async function POST(request: NextRequest) {
 
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'agency') {
-    return NextResponse.json({ error: 'Forbidden: only agencies can create chat rooms' }, { status: 403 })
+  if (!profile || !['agency', 'landco'].includes(profile.role)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const { requestId, landcoId } = await request.json()
@@ -94,18 +94,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'requestId, landcoId required' }, { status: 400 })
   }
 
-  // 요청 소유자 확인
-  const { data: qr } = await supabase
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  // 요청 정보 확인
+  const { data: qr } = await adminClient
     .from('quote_requests').select('agency_id').eq('id', requestId).single()
-  if (qr?.agency_id !== user.id) {
+  if (!qr) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // 권한 확인: agency는 요청 소유자, landco는 본인이 landcoId와 일치
+  if (profile.role === 'agency' && qr.agency_id !== user.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+  if (profile.role === 'landco' && landcoId !== user.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   // upsert (request_id, landco_id) unique constraint 활용
-  const { data: room, error } = await supabase
+  const { data: room, error } = await adminClient
     .from('chat_rooms')
     .upsert(
-      { request_id: requestId, agency_id: user.id, landco_id: landcoId },
+      { request_id: requestId, agency_id: qr.agency_id, landco_id: landcoId },
       { onConflict: 'request_id,landco_id' }
     )
     .select()

@@ -13,12 +13,18 @@ export default function AdminPage() {
   const [agencyCount, setAgencyCount] = useState(0)
   const [landcoCount, setLandcoCount] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [paymentPending, setPaymentPending] = useState<{ count: number; total: number }>({ count: 0, total: 0 })
-  const [paymentOverdue, setPaymentOverdue] = useState(0)
-  const [monthlyPaid, setMonthlyPaid] = useState<{ count: number; total: number }>({ count: 0, total: 0 })
-  const [totalGmv, setTotalGmv] = useState(0)
   const [pendingInstallments, setPendingInstallments] = useState<{ label: string; event_name: string; amount: number; due_date: string; id: string }[]>([])
-  const [recentPaid, setRecentPaid] = useState<{ label: string; event_name: string; amount: number; paid_at: string }[]>([])
+  // 대시보드 KPI
+  type DashboardData = {
+    quotes: {
+      totalRequests: number; todayRequests: number; yesterdayRequests: number; thisMonthRequests: number; lastMonthRequests: number; totalQuotes: number; conversionRate: number; responseRate: number; respondedCount: number; byStatus: Record<string, number>
+      monthlyConversion: { month: string; total: number; finalized: number; closed: number; rate: number }[]
+      conversionMatrix: { createdMonth: string; total: number; snapshots: { observedMonth: string; finalized: number; closed: number; rate: number }[] }[]
+    }
+    payments: { pendingCount: number; pendingTotal: number; overdueCount: number; paidCount: number; paidTotal: number; thisMonthPaidCount: number; thisMonthPaidTotal: number }
+    settlements: { totalGmv: number; totalLandcoQuote: number; totalAgencyCommission: number; totalPlatformFee: number; totalNetRevenue: number; totalLandcoPayout: number; totalAgencyPayout: number }
+  }
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null)
 
   // 상세 모달
   const [detailModal, setDetailModal] = useState<{ user: Profile } | null>(null)
@@ -64,56 +70,45 @@ export default function AdminPage() {
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'agency').eq('status', 'approved'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'landco').eq('status', 'approved'),
       ])
-      setPendingUsers(pending ?? [])
+      // PII 복호화 (서버 경유)
+      if (pending && pending.length > 0) {
+        const res = await fetch('/api/admin/decrypt-profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profiles: pending }),
+        })
+        if (res.ok) {
+          const { profiles: decrypted } = await res.json()
+          setPendingUsers(decrypted)
+        } else {
+          setPendingUsers(pending)
+        }
+      } else {
+        setPendingUsers(pending ?? [])
+      }
       setAgencyCount(aCnt ?? 0)
       setLandcoCount(lCnt ?? 0)
 
-      // 결제 데이터
+      // 대시보드 KPI
+      const dashRes = await fetch('/api/admin/dashboard')
+      if (dashRes.ok) {
+        const data = await dashRes.json()
+        setDashboard(data)
+      }
+
+      // 결제 리스트 (결제 대기 / 최근 결제)
       const payRes = await fetch('/api/admin/payments?status=pending')
       if (payRes.ok) {
         const { installments } = await payRes.json()
-        const today = new Date().toISOString().slice(0, 10)
-        const overdueCount = (installments ?? []).filter((i: { due_date: string; status: string }) => i.due_date < today || i.status === 'overdue').length
-        const pendingTotal = (installments ?? []).reduce((s: number, i: { amount: number }) => s + i.amount, 0)
-        setPaymentPending({ count: (installments ?? []).length, total: pendingTotal })
-        setPaymentOverdue(overdueCount)
         setPendingInstallments(
           (installments ?? [])
             .sort((a: { due_date: string }, b: { due_date: string }) => a.due_date.localeCompare(b.due_date))
             .slice(0, 5)
             .map((i: { id: string; label: string; amount: number; due_date: string; payment_schedules?: { quote_requests?: { event_name?: string } } }) => ({
-              id: i.id,
-              label: i.label,
-              event_name: i.payment_schedules?.quote_requests?.event_name ?? '-',
-              amount: i.amount,
-              due_date: i.due_date,
+              id: i.id, label: i.label, event_name: i.payment_schedules?.quote_requests?.event_name ?? '-', amount: i.amount, due_date: i.due_date,
             }))
         )
       }
-
-      const paidRes = await fetch('/api/admin/payments?status=paid')
-      if (paidRes.ok) {
-        const { installments: paidList } = await paidRes.json()
-        const now = new Date()
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-        const thisMonthPaid = (paidList ?? []).filter((i: { paid_at: string | null }) => i.paid_at && i.paid_at >= monthStart)
-        const monthTotal = thisMonthPaid.reduce((s: number, i: { amount: number }) => s + i.amount, 0)
-        setMonthlyPaid({ count: thisMonthPaid.length, total: monthTotal })
-        setTotalGmv((paidList ?? []).reduce((s: number, i: { amount: number }) => s + i.amount, 0))
-        setRecentPaid(
-          (paidList ?? [])
-            .filter((i: { paid_at: string | null }) => i.paid_at)
-            .sort((a: { paid_at: string }, b: { paid_at: string }) => b.paid_at.localeCompare(a.paid_at))
-            .slice(0, 5)
-            .map((i: { label: string; amount: number; paid_at: string; payment_schedules?: { quote_requests?: { event_name?: string } } }) => ({
-              label: i.label,
-              event_name: i.payment_schedules?.quote_requests?.event_name ?? '-',
-              amount: i.amount,
-              paid_at: i.paid_at,
-            }))
-        )
-      }
-
       setLoading(false)
     }
     fetchData()
@@ -174,193 +169,283 @@ export default function AdminPage() {
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold mb-8">관리자 대시보드</h1>
+      <h1 className="text-2xl font-bold mb-6">관리자 대시보드</h1>
 
-      {/* 현황 카드 — 회원 */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <button onClick={() => router.push('/admin/agencies')} className="bg-white rounded-xl shadow-sm p-6 text-left hover:shadow-md transition-shadow cursor-pointer">
-          <p className="text-sm text-gray-400 mb-1">여행사</p>
-          <p className="text-3xl font-bold text-gray-800">{agencyCount}<span className="text-base font-normal text-gray-400 ml-1">개사 승인</span></p>
-          {pendingAgencies.length > 0 && (
-            <p className="text-xs text-amber-500 mt-1">대기 {pendingAgencies.length}건</p>
-          )}
-        </button>
-        <button onClick={() => router.push('/admin/landcos')} className="bg-white rounded-xl shadow-sm p-6 text-left hover:shadow-md transition-shadow cursor-pointer">
-          <p className="text-sm text-gray-400 mb-1">랜드사</p>
-          <p className="text-3xl font-bold text-gray-800">{landcoCount}<span className="text-base font-normal text-gray-400 ml-1">개사 승인</span></p>
-          {pendingLandcos.length > 0 && (
-            <p className="text-xs text-amber-500 mt-1">대기 {pendingLandcos.length}건</p>
-          )}
-        </button>
-      </div>
-
-      {/* 관리 메뉴 */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <button onClick={() => router.push('/admin/payments')} className="bg-white rounded-xl shadow-sm p-5 text-left hover:shadow-md transition-shadow cursor-pointer border border-gray-100">
-          <p className="text-sm font-semibold text-gray-700">결제 관리</p>
-          <p className="text-xs text-gray-400 mt-1">결제 현황 조회 및 관리</p>
-        </button>
-        <button onClick={() => router.push('/admin/settlements')} className="bg-white rounded-xl shadow-sm p-5 text-left hover:shadow-md transition-shadow cursor-pointer border border-gray-100">
-          <p className="text-sm font-semibold text-gray-700">정산 관리</p>
-          <p className="text-xs text-gray-400 mt-1">정산 히스토리 및 지급 관리</p>
-        </button>
-      </div>
-
-      {/* 결제 현황 카드 */}
-      <div className="grid grid-cols-4 gap-4 mb-10">
-        <button onClick={() => router.push('/admin/payments')} className="bg-white rounded-xl shadow-sm p-5 text-left hover:shadow-md transition-shadow cursor-pointer">
-          <p className="text-xs text-gray-400 mb-1">결제 대기</p>
-          <p className="text-2xl font-bold text-amber-600">{paymentPending.count}<span className="text-sm font-normal text-gray-400 ml-1">건</span></p>
-          <p className="text-xs text-gray-500 mt-1">{paymentPending.total.toLocaleString('ko-KR')}원</p>
-        </button>
-        <button onClick={() => router.push('/admin/payments')} className="bg-white rounded-xl shadow-sm p-5 text-left hover:shadow-md transition-shadow cursor-pointer">
-          <p className="text-xs text-gray-400 mb-1">기한 초과</p>
-          <p className={`text-2xl font-bold ${paymentOverdue > 0 ? 'text-red-500' : 'text-gray-300'}`}>{paymentOverdue}<span className="text-sm font-normal text-gray-400 ml-1">건</span></p>
-        </button>
-        <div className="bg-white rounded-xl shadow-sm p-5 text-left">
-          <p className="text-xs text-gray-400 mb-1">이번 달 결제</p>
-          <p className="text-2xl font-bold text-emerald-600">{monthlyPaid.count}<span className="text-sm font-normal text-gray-400 ml-1">건</span></p>
-          <p className="text-xs text-gray-500 mt-1">{monthlyPaid.total.toLocaleString('ko-KR')}원</p>
+      {dashboard && (
+        <>
+        {/* 견적 현황 */}
+        <div className="rounded-xl border border-gray-200 shadow-sm mb-6">
+          <div className="px-5 h-10 bg-gradient-to-r from-gray-900 to-gray-800 flex items-center rounded-t-xl">
+            <h2 className="text-xs font-bold text-white">견적 현황</h2>
+          </div>
+          <div className="grid grid-cols-5 divide-x divide-gray-100 bg-white rounded-b-xl">
+            <button onClick={() => {
+              const t = new Date().toISOString().slice(0, 10)
+              router.push(`/admin/quotes?from=${t}&to=${t}`)
+            }} className="p-4 text-left hover:bg-gray-50 transition-colors">
+              <p className="text-[10px] text-gray-400 mb-1">오늘 견적 요청</p>
+              <p className="text-2xl font-bold text-gray-900">{dashboard.quotes.todayRequests}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">어제 {dashboard.quotes.yesterdayRequests}건</p>
+            </button>
+            <button onClick={() => {
+              const now = new Date()
+              const from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+              const to = now.toISOString().slice(0, 10)
+              router.push(`/admin/quotes?from=${from}&to=${to}`)
+            }} className="p-4 text-left hover:bg-gray-50 transition-colors">
+              <p className="text-[10px] text-gray-400 mb-1">이번 달 견적 요청</p>
+              <p className="text-2xl font-bold text-blue-600">{dashboard.quotes.thisMonthRequests}</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">지난달 {dashboard.quotes.lastMonthRequests}건</p>
+            </button>
+            <div className="p-4">
+              <p className="text-[10px] text-gray-400 mb-1">전체 체결률</p>
+              <p className="text-2xl font-bold text-emerald-600">{dashboard.quotes.conversionRate}%</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">확정 {dashboard.quotes.byStatus.finalized ?? 0} / 전체 {dashboard.quotes.totalRequests}건</p>
+            </div>
+            <div className="p-4">
+              <p className="text-[10px] text-gray-400 mb-1">견적 응답률</p>
+              <p className="text-2xl font-bold text-blue-600">{dashboard.quotes.responseRate}%</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">응답 {dashboard.quotes.respondedCount} / 전체 {dashboard.quotes.totalRequests}건</p>
+            </div>
+            <div className="p-4">
+              <p className="text-[10px] text-gray-400 mb-1">취소율</p>
+              <p className="text-2xl font-bold text-red-500">{dashboard.quotes.totalRequests > 0 ? Math.round(((dashboard.quotes.byStatus.closed ?? 0) / dashboard.quotes.totalRequests) * 100) : 0}%</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">취소 {dashboard.quotes.byStatus.closed ?? 0} / 전체 {dashboard.quotes.totalRequests}건</p>
+            </div>
+          </div>
         </div>
-        <div className="bg-white rounded-xl shadow-sm p-5 text-left">
-          <p className="text-xs text-gray-400 mb-1">총 GMV</p>
-          <p className="text-2xl font-bold text-gray-800">{totalGmv.toLocaleString('ko-KR')}<span className="text-sm font-normal text-gray-400 ml-1">원</span></p>
+
+        {/* 월별 체결률 추이 */}
+        {dashboard.quotes.conversionMatrix.length > 0 && (() => {
+          const matrix = dashboard.quotes.conversionMatrix
+          const allObservedMonths = [...new Set(matrix.flatMap(m => m.snapshots.map(s => s.observedMonth)))].sort()
+          const colors = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+
+          return (
+            <div className="rounded-xl border border-gray-200 shadow-sm mb-6">
+              <div className="px-5 h-10 bg-gradient-to-r from-gray-900 to-gray-800 flex items-center rounded-t-xl">
+                <h2 className="text-xs font-bold text-white">월별 체결률 추이</h2>
+                <span className="text-[10px] text-gray-400 ml-2">생성월별 체결률이 시간에 따라 어떻게 변화하는지</span>
+              </div>
+              <div className="bg-white rounded-b-xl overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="text-left px-4 py-3 font-medium text-gray-500 sticky left-0 bg-gray-50 min-w-[80px]">생성월</th>
+                      <th className="text-center px-3 py-3 font-medium text-gray-500 min-w-[50px]">건수</th>
+                      {allObservedMonths.map(m => (
+                        <th key={m} className="text-center px-3 py-3 font-medium text-gray-500 min-w-[100px]">
+                          {m.slice(2).replace('.', '년 ')}월 기준
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {matrix.map((row, ri) => (
+                      <tr key={row.createdMonth} className="border-t border-gray-50 hover:bg-gray-50/50 cursor-pointer" onClick={() => {
+                        const [y, m] = row.createdMonth.split('.')
+                        const from = `${y}-${m}-01`
+                        const end = new Date(Number(y), Number(m), 0)
+                        const to = `${y}-${m}-${String(end.getDate()).padStart(2, '0')}`
+                        router.push(`/admin/quotes?from=${from}&to=${to}`)
+                      }}>
+                        <td className="px-4 py-3 sticky left-0 bg-inherit">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: colors[ri % colors.length] }} />
+                            <span className="font-bold text-gray-900">{row.createdMonth.slice(2).replace('.', '년 ')}월</span>
+                          </div>
+                        </td>
+                        <td className="text-center px-3 py-3 font-medium text-gray-600">{row.total}건</td>
+                        {allObservedMonths.map((om, oi) => {
+                          const snap = row.snapshots.find(s => s.observedMonth === om)
+                          if (!snap) return <td key={om} className="text-center px-3 py-3 text-gray-200">-</td>
+                          // 이전 스냅샷 대비 변화
+                          const prevSnap = oi > 0 ? row.snapshots.find(s => s.observedMonth === allObservedMonths[oi - 1]) : null
+                          const diff = prevSnap ? snap.rate - prevSnap.rate : 0
+                          return (
+                            <td key={om} className="text-center px-3 py-3">
+                              <div className="flex flex-col items-center gap-0.5">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-sm font-bold" style={{ color: colors[ri % colors.length] }}>{snap.rate}%</span>
+                                  {diff > 0 && <span className="text-[9px] text-emerald-500 font-medium">+{diff}%</span>}
+                                </div>
+                                <div className="w-full max-w-[80px] h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full transition-all" style={{ width: `${snap.rate}%`, backgroundColor: colors[ri % colors.length] }} />
+                                </div>
+                                <span className="text-[9px] text-gray-400">확정 {snap.finalized} · 취소 {snap.closed}</span>
+                              </div>
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* 결제 & 매출 */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="rounded-xl border border-gray-200 shadow-sm flex flex-col h-full">
+            <div className="px-5 h-10 bg-gradient-to-r from-gray-900 to-gray-800 flex items-center rounded-t-xl shrink-0">
+              <h2 className="text-xs font-bold text-white">결제 현황</h2>
+            </div>
+            <div className="grid grid-cols-2 divide-x divide-gray-100 bg-white flex-1">
+              <button onClick={() => router.push('/admin/payments')} className="p-4 text-left hover:bg-gray-50 transition-colors">
+                <p className="text-[10px] text-gray-400 mb-1">결제 대기</p>
+                <p className="text-xl font-bold text-amber-600">{dashboard.payments.pendingCount}<span className="text-xs font-normal text-gray-400 ml-0.5">건</span></p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{dashboard.payments.pendingTotal.toLocaleString('ko-KR')}원</p>
+              </button>
+              <button onClick={() => router.push('/admin/payments')} className="p-4 text-left hover:bg-gray-50 transition-colors">
+                <p className="text-[10px] text-gray-400 mb-1">기한 초과</p>
+                <p className={`text-xl font-bold ${dashboard.payments.overdueCount > 0 ? 'text-red-500' : 'text-gray-300'}`}>{dashboard.payments.overdueCount}<span className="text-xs font-normal text-gray-400 ml-0.5">건</span></p>
+              </button>
+            </div>
+            <div className="grid grid-cols-2 divide-x divide-gray-100 bg-white border-t border-gray-100 rounded-b-xl flex-1">
+              <div className="p-4">
+                <p className="text-[10px] text-gray-400 mb-1">이번 달 결제</p>
+                <p className="text-xl font-bold text-emerald-600">{dashboard.payments.thisMonthPaidCount}<span className="text-xs font-normal text-gray-400 ml-0.5">건</span></p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{dashboard.payments.thisMonthPaidTotal.toLocaleString('ko-KR')}원</p>
+              </div>
+              <div className="p-4">
+                <p className="text-[10px] text-gray-400 mb-1">총 결제 완료</p>
+                <p className="text-xl font-bold text-gray-900">{dashboard.payments.paidCount}<span className="text-xs font-normal text-gray-400 ml-0.5">건</span></p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{dashboard.payments.paidTotal.toLocaleString('ko-KR')}원</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-5 h-10 bg-gradient-to-r from-gray-900 to-gray-800 flex items-center">
+              <h2 className="text-xs font-bold text-white">매출</h2>
+            </div>
+            <div className="bg-white divide-y divide-gray-100">
+              <div className="p-4">
+                <p className="text-[10px] text-gray-400 mb-1">총 GMV <span className="text-gray-300">(랜드사 견적가 + 여행사 커미션)</span></p>
+                <p className="text-2xl font-bold text-gray-900">{dashboard.settlements.totalGmv.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></p>
+              </div>
+              <div className="grid grid-cols-2 divide-x divide-gray-100">
+                <div className="p-4">
+                  <p className="text-[10px] text-gray-400 mb-1">랜드사 견적가</p>
+                  <p className="text-lg font-bold text-gray-700">{dashboard.settlements.totalLandcoQuote.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></p>
+                </div>
+                <div className="p-4">
+                  <p className="text-[10px] text-gray-400 mb-1">여행사 커미션</p>
+                  <p className="text-lg font-bold text-amber-600">{dashboard.settlements.totalAgencyCommission.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 divide-x divide-gray-100 rounded-b-xl">
+                <div className="p-4">
+                  <p className="text-[10px] text-gray-400 mb-1">플랫폼 수수료</p>
+                  <p className="text-base font-bold text-blue-600">{dashboard.settlements.totalPlatformFee.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></p>
+                </div>
+                <div className="p-4">
+                  <p className="text-[10px] text-gray-400 mb-1">랜드사 지급</p>
+                  <p className="text-base font-bold text-gray-600">{dashboard.settlements.totalLandcoPayout.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* 가입 승인 대기 */}
-      <div className="grid grid-cols-2 gap-6">
-        <section>
-          <h2 className="text-lg font-semibold mb-3">
-            여행사 승인 대기 <span className="text-gray-400 font-normal text-sm">({pendingAgencies.length})</span>
-          </h2>
-          {pendingAgencies.length === 0 ? (
-            <p className="text-gray-400 text-sm">대기 중인 여행사가 없습니다.</p>
-          ) : (
-            <div className="space-y-2">
-              {pendingAgencies.map(user => (
-                <div
-                  key={user.id}
-                  onClick={() => openDetailModal(user)}
-                  className="bg-white p-4 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-medium text-sm">{user.company_name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{user.email}</p>
-                      {user.business_registration_number && (
-                        <p className="text-xs text-gray-400">사업자 {user.business_registration_number}</p>
-                      )}
-                      {user.representative_name && (
-                        <p className="text-xs text-gray-400">대표자 {user.representative_name}</p>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-300 shrink-0 ml-2">
-                      {new Date(user.created_at).toLocaleDateString('ko-KR')}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+        </>
+      )}
 
-        <section>
-          <h2 className="text-lg font-semibold mb-3">
-            랜드사 승인 대기 <span className="text-gray-400 font-normal text-sm">({pendingLandcos.length})</span>
-          </h2>
-          {pendingLandcos.length === 0 ? (
-            <p className="text-gray-400 text-sm">대기 중인 랜드사가 없습니다.</p>
-          ) : (
-            <div className="space-y-2">
-              {pendingLandcos.map(user => (
-                <div
-                  key={user.id}
-                  onClick={() => openDetailModal(user)}
-                  className="bg-white p-4 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-medium text-sm">{user.company_name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{user.email}</p>
-                      {user.business_registration_number && (
-                        <p className="text-xs text-gray-400">사업자 {user.business_registration_number}</p>
-                      )}
-                      {user.representative_name && (
-                        <p className="text-xs text-gray-400">대표자 {user.representative_name}</p>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-300 shrink-0 ml-2">
-                      {new Date(user.created_at).toLocaleDateString('ko-KR')}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-
-      {/* 결제 리스트 */}
-      <div className="grid grid-cols-2 gap-6 mt-8">
-        <section>
-          <h2 className="text-lg font-semibold mb-3">
-            결제 대기 <span className="text-gray-400 font-normal text-sm">(납부기한순)</span>
-          </h2>
-          {pendingInstallments.length === 0 ? (
-            <p className="text-gray-400 text-sm">결제 대기 건이 없습니다.</p>
-          ) : (
-            <div className="space-y-2">
-              {pendingInstallments.map(inst => {
-                const today = new Date().toISOString().slice(0, 10)
-                const daysLeft = Math.ceil((new Date(inst.due_date).getTime() - new Date(today).getTime()) / 86400000)
-                const isOverdue = daysLeft < 0
-                return (
-                  <div key={inst.id} className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push('/admin/payments')}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{inst.label}</p>
-                        <p className="text-xs text-gray-400">{inst.event_name}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-gray-900">{inst.amount.toLocaleString('ko-KR')}원</p>
-                        <p className={`text-xs font-medium ${isOverdue ? 'text-red-500' : daysLeft <= 3 ? 'text-amber-500' : 'text-gray-400'}`}>
-                          {isOverdue ? `D+${Math.abs(daysLeft)}` : `D-${daysLeft}`}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </section>
-
-        <section>
-          <h2 className="text-lg font-semibold mb-3">
-            최근 결제 완료
-          </h2>
-          {recentPaid.length === 0 ? (
-            <p className="text-gray-400 text-sm">결제 완료 건이 없습니다.</p>
-          ) : (
-            <div className="space-y-2">
-              {recentPaid.map((inst, i) => (
-                <div key={i} className="bg-white p-4 rounded-lg shadow-sm">
+      {/* 결제 대기 */}
+      <section className="mb-6">
+        <h2 className="text-lg font-semibold mb-3">
+          결제 대기 <span className="text-gray-400 font-normal text-sm">(납부기한순, 최대 5건)</span>
+        </h2>
+        {pendingInstallments.length === 0 ? (
+          <p className="text-gray-400 text-sm">결제 대기 건이 없습니다.</p>
+        ) : (
+          <div className="space-y-2">
+            {pendingInstallments.slice(0, 5).map(inst => {
+              const today = new Date().toISOString().slice(0, 10)
+              const daysLeft = Math.ceil((new Date(inst.due_date).getTime() - new Date(today).getTime()) / 86400000)
+              const isOverdue = daysLeft < 0
+              return (
+                <div key={inst.id} className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push('/admin/payments')}>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-900">{inst.label}</p>
                       <p className="text-xs text-gray-400">{inst.event_name}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-emerald-600">{inst.amount.toLocaleString('ko-KR')}원</p>
-                      <p className="text-xs text-gray-400">{new Date(inst.paid_at).toLocaleDateString('ko-KR')}</p>
+                      <p className="text-sm font-bold text-gray-900">{inst.amount.toLocaleString('ko-KR')}원</p>
+                      <p className={`text-xs font-medium ${isOverdue ? 'text-red-500' : daysLeft <= 3 ? 'text-amber-500' : 'text-gray-400'}`}>
+                        {isOverdue ? `D+${Math.abs(daysLeft)}` : `D-${daysLeft}`}
+                      </p>
                     </div>
                   </div>
                 </div>
-              ))}
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* 회원 현황 + 승인 대기 */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="rounded-xl border border-gray-200 shadow-sm">
+          <button onClick={() => router.push('/admin/agencies')} className="w-full px-5 h-10 flex items-center justify-between bg-gradient-to-r from-gray-900 to-gray-800 rounded-t-xl hover:from-gray-800 hover:to-gray-700 transition-colors">
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-bold text-white">여행사</h3>
+              <span className="text-xs font-bold text-white">{agencyCount}<span className="text-[10px] font-normal text-gray-300 ml-0.5">개사</span></span>
             </div>
-          )}
-        </section>
+            {pendingAgencies.length > 0 && <span className="text-[10px] font-semibold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full">승인대기 {pendingAgencies.length}</span>}
+          </button>
+          <div className="bg-white rounded-b-xl">
+            {pendingAgencies.length === 0 ? (
+              <p className="text-gray-300 text-xs text-center py-4">승인 대기 없음</p>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {pendingAgencies.slice(0, 5).map(user => (
+                  <div key={user.id} onClick={() => openDetailModal(user)} className="px-5 py-3 cursor-pointer hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{user.company_name}</p>
+                        <p className="text-[10px] text-gray-400">{user.representative_name ?? user.email}</p>
+                      </div>
+                      <p className="text-[10px] text-gray-300">{new Date(user.created_at).toLocaleDateString('ko-KR')}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 shadow-sm">
+          <button onClick={() => router.push('/admin/landcos')} className="w-full px-5 h-10 flex items-center justify-between bg-gradient-to-r from-gray-900 to-gray-800 rounded-t-xl hover:from-gray-800 hover:to-gray-700 transition-colors">
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-bold text-white">랜드사</h3>
+              <span className="text-xs font-bold text-white">{landcoCount}<span className="text-[10px] font-normal text-gray-300 ml-0.5">개사</span></span>
+            </div>
+            {pendingLandcos.length > 0 && <span className="text-[10px] font-semibold text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-full">승인대기 {pendingLandcos.length}</span>}
+          </button>
+          <div className="bg-white rounded-b-xl">
+            {pendingLandcos.length === 0 ? (
+              <p className="text-gray-300 text-xs text-center py-4">승인 대기 없음</p>
+            ) : (
+              <div className="divide-y divide-gray-50">
+                {pendingLandcos.slice(0, 5).map(user => (
+                  <div key={user.id} onClick={() => openDetailModal(user)} className="px-5 py-3 cursor-pointer hover:bg-gray-50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{user.company_name}</p>
+                        <p className="text-[10px] text-gray-400">{user.representative_name ?? user.email}</p>
+                      </div>
+                      <p className="text-[10px] text-gray-300">{new Date(user.created_at).toLocaleDateString('ko-KR')}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* 상세 모달 */}
