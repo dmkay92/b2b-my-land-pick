@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { decryptPii } from '@/lib/privacy'
 
 function getAdmin() {
   return createAdminClient(
@@ -33,9 +34,11 @@ export async function GET(request: NextRequest) {
   // 관련 데이터 별도 조회
   const settlements = await Promise.all((rawSettlements ?? []).map(async (s) => {
     const { data: qr, error: qrErr } = await admin.from('quote_requests').select('id, display_id, event_name, depart_date, return_date, destination_country, destination_city, adults, children, infants, leaders, status, created_at').eq('id', s.request_id).maybeSingle()
-    const { data: agency } = await admin.from('profiles').select('id, company_name, bank_name, bank_account, bank_holder').eq('id', s.agency_id).maybeSingle()
-    const { data: landco } = await admin.from('profiles').select('id, company_name, business_registration_number, representative_name, bank_name, bank_account, bank_holder').eq('id', s.landco_id).maybeSingle()
+    const { data: rawAgency } = await admin.from('profiles').select('id, company_name, bank_name, bank_account, bank_holder').eq('id', s.agency_id).maybeSingle()
+    const { data: rawLandco } = await admin.from('profiles').select('id, company_name, business_registration_number, representative_name, bank_name, bank_account, bank_holder').eq('id', s.landco_id).maybeSingle()
     if (qrErr) console.error('[settlements] qr error:', s.request_id, qrErr.message)
+    const agency = rawAgency ? await decryptPii(rawAgency as Record<string, unknown>) as typeof rawAgency : null
+    const landco = rawLandco ? await decryptPii(rawLandco as Record<string, unknown>) as typeof rawLandco : null
     return { ...s, quote_requests: qr, agency, landco }
   }))
 

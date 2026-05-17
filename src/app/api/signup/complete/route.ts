@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServiceClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { generateProfileDisplayId } from '@/lib/display-id'
+import { encryptPii } from '@/lib/privacy'
+
+function getAdmin() {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
 
 export async function POST(req: NextRequest) {
   const {
     userId,
+    email,
+    role,
+    company_name,
     business_registration_number,
     representative_name,
     phone_mobile,
@@ -17,13 +30,23 @@ export async function POST(req: NextRequest) {
     service_areas,
   } = await req.json()
 
-  if (!userId) {
-    return NextResponse.json({ error: 'userId required' }, { status: 400 })
+  if (!userId || !email || !role || !company_name) {
+    return NextResponse.json({ error: 'userId, email, role, company_name required' }, { status: 400 })
   }
 
-  const supabase = await createServiceClient()
+  const admin = getAdmin()
 
-  const { error } = await supabase.from('profiles').update({
+  // display_id 생성 (앱 레벨)
+  const display_id = await generateProfileDisplayId(admin, role)
+
+  // PII 필드 암호화 후 INSERT
+  const profileData = await encryptPii({
+    id: userId,
+    email,
+    role,
+    company_name,
+    status: role === 'admin' ? 'approved' : 'pending',
+    display_id,
     business_registration_number: business_registration_number || null,
     representative_name: representative_name || null,
     phone_mobile: phone_mobile || null,
@@ -35,10 +58,11 @@ export async function POST(req: NextRequest) {
     document_bank_url: document_bank_url || null,
     ...(Array.isArray(country_codes) ? { country_codes } : {}),
     ...(Array.isArray(service_areas) ? { service_areas } : {}),
-  }).eq('id', userId)
+  })
+  const { error } = await admin.from('profiles').insert(profileData)
 
   if (error) {
-    console.error('Profile update error:', error.message)
+    console.error('Profile insert error:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 

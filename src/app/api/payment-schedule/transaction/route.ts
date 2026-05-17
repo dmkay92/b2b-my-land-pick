@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { validateTransaction, calculateInstallmentStatus } from '@/lib/payment/transactions'
+import { generateDisplayId } from '@/lib/display-id'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -40,6 +42,13 @@ export async function POST(request: NextRequest) {
   const cardSurcharge = isCard ? Math.round(baseAmount * CARD_SURCHARGE_RATE) : 0
   const totalAmount = baseAmount + cardSurcharge
 
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+  const txDisplayId = await generateDisplayId(adminClient, 'TXN')
+
   const { data: tx, error: txError } = await supabase
     .from('payment_transactions').insert({
       installment_id: installmentId,
@@ -51,6 +60,7 @@ export async function POST(request: NextRequest) {
       status: 'success',
       pg_transaction_id: pgTransactionId ?? null,
       pg_response: pgResponse ?? null,
+      display_id: txDisplayId,
     }).select().single()
 
   if (txError) return NextResponse.json({ error: txError.message }, { status: 500 })

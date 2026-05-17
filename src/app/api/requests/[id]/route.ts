@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { extractQuotePricing } from '@/lib/excel/parse'
 import { sendRequestUpdatedEmail } from '@/lib/email/notifications'
+import { decryptField } from '@/lib/privacy'
 
 export async function GET(
   _request: NextRequest,
@@ -49,17 +50,20 @@ export async function GET(
     }
   }
 
-  const { data: quotes } = await supabase
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  // admin은 RLS 우회하여 전체 견적 조회
+  const queryClient = isAdmin ? adminClient : supabase
+  const { data: quotes } = await queryClient
     .from('quotes')
     .select('*')
     .eq('request_id', id)
     .order('version', { ascending: false })
 
   const landcoIds = [...new Set((quotes ?? []).map(q => q.landco_id))]
-  const adminClient = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
   const profilesResult = landcoIds.length > 0
     ? await adminClient.from('profiles').select('id, company_name').in('id', landcoIds)
     : { data: [], error: null }
@@ -178,9 +182,10 @@ export async function PATCH(
       })
     )
     const validEmails = landcoEmails.filter((e): e is string => !!e)
-    if (validEmails.length > 0) {
+    const decryptedEmails = await Promise.all(validEmails.map(e => decryptField(e)))
+    if (decryptedEmails.length > 0) {
       await sendRequestUpdatedEmail({
-        to: validEmails,
+        to: decryptedEmails,
         event_name: body.event_name,
         request_id: id,
       })

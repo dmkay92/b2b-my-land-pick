@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendApprovalEmail } from '@/lib/email/notifications'
+import { decryptField } from '@/lib/privacy'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -50,7 +51,8 @@ export async function POST(request: NextRequest) {
     const { data: profile } = await serviceClient
       .from('profiles').select('email, company_name').eq('id', userId).single()
     if (profile?.email) {
-      await sendApprovalEmail({ to: profile.email, company_name: profile.company_name ?? '' })
+      const email = await decryptField(profile.email)
+      await sendApprovalEmail({ to: email, company_name: profile.company_name ?? '' })
     }
   }
 

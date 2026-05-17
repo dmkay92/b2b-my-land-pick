@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
+
+function getAdmin() {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
 
 // GET /api/chat/rooms/[roomId]/messages
 export async function GET(
@@ -11,8 +20,11 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // RLS가 참여자만 조회 허용
-  const { data: messages, error } = await supabase
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const isAdmin = profile?.role === 'admin'
+  const queryClient = isAdmin ? getAdmin() : supabase
+
+  const { data: messages, error } = await queryClient
     .from('messages')
     .select('*, sender:profiles!messages_sender_id_fkey(company_name)')
     .eq('room_id', roomId)
@@ -38,19 +50,23 @@ export async function POST(
     return NextResponse.json({ error: 'content or file required' }, { status: 400 })
   }
 
-  // 채팅방 참여자 확인 (RLS + 명시적 조회)
-  const { data: room } = await supabase
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const isAdmin = profile?.role === 'admin'
+  const queryClient = isAdmin ? getAdmin() : supabase
+
+  // 채팅방 참여자 확인
+  const { data: room } = await queryClient
     .from('chat_rooms')
     .select('*, request:quote_requests(event_name)')
     .eq('id', roomId)
     .single()
 
   if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 })
-  if (room.agency_id !== user.id && room.landco_id !== user.id) {
+  if (!isAdmin && room.agency_id !== user.id && room.landco_id !== user.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const { data: message, error } = await supabase
+  const { data: message, error } = await queryClient
     .from('messages')
     .insert({
       room_id: roomId,

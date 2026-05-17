@@ -5,6 +5,8 @@ import { getAuthorizedLandco } from '@/lib/supabase/auth-helpers'
 import { generateFilledQuoteTemplate } from '@/lib/excel/template'
 import { calculateTotalPeople } from '@/lib/utils'
 import { sendQuoteSubmittedEmail } from '@/lib/email/notifications'
+import { generateDisplayId } from '@/lib/display-id'
+import { decryptField } from '@/lib/privacy'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -113,6 +115,7 @@ export async function POST(request: NextRequest) {
     .createSignedUrl(officialPath, 60 * 60 * 24 * 365)
 
   // 7. DB insert
+  const quoteDisplayId = await generateDisplayId(admin, 'QOT')
   const { data, error: insertError } = await admin
     .from('quotes')
     .insert({
@@ -128,6 +131,7 @@ export async function POST(request: NextRequest) {
       summary_per_person: draft.summary_per_person ?? 0,
       includes: draft.includes ?? null,
       excludes: draft.excludes ?? null,
+      display_id: quoteDisplayId,
     })
     .select()
     .single()
@@ -148,8 +152,9 @@ export async function POST(request: NextRequest) {
   const { data: agencyInfo } = await supabase
     .from('profiles').select('email').eq('id', qr.agency_id).single()
   if (agencyInfo?.email) {
+    const decryptedEmail = await decryptField(agencyInfo.email)
     await sendQuoteSubmittedEmail({
-      to: agencyInfo.email,
+      to: decryptedEmail,
       event_name: qr.event_name,
       landco_name: profile?.company_name ?? '',
       request_id: requestId,

@@ -64,7 +64,7 @@ export function buildInstallments(
       label: '전액',
       rate: 1.0,
       amount: totalAmount,
-      due_date: today,
+      due_date: depositDueDate(departDate),
       allow_split: true,
     }]
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendSettlementApprovedEmail } from '@/lib/email/notifications'
+import { decryptField } from '@/lib/privacy'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -66,8 +67,9 @@ export async function POST(request: NextRequest) {
     const { data: qr } = await admin
       .from('quote_requests').select('event_name').eq('id', schedule.request_id).single()
     if (agencyProfile?.email) {
+      const decryptedEmail = await decryptField(agencyProfile.email)
       await sendSettlementApprovedEmail({
-        to: agencyProfile.email,
+        to: decryptedEmail,
         event_name: qr?.event_name ?? '',
         request_id: schedule.request_id,
       })

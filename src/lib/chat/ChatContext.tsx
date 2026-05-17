@@ -64,6 +64,9 @@ function setLastReadAt(roomId: string, at: string) {
 function computeUnread(rooms: ChatRoom[], currentUserId: string | null): Record<string, number> {
   const counts: Record<string, number> = {}
   for (const room of rooms) {
+    // admin(참여자가 아닌 사용자)은 미읽음 카운트 0
+    const isParticipant = currentUserId === room.agency_id || currentUserId === room.landco_id
+    if (!isParticipant) { counts[room.id] = 0; continue }
     if (!room.last_msg_at || !room.last_msg_sender_id) { counts[room.id] = 0; continue }
     if (room.last_msg_sender_id === currentUserId) { counts[room.id] = 0; continue }
     // DB의 last_read_at 컬럼 사용 (localStorage보다 정확)
@@ -139,11 +142,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const markRoomRead = useCallback((roomId: string) => {
+    const room = roomsRef.current.find(r => r.id === roomId)
+    // admin(agency_id도 landco_id도 아닌 경우)은 읽음 처리 skip
+    const isParticipant = room && currentUserIdRef.current && (currentUserIdRef.current === room.agency_id || currentUserIdRef.current === room.landco_id)
+    if (!isParticipant) return
+
     const now = new Date().toISOString()
     setLastReadAt(roomId, now)
     setRoomUnreadCounts(prev => ({ ...prev, [roomId]: 0 }))
     // rooms 상태의 my last_read_at도 즉시 반영 (computeUnread가 DB값 사용하므로)
-    const room = roomsRef.current.find(r => r.id === roomId)
     if (room && currentUserIdRef.current) {
       const col = currentUserIdRef.current === room.agency_id ? 'agency_last_read_at' : 'landco_last_read_at'
       const updated = roomsRef.current.map(r => r.id === roomId ? { ...r, [col]: now } : r)
@@ -272,6 +279,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     return () => { supabase.removeChannel(ch) }
   }, [supabase, currentUserId])
 
+  // admin 폴링 타이머
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   const openRoom = useCallback((roomId: string) => {
     setActiveRoomId(roomId)
     activeRoomIdRef.current = roomId
@@ -279,6 +289,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     isOpenRef.current = true
     loadMessages(roomId)
     subscribeToRoom(roomId, () => markRoomRead(roomId))
+
+    // admin은 Realtime RLS가 안 되므로 폴링으로 보완
+    if (pollingRef.current) clearInterval(pollingRef.current)
+    pollingRef.current = setInterval(() => {
+      if (activeRoomIdRef.current === roomId && isOpenRef.current) {
+        loadMessages(roomId)
+      }
+    }, 5000)
   }, [loadMessages, subscribeToRoom, markRoomRead])
 
   const closeRoom = useCallback(() => {
@@ -288,6 +306,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current)
       channelRef.current = null
+    }
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current)
+      pollingRef.current = null
     }
   }, [supabase])
 
@@ -331,7 +353,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getUser().then(() => loadRooms())
+    // 10초 간격 rooms 폴링 (admin 메시지, Realtime 누락 등 보완)
+    const roomsInterval = setInterval(() => { loadRooms() }, 10000)
     return () => {
+      clearInterval(roomsInterval)
       if (channelRef.current) supabase.removeChannel(channelRef.current)
     }
   }, [loadRooms, supabase])

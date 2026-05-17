@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendFinalizedEmail } from '@/lib/email/notifications'
+import { decryptField } from '@/lib/privacy'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -67,8 +68,9 @@ export async function POST(request: NextRequest) {
   const { data: agency } = await admin
     .from('profiles').select('email, company_name').eq('id', qr.agency_id).single()
   if (agency) {
+    const decryptedEmail = await decryptField(agency.email)
     await sendFinalizedEmail({
-      to: agency.email,
+      to: decryptedEmail,
       event_name: qr.event_name ?? '',
       request_id: requestId,
     })

@@ -128,12 +128,15 @@ export function SignupWizard() {
       }
     }
 
-    // 3. 서버사이드 API로 프로필 업데이트 (service role - RLS 우회, 타이밍 안정)
+    // 3. 서버사이드 API로 프로필 생성 (service role - RLS 우회)
     const profileRes = await fetch('/api/signup/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId,
+        email: draft.basicInfo.email,
+        role: draft.role,
+        company_name: draft.basicInfo.company_name,
         business_registration_number: draft.basicInfo.business_registration_number,
         representative_name: draft.basicInfo.representative_name,
         phone_mobile: draft.basicInfo.phone_mobile,

@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     .eq('request_id', requestId)
   const paidTotal = (installments ?? []).reduce((sum, i) => sum + (i.paid_amount ?? 0), 0)
   if (paidTotal === 0) {
-    return NextResponse.json({ error: '결제 확정 전 취소 건은 공제 신청이 불가합니다.' }, { status: 400 })
+    return NextResponse.json({ error: '결제 전 취소 건은 공제 신청이 불가합니다.' }, { status: 400 })
   }
 
   const totalAmount = items.reduce((sum, item) => sum + item.amount, 0)

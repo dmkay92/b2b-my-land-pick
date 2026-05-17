@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { encryptPii, decryptPii } from '@/lib/privacy'
 
 export async function PATCH(request: NextRequest) {
   const supabase = await createClient()
@@ -21,8 +22,9 @@ export async function PATCH(request: NextRequest) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
-  const { data: current } = await admin
+  const { data: rawCurrent } = await admin
     .from('profiles').select('email, representative_name, phone_landline, phone_mobile, bank_name, bank_account, bank_holder, partner_code').eq('id', userId).single()
+  const current = rawCurrent ? await decryptPii(rawCurrent as Record<string, unknown>) : null
 
   const updateFields: Record<string, unknown> = {}
   const changes: { field: string; from: unknown; to: unknown }[] = []
@@ -49,7 +51,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true, message: 'no changes' })
   }
 
-  const { error } = await admin.from('profiles').update(updateFields).eq('id', userId)
+  const encryptedFields = await encryptPii(updateFields)
+  const { error } = await admin.from('profiles').update(encryptedFields).eq('id', userId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   await admin.from('admin_action_logs').insert({

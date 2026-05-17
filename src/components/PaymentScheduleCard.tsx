@@ -317,7 +317,8 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                     {switching ? '변경 중...' : '일반 플랜으로 변경'}
                   </button>
                 )}
-                {!isPostTravel && (
+                {/* 여행 후 정산 버튼 — 임시 비활성화 (기능은 유지, UI만 숨김) */}
+                {false && !isPostTravel && (
                   <button
                     onClick={() => setShowPostTravelModal(true)}
                     disabled={switching}
@@ -421,27 +422,26 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
           })}
         </div>
 
-        {/* 결제 요약 */}
+        {/* 결제 요약 — 기본 회차(rate > 0)만 */}
         {(() => {
-          const totalPaid = installments.reduce((sum, i) => sum + i.paid_amount, 0)
-          const totalRemaining = schedule.total_amount - totalPaid
-          const paidPct = schedule.total_amount > 0 ? Math.round((totalPaid / schedule.total_amount) * 100) : 0
+          const mainInsts = installments.filter(i => i.rate > 0)
+          const mainTotal = mainInsts.reduce((sum, i) => sum + i.amount, 0)
+          const mainPaid = mainInsts.reduce((sum, i) => sum + i.paid_amount, 0)
+          const mainRemaining = mainTotal - mainPaid
+          const mainPct = mainTotal > 0 ? Math.round((mainPaid / mainTotal) * 100) : 0
           return (
             <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-gray-500">총 결제금액</span>
-                <span className="text-xs text-gray-500">{fmt(schedule.total_amount)}원</span>
+                <span className="text-xs text-gray-500">{fmt(mainTotal)}원</span>
               </div>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
-                <div
-                  className="h-full bg-emerald-500 rounded-full transition-all"
-                  style={{ width: `${paidPct}%` }}
-                />
+                <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${mainPct}%` }} />
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">결제완료 {fmt(totalPaid)}원 ({paidPct}%)</span>
-                <span className={`text-sm font-bold ${totalRemaining > 0 ? 'text-gray-900' : 'text-emerald-600'}`}>
-                  {totalRemaining > 0 ? `잔여 ${fmt(totalRemaining)}원` : '전액 결제완료'}
+                <span className="text-xs text-gray-400">결제완료 {fmt(mainPaid)}원 ({mainPct}%)</span>
+                <span className={`text-sm font-bold ${mainRemaining > 0 ? 'text-gray-900' : 'text-emerald-600'}`}>
+                  {mainRemaining > 0 ? `잔여 ${fmt(mainRemaining)}원` : '전액 결제완료'}
                 </span>
               </div>
             </div>
@@ -498,6 +498,31 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                 )
               })}
             </div>
+            {/* 추가 정산 요약 */}
+            {(() => {
+              const addInsts = installments.filter(i => i.rate === 0 && i.label !== '공제 추가 청구' && i.status !== 'cancelled')
+              const addTotal = addInsts.reduce((s, i) => s + i.amount, 0)
+              const addPaid = addInsts.reduce((s, i) => s + i.paid_amount, 0)
+              const addPct = addTotal > 0 ? Math.round((addPaid / addTotal) * 100) : 0
+              const addRemaining = addTotal - addPaid
+              return (
+                <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-500">추가 정산 합계</span>
+                    <span className="text-xs text-gray-500">{fmt(addTotal)}원</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-2">
+                    <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${addPct}%` }} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">결제완료 {fmt(addPaid)}원 ({addPct}%)</span>
+                    <span className={`text-xs font-bold ${addRemaining > 0 ? 'text-gray-700' : 'text-emerald-600'}`}>
+                      {addRemaining > 0 ? `잔여 ${fmt(addRemaining)}원` : '전액 결제완료'}
+                    </span>
+                  </div>
+                </div>
+              )
+            })()}
           </>
         )}
 
@@ -549,6 +574,31 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                 )
               })}
             </div>
+            {/* 공제 추가 청구 요약 */}
+            {(() => {
+              const dedInsts = installments.filter(i => i.label === '공제 추가 청구')
+              const dedTotal = dedInsts.reduce((s, i) => s + i.amount, 0)
+              const dedPaid = dedInsts.reduce((s, i) => s + i.paid_amount, 0)
+              const dedPct = dedTotal > 0 ? Math.round((dedPaid / dedTotal) * 100) : 0
+              const dedRemaining = dedTotal - dedPaid
+              return (
+                <div className="px-5 py-3 bg-red-50/50 border-t border-red-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-red-500">공제 추가 청구 합계</span>
+                    <span className="text-xs text-red-500">{fmt(dedTotal)}원</span>
+                  </div>
+                  <div className="h-1.5 bg-red-100 rounded-full overflow-hidden mb-2">
+                    <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${dedPct}%` }} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">결제완료 {fmt(dedPaid)}원 ({dedPct}%)</span>
+                    <span className={`text-xs font-bold ${dedRemaining > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                      {dedRemaining > 0 ? `잔여 ${fmt(dedRemaining)}원` : '전액 결제완료'}
+                    </span>
+                  </div>
+                </div>
+              )
+            })()}
           </>
         )}
 

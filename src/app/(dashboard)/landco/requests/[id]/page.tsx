@@ -11,10 +11,12 @@ import { AttachmentPreviewModal } from '@/components/AttachmentPreviewModal'
 import { BackButton } from '@/components/BackButton'
 import AdditionalSettlementSection from '@/components/AdditionalSettlementSection'
 import DeductionClaimSection from '@/components/DeductionClaimSection'
+import { useChat } from '@/lib/chat/ChatContext'
 
 export default function LandcoRequestDetail() {
   const { id } = useParams<{ id: string }>()
   const supabase = createClient()
+  const { openOrCreateRoom, currentUserId } = useChat()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [request, setRequest] = useState<QuoteRequest | null>(null)
   const [myQuotes, setMyQuotes] = useState<QuoteWithPricing[]>([])
@@ -29,6 +31,7 @@ export default function LandcoRequestDetail() {
   const [paymentMemo, setPaymentMemo] = useState('')
   const [paymentConfirming, setPaymentConfirming] = useState(false)
   const [paymentConfirmed, setPaymentConfirmed] = useState(false)
+  const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false)
   const [savedMemo, setSavedMemo] = useState<string | null>(null)
   const [attachmentPreview, setAttachmentPreview] = useState<{ url: string; name: string } | null>(null)
   const [savingTemplateId, setSavingTemplateId] = useState<string | null>(null)
@@ -290,7 +293,7 @@ export default function LandcoRequestDetail() {
           onClose={() => setAttachmentPreview(null)}
         />
       )}
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-8 max-w-4xl mx-auto">
       <BackButton href="/landco" />
       {request.display_id && <p className="text-xs text-gray-400 mb-1 font-mono">{request.display_id}</p>}
       <div className="flex items-center justify-between mb-4">
@@ -669,7 +672,17 @@ export default function LandcoRequestDetail() {
       <div className="rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
         <div className="flex items-center justify-between px-5 h-12 bg-gradient-to-r from-gray-900 to-gray-800">
           <h2 className="text-sm font-bold text-white">제출 이력</h2>
-          <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">{myQuotes.length}개 버전</span>
+          <div className="flex items-center gap-2">
+            {request && (
+              <button
+                onClick={() => currentUserId && openOrCreateRoom(id, currentUserId)}
+                className="text-[10px] font-medium text-blue-300 bg-blue-500/20 border border-blue-400/30 px-2.5 py-0.5 rounded-full hover:bg-blue-500/30 transition-colors"
+              >
+                💬 여행사와 채팅하기
+              </button>
+            )}
+            <span className="text-[10px] font-medium text-gray-300 bg-white/15 px-2 py-0.5 rounded-full">{myQuotes.length}개 버전</span>
+          </div>
         </div>
         <div className="bg-white p-6">
         {myQuotes.length === 0 ? (
@@ -781,9 +794,10 @@ export default function LandcoRequestDetail() {
                         inst.status === 'paid' ? 'bg-emerald-500 text-white' :
                         inst.status === 'partial' ? 'bg-blue-500 text-white' :
                         inst.status === 'overdue' ? 'bg-red-500 text-white' :
+                        inst.status === 'cancelled' ? 'bg-gray-200 text-gray-400' :
                         'bg-gray-100 text-gray-500 border border-gray-200'
                       }`}>
-                        {inst.status === 'paid' ? '✓' : idx + 1}
+                        {inst.status === 'paid' ? '✓' : inst.status === 'cancelled' ? '✕' : idx + 1}
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5">
@@ -793,19 +807,24 @@ export default function LandcoRequestDetail() {
                             inst.status === 'paid' ? 'text-emerald-700 bg-emerald-50' :
                             inst.status === 'partial' ? 'text-blue-700 bg-blue-50' :
                             inst.status === 'overdue' ? 'text-red-700 bg-red-50' :
+                            inst.status === 'cancelled' ? 'text-gray-500 bg-gray-100' :
                             'text-amber-700 bg-amber-50'
                           }`}>
-                            {inst.status === 'paid' ? '결제완료' : inst.status === 'partial' ? '부분결제' : inst.status === 'overdue' ? '기한초과' : '결제대기'}
+                            {inst.status === 'paid' ? '결제완료' : inst.status === 'partial' ? '부분결제' : inst.status === 'overdue' ? '기한초과' : inst.status === 'cancelled' ? '취소됨' : '결제대기'}
                           </span>
                         </div>
-                        <span className="text-[11px] text-gray-500">{inst.due_date}까지</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[11px] text-gray-500">{inst.due_date}까지</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-base font-bold text-gray-900">{landcoAmount.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></div>
-                      {landcoPaidAmount > 0 && inst.status !== 'paid' && (
-                        <div className="text-[10px] text-blue-500">{landcoPaidAmount.toLocaleString('ko-KR')}원 결제됨</div>
-                      )}
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <div className="text-base font-bold text-gray-900">{landcoAmount.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></div>
+                        {landcoPaidAmount > 0 && inst.status !== 'paid' && (
+                          <div className="text-[10px] text-blue-500">{landcoPaidAmount.toLocaleString('ko-KR')}원 결제됨</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {inst.paid_amount > 0 && (
@@ -820,9 +839,11 @@ export default function LandcoRequestDetail() {
             })}
           </div>
           {(() => {
-            const displayTotal = landcoQuoteTotal ?? paymentSchedule.total_amount
-            const totalPaid = paymentInstallments.reduce((sum, i) => sum + i.paid_amount, 0)
-            const paidRatio = paymentSchedule.total_amount > 0 ? totalPaid / paymentSchedule.total_amount : 0
+            const mainInsts = paymentInstallments.filter(i => i.rate > 0)
+            const displayTotal = landcoQuoteTotal ?? mainInsts.reduce((s, i) => s + i.amount, 0)
+            const totalPaid = mainInsts.reduce((sum, i) => sum + i.paid_amount, 0)
+            const mainTotal = mainInsts.reduce((s, i) => s + i.amount, 0)
+            const paidRatio = mainTotal > 0 ? totalPaid / mainTotal : 0
             const landcoPaid = Math.round(displayTotal * paidRatio)
             const landcoRemaining = displayTotal - landcoPaid
             const paidPct = Math.round(paidRatio * 100)
@@ -855,11 +876,11 @@ export default function LandcoRequestDetail() {
               />
               <div className="flex justify-end">
                 <button
-                  onClick={handlePaymentConfirm}
+                  onClick={() => setShowPaymentConfirmModal(true)}
                   disabled={paymentConfirming}
                   className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
-                  {paymentConfirming ? '처리 중...' : '결제확인 완료'}
+                  행사 확정
                 </button>
               </div>
             </div>
@@ -869,16 +890,15 @@ export default function LandcoRequestDetail() {
               <p className="text-xs text-emerald-700 font-medium">결제 확인이 완료되었습니다. 최종 확정 처리되었습니다.</p>
             </div>
           )}
-          {/* 추가 정산 회차 (rate === 0) */}
-          {paymentInstallments.some(i => i.rate === 0) && (
+          {/* 추가 정산 회차 (rate === 0, 공제 추가 청구 제외) */}
+          {paymentInstallments.some(i => i.rate === 0 && i.label !== '공제 추가 청구') && (
             <>
               <div className="px-5 py-2.5 bg-gray-100 border-t border-gray-200">
                 <span className="text-[11px] font-bold text-gray-500">추가 정산</span>
               </div>
               <div className="bg-white">
-                {paymentInstallments.filter(i => i.rate === 0).map((inst) => {
-                  const landcoPaidAmount = inst.paid_amount
-                  const progressPct = inst.amount > 0 ? Math.min(100, Math.round((landcoPaidAmount / inst.amount) * 100)) : 0
+                {paymentInstallments.filter(i => i.rate === 0 && i.label !== '공제 추가 청구').map((inst) => {
+                  const progressPct = inst.amount > 0 ? Math.min(100, Math.round((inst.paid_amount / inst.amount) * 100)) : 0
                   return (
                     <div key={inst.id} className="px-5 py-4 border-t border-gray-100">
                       <div className="flex items-center justify-between">
@@ -907,9 +927,7 @@ export default function LandcoRequestDetail() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-base font-bold text-gray-900">
-                            {inst.amount.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span>
-                          </span>
+                          <span className="text-base font-bold text-gray-900">{inst.amount.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></span>
                           {(inst.status === 'pending' || inst.status === 'overdue') && inst.paid_amount === 0 && (
                             <button
                               onClick={async () => {
@@ -945,6 +963,106 @@ export default function LandcoRequestDetail() {
                   )
                 })}
               </div>
+              {(() => {
+                const active = paymentInstallments.filter(i => i.rate === 0 && i.label !== '공제 추가 청구' && i.status !== 'cancelled')
+                const addTotal = active.reduce((s, i) => s + i.amount, 0)
+                const addPaid = active.reduce((s, i) => s + i.paid_amount, 0)
+                const addPct = addTotal > 0 ? Math.round((addPaid / addTotal) * 100) : 0
+                const addRemaining = addTotal - addPaid
+                return (
+                  <div className="px-5 py-3 bg-gray-50 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-gray-500">추가 정산 합계</span>
+                      <span className="text-xs text-gray-500">{addTotal.toLocaleString('ko-KR')}원</span>
+                    </div>
+                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-2">
+                      <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${addPct}%` }} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">결제완료 {addPaid.toLocaleString('ko-KR')}원 ({addPct}%)</span>
+                      <span className={`text-xs font-bold ${addRemaining > 0 ? 'text-gray-700' : 'text-emerald-600'}`}>
+                        {addRemaining > 0 ? `잔여 ${addRemaining.toLocaleString('ko-KR')}원` : '전액 결제완료'}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })()}
+            </>
+          )}
+
+          {/* 공제 추가 청구 */}
+          {paymentInstallments.some(i => i.label === '공제 추가 청구') && (
+            <>
+              <div className="px-5 py-2.5 bg-red-50 border-t border-red-200">
+                <span className="text-[11px] font-bold text-red-600">공제 추가 청구</span>
+              </div>
+              <div className="bg-white">
+                {paymentInstallments.filter(i => i.label === '공제 추가 청구').map((inst) => {
+                  const progressPct = inst.amount > 0 ? Math.min(100, Math.round((inst.paid_amount / inst.amount) * 100)) : 0
+                  return (
+                    <div key={inst.id} className="px-5 py-4 border-t border-red-100">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-sm ${
+                            inst.status === 'paid' ? 'bg-emerald-500 text-white' :
+                            inst.status === 'cancelled' ? 'bg-gray-200 text-gray-400' :
+                            'bg-red-100 text-red-600 border border-red-200'
+                          }`}>
+                            {inst.status === 'paid' ? '✓' : inst.status === 'cancelled' ? '✕' : '!'}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-bold text-gray-900">{inst.label}</span>
+                              <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                                inst.status === 'paid' ? 'text-emerald-700 bg-emerald-50' : 'text-amber-700 bg-amber-50'
+                              }`}>
+                                {inst.status === 'paid' ? '결제완료' : '결제대기'}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-gray-500">{inst.due_date}까지</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-base font-bold text-red-600">
+                            {inst.amount.toLocaleString('ko-KR')}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span>
+                          </span>
+                        </div>
+                      </div>
+                      {inst.paid_amount > 0 && (
+                        <div className="mt-2 ml-10">
+                          <div className="h-1 bg-red-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${inst.status === 'paid' ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${progressPct}%` }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              {(() => {
+                const dedInsts = paymentInstallments.filter(i => i.label === '공제 추가 청구')
+                const dedTotal = dedInsts.reduce((s, i) => s + i.amount, 0)
+                const dedPaid = dedInsts.reduce((s, i) => s + i.paid_amount, 0)
+                const dedPct = dedTotal > 0 ? Math.round((dedPaid / dedTotal) * 100) : 0
+                const dedRemaining = dedTotal - dedPaid
+                return (
+                  <div className="px-5 py-3 bg-red-50/50 border-t border-red-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-red-500">공제 추가 청구 합계</span>
+                      <span className="text-xs text-red-500">{dedTotal.toLocaleString('ko-KR')}원</span>
+                    </div>
+                    <div className="h-1.5 bg-red-100 rounded-full overflow-hidden mb-2">
+                      <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${dedPct}%` }} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">결제완료 {dedPaid.toLocaleString('ko-KR')}원 ({dedPct}%)</span>
+                      <span className={`text-xs font-bold ${dedRemaining > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {dedRemaining > 0 ? `잔여 ${dedRemaining.toLocaleString('ko-KR')}원` : '전액 결제완료'}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })()}
             </>
           )}
         </div>
@@ -967,11 +1085,11 @@ export default function LandcoRequestDetail() {
             />
             <div className="flex justify-end">
               <button
-                onClick={handlePaymentConfirm}
+                onClick={() => setShowPaymentConfirmModal(true)}
                 disabled={paymentConfirming}
                 className="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
-                {paymentConfirming ? '처리 중...' : '결제확인 완료'}
+                행사 확정
               </button>
             </div>
           </div>
@@ -1028,6 +1146,42 @@ export default function LandcoRequestDetail() {
       )}
 
     </div>
+
+    {/* 행사 확정 확인 모달 */}
+    {showPaymentConfirmModal && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h3 className="text-base font-bold text-gray-900">행사 확정</h3>
+          </div>
+          <div className="px-5 py-5 space-y-3">
+            <p className="text-sm text-gray-700">이 행사를 확정하시겠습니까?</p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1.5">
+              <p className="text-xs text-amber-800 font-medium">확정 후에는 되돌릴 수 없습니다.</p>
+              <p className="text-xs text-amber-700">결제가 완료되지 않은 미수금액에 대해서는 플랫폼에서 책임지지 않습니다. 모든 결제가 완료된 후 확정하시기를 권장합니다.</p>
+            </div>
+          </div>
+          <div className="flex gap-2 px-5 py-4 border-t border-gray-100">
+            <button
+              onClick={() => setShowPaymentConfirmModal(false)}
+              className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              취소
+            </button>
+            <button
+              onClick={async () => {
+                setShowPaymentConfirmModal(false)
+                await handlePaymentConfirm()
+              }}
+              disabled={paymentConfirming}
+              className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {paymentConfirming ? '처리 중...' : '확정'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   )
 }

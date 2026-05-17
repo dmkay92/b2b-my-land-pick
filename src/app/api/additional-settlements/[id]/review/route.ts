@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { generateDisplayId } from '@/lib/display-id'
 
 function getAdmin() {
   return createAdminClient(
@@ -55,6 +56,7 @@ export async function POST(
       const dueDate = new Date()
       dueDate.setDate(dueDate.getDate() + 14)
 
+      const instDisplayId = await generateDisplayId(admin, 'PIN')
       await admin.from('payment_installments').insert({
         schedule_id: schedule.id,
         label: `추가 정산 #${settlement.sequence_number}`,
@@ -63,6 +65,7 @@ export async function POST(
         paid_amount: 0,
         due_date: dueDate.toISOString().slice(0, 10),
         status: 'pending',
+        display_id: instDisplayId,
       })
 
       await admin.from('payment_schedules').update({

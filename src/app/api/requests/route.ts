@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { validateQuoteRequest } from '@/lib/validators'
 import { sendNewRequestEmail } from '@/lib/email/notifications'
+import { generateDisplayId } from '@/lib/display-id'
+import { decryptField } from '@/lib/privacy'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -33,8 +35,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ errors }, { status: 400 })
   }
 
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+  const display_id = await generateDisplayId(admin, 'REQ')
+
   const { data, error } = await supabase.from('quote_requests').insert({
     agency_id: user.id,
+    display_id,
     event_name: body.event_name,
     destination_country: body.destination_country,
     destination_city: body.destination_city,
@@ -65,11 +75,6 @@ export async function POST(request: NextRequest) {
   }
 
   // 해당 국가+도시를 담당하는 랜드사 찾기
-  const admin = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
 
   const { data: allLandcos } = await admin
     .from('profiles')
@@ -87,9 +92,10 @@ export async function POST(request: NextRequest) {
   })
 
   if (matchingLandcos.length > 0) {
-    // 이메일 발송
+    // 이메일 발송 (암호화된 이메일 복호화)
+    const decryptedEmails = await Promise.all(matchingLandcos.map(l => decryptField(l.email)))
     await sendNewRequestEmail({
-      to: matchingLandcos.map(l => l.email),
+      to: decryptedEmails,
       event_name: body.event_name,
       destination: `${body.destination_city} (${body.destination_country})`,
       deadline: body.deadline,

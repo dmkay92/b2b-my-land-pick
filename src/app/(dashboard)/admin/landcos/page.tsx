@@ -167,8 +167,22 @@ export default function LandcosPage() {
       .select('*')
       .eq('role', 'landco')
       .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setLandcos(data ?? [])
+      .then(async ({ data }) => {
+        if (data && data.length > 0) {
+          const res = await fetch('/api/admin/decrypt-profiles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profiles: data }),
+          })
+          if (res.ok) {
+            const { profiles: decrypted } = await res.json()
+            setLandcos(decrypted)
+          } else {
+            setLandcos(data)
+          }
+        } else {
+          setLandcos(data ?? [])
+        }
         setLoading(false)
       })
   }, [])

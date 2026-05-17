@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { sendQuoteSubmittedEmail } from '@/lib/email/notifications'
+import { generateDisplayId } from '@/lib/display-id'
+import { decryptField } from '@/lib/privacy'
 
 // GET: 현재 랜드사가 제출한 전체 견적 목록 (quote_requests 조인)
 export async function GET() {
@@ -102,12 +104,20 @@ export async function POST(request: NextRequest) {
     .createSignedUrl(filePath, 60 * 60 * 24 * 365)
 
   // DB 저장
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+  const display_id = await generateDisplayId(adminClient, 'QOT')
+
   const { data, error } = await supabase.from('quotes').insert({
     request_id: requestId,
     landco_id: user.id,
     version: nextVersion,
     file_url: urlData?.signedUrl ?? filePath,
     file_name: file.name,
+    display_id,
   }).select().single()
 
   if (error) {
@@ -135,8 +145,9 @@ export async function POST(request: NextRequest) {
     const { data: landcoInfo } = await supabase
       .from('profiles').select('company_name').eq('id', user.id).single()
     if (agencyInfo?.email) {
+      const decryptedEmail = await decryptField(agencyInfo.email)
       await sendQuoteSubmittedEmail({
-        to: agencyInfo.email,
+        to: decryptedEmail,
         event_name: requestInfo.event_name,
         landco_name: landcoInfo?.company_name ?? '',
         request_id: requestId,

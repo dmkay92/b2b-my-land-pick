@@ -23,11 +23,13 @@ const NAV_ITEMS: Record<'agency' | 'landco' | 'admin', { label: string; href: st
   ],
   admin: [
     { label: '관리자 대시보드', href: '/admin', icon: '🛠️' },
+    { label: '견적 현황', href: '/admin/quotes', icon: '📋' },
     { label: '여행사 리스트', href: '/admin/agencies', icon: '🏢' },
     { label: '랜드사 리스트', href: '/admin/landcos', icon: '🌏' },
     { label: '도시 관리', href: '/admin/cities', icon: '🏙️' },
     { label: '정산 관리', href: '/admin/settlements', icon: '📊' },
     { label: '결제 관리', href: '/admin/payments', icon: '💰' },
+    { label: '분석', href: '/admin/analytics', icon: '📈' },
   ],
 }
 
