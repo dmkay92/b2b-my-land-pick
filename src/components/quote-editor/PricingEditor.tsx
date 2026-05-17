@@ -42,6 +42,9 @@ const CURRENCIES = [
   { code: 'VND', symbol: '₫' },
   { code: 'USD', symbol: '$' },
   { code: 'EUR', symbol: '€' },
+  { code: 'THB', symbol: '฿' },
+  { code: 'AUD', symbol: 'A$' },
+  { code: 'NZD', symbol: 'NZ$' },
 ]
 
 

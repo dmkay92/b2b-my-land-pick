@@ -149,8 +149,9 @@ export default function LandcoRequestDetail() {
       // 3. 파싱 완료 표시 — 버튼으로 에디터 열기 유도
       setExcelParsed(true)
       setHasDraft(true)
-    } catch {
-      setUploadError('엑셀 분석 중 오류가 발생했습니다.')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '알 수 없는 오류'
+      setUploadError(`엑셀 분석 중 오류가 발생했습니다: ${msg}`)
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''

@@ -107,7 +107,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [supabase])
 
   const loadRooms = useCallback(async () => {
-    const res = await fetch('/api/chat/rooms')
+    let res: Response
+    try { res = await fetch('/api/chat/rooms') } catch { return }
     if (!res.ok) return
     const { rooms: data } = await res.json()
     const list: ChatRoom[] = data ?? []
@@ -134,7 +135,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const loadMessages = useCallback(async (roomId: string) => {
-    const res = await fetch(`/api/chat/rooms/${roomId}/messages`)
+    let res: Response
+    try { res = await fetch(`/api/chat/rooms/${roomId}/messages`) } catch { return }
     if (res.ok) {
       const { messages: data } = await res.json()
       setMessages(data ?? [])
