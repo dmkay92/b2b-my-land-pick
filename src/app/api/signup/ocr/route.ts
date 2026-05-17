@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Anthropic from '@anthropic-ai/sdk'
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 
 const BIZ_PROMPT = `이 이미지는 한국 사업자등록증입니다. 다음 정보를 JSON으로 추출해주세요:
 {
@@ -52,14 +52,26 @@ export async function POST(request: NextRequest) {
   const base64 = Buffer.from(arrayBuffer).toString('base64')
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
+    const mediaType = mimeType as 'image/jpeg' | 'image/png' | 'image/webp'
 
-    const result = await model.generateContent([
-      { inlineData: { mimeType, data: base64 } },
-      type === 'biz' ? BIZ_PROMPT : BANK_PROMPT,
-    ])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const contentBlocks: any[] = mimeType === 'application/pdf'
+      ? [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+          { type: 'text', text: type === 'biz' ? BIZ_PROMPT : BANK_PROMPT },
+        ]
+      : [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text: type === 'biz' ? BIZ_PROMPT : BANK_PROMPT },
+        ]
 
-    const text = result.response.text()
+    const message = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: contentBlocks }],
+    })
+
+    const text = message.content[0].type === 'text' ? message.content[0].text : ''
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
       return NextResponse.json({ error: 'OCR 결과를 파싱할 수 없습니다.' }, { status: 422 })
