@@ -510,9 +510,8 @@ export default function NewRequestPage() {
           </div>
         </div>
 
-        {/* 여행 유형 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">여행 유형</h3>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">여행 유형 <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 align-middle mb-0.5 ml-1" /></label>
           <div className="flex flex-wrap gap-2">
             {[
               { value: 'corporate_incentive', label: '기업 인센티브' },
@@ -521,6 +520,7 @@ export default function NewRequestPage() {
               { value: 'association', label: '협회/단체' },
               { value: 'family', label: '가족/친목' },
               { value: 'mice', label: 'MICE' },
+              { value: 'golf', label: '골프' },
               { value: 'religion', label: '종교' },
               { value: 'other', label: '기타' },
             ].map(opt => (
@@ -530,7 +530,7 @@ export default function NewRequestPage() {
                 onClick={() => setForm(f => ({ ...f, travel_type: opt.value, religion_type: opt.value !== 'religion' ? '' : f.religion_type }))}
                 className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
                   form.travel_type === opt.value
-                    ? 'bg-blue-600 text-white border-blue-600'
+                    ? 'bg-gray-900 text-white border-gray-900'
                     : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 }`}
               >
@@ -554,7 +554,7 @@ export default function NewRequestPage() {
                     onClick={() => setForm(f => ({ ...f, religion_type: opt.value }))}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                       form.religion_type === opt.value
-                        ? 'bg-purple-600 text-white border-purple-600'
+                        ? 'bg-gray-900 text-white border-gray-900'
                         : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                     }`}
                   >
