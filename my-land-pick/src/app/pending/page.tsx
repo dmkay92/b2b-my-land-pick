@@ -29,7 +29,7 @@ export default function PendingPage() {
 
       if (data.status === 'approved') {
         if (intervalRef.current) clearInterval(intervalRef.current)
-        const dest = data.role === 'admin' ? '/admin' : data.role === 'agency' ? '/agency' : '/landco'
+        const dest = data.role === 'admin' ? '/admin' : data.role === 'agency' ? '/agency/dashboard' : '/landco/dashboard'
         router.replace(dest)
       }
     }

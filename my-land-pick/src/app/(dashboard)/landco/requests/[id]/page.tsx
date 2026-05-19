@@ -295,7 +295,7 @@ export default function LandcoRequestDetail() {
         />
       )}
     <div className="p-8 max-w-4xl mx-auto">
-      <BackButton href="/landco" />
+      <BackButton href="/landco/requests" />
       {request.display_id && <p className="text-xs text-gray-400 mb-1 font-mono">{request.display_id}</p>}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">{request.event_name}</h1>

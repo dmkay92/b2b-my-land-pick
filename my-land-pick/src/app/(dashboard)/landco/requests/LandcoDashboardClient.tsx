@@ -107,10 +107,14 @@ export function LandcoDashboardClient({
   requests,
   isRejected = false,
   today: serverToday,
+  initialRequestFrom,
+  initialRequestTo,
 }: {
   requests: PhasedLandcoRequest[]
   isRejected?: boolean
   today?: string
+  initialRequestFrom?: string
+  initialRequestTo?: string
 }) {
   const router = useRouter()
   const [activePhases, setActivePhases] = useState<Set<FilterPhase>>(new Set(ALL_FILTER_PHASES))
@@ -124,9 +128,9 @@ export function LandcoDashboardClient({
   const [periodStart, setPeriodStart] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
   const [activePreset, setActivePreset] = useState('all')
-  const [requestStart, setRequestStart] = useState('')
-  const [requestEnd, setRequestEnd] = useState('')
-  const [activeRequestPreset, setActiveRequestPreset] = useState('all')
+  const [requestStart, setRequestStart] = useState(initialRequestFrom ?? '')
+  const [requestEnd, setRequestEnd] = useState(initialRequestTo ?? '')
+  const [activeRequestPreset, setActiveRequestPreset] = useState(initialRequestFrom ? 'custom' : 'all')
 
   const PERIOD_PRESETS = [
     { key: 'all', label: '전체' },

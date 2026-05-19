@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { SignupOcrResult } from '@/lib/supabase/types'
+import type { SignupOcrResult, UserRole } from '@/lib/supabase/types'
 import { formatPhoneByCountry } from '@/lib/phoneFormat'
 import { PhoneCountrySelect } from './PhoneCountrySelect'
 
@@ -16,6 +16,7 @@ interface BasicInfoValues {
 }
 
 interface Props {
+  role: UserRole | null
   ocr: SignupOcrResult | null
   initial: BasicInfoValues | null
   onNext: (values: BasicInfoValues) => void
@@ -66,7 +67,7 @@ const COUNTRY_CODES = [
   { code: '+61',  label: '호주 +61' },
 ]
 
-export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
+export function Step3BasicInfo({ role, ocr, initial, onNext, onBack }: Props) {
   const [values, setValues] = useState<BasicInfoValues>({
     business_registration_number: (initial?.business_registration_number ?? ocr?.business_registration_number ?? '').replace(/[^0-9]/g, '').slice(0, 10),
     company_name: initial?.company_name ?? ocr?.company_name ?? '',
@@ -81,6 +82,8 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
   const [brnMessage, setBrnMessage] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [passwordConfirm, setPasswordConfirm] = useState('')
+  const [agreePartner, setAgreePartner] = useState(false)
+  const [agreePrivacy, setAgreePrivacy] = useState(false)
 
   // 국가코드
   const [mobileCc, setMobileCc] = useState('+82')
@@ -369,6 +372,69 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
         </div>
       </div>
 
+      {/* 약관 동의 */}
+      <div className="space-y-2">
+        {(() => {
+          const allAgreed = role === 'agency' ? (agreePartner && agreePrivacy) : agreePrivacy
+          const toggleAll = () => {
+            const next = !allAgreed
+            if (role === 'agency') setAgreePartner(next)
+            setAgreePrivacy(next)
+          }
+          return (
+            <label
+              className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors"
+              onClick={toggleAll}
+            >
+              <span className={`flex items-center justify-center w-5 h-5 rounded shrink-0 transition-colors ${
+                allAgreed ? 'bg-gray-900 text-white' : 'border-2 border-gray-300'
+              }`}>
+                {allAgreed && <span className="text-xs">&#10003;</span>}
+              </span>
+              <span className="text-sm font-medium text-gray-900">전체 약관 동의</span>
+            </label>
+          )
+        })()}
+
+        {role === 'agency' && (
+          <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-200">
+            <label className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => setAgreePartner(p => !p)}>
+              <span className={`flex items-center justify-center w-5 h-5 rounded shrink-0 transition-colors ${
+                agreePartner ? 'bg-gray-900 text-white' : 'border-2 border-gray-300'
+              }`}>
+                {agreePartner && <span className="text-xs">&#10003;</span>}
+              </span>
+              <span className="text-sm text-gray-700">여행사 이용약관 동의 <span className="text-red-400">(필수)</span></span>
+            </label>
+            <button
+              type="button"
+              onClick={() => window.open('/terms/agency', '_blank')}
+              className="text-gray-400 hover:text-gray-600 shrink-0"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-200">
+          <label className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => setAgreePrivacy(p => !p)}>
+            <span className={`flex items-center justify-center w-5 h-5 rounded shrink-0 transition-colors ${
+              agreePrivacy ? 'bg-gray-900 text-white' : 'border-2 border-gray-300'
+            }`}>
+              {agreePrivacy && <span className="text-xs">&#10003;</span>}
+            </span>
+            <span className="text-sm text-gray-700">개인정보 수집 및 이용 동의 <span className="text-red-400">(필수)</span></span>
+          </label>
+          <button
+            type="button"
+            onClick={() => window.open('/terms/privacy', '_blank')}
+            className="text-gray-400 hover:text-gray-600 shrink-0"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+      </div>
+
       <div className="flex gap-3">
         <button
           type="button"
@@ -386,7 +452,9 @@ export function Step3BasicInfo({ ocr, initial, onNext, onBack }: Props) {
             !/[a-z]/.test(values.password) ||
             !/[0-9]/.test(values.password) ||
             !/[^A-Za-z0-9]/.test(values.password) ||
-            values.password !== passwordConfirm
+            values.password !== passwordConfirm ||
+            (role === 'agency' && !agreePartner) ||
+            !agreePrivacy
           }
           className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-40 transition-colors"
         >

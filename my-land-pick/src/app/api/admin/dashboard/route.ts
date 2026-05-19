@@ -47,9 +47,8 @@ export async function GET() {
   const finalizedCount = requests.filter(r => r.status === 'finalized').length
   const closedCount = requests.filter(r => r.status === 'closed').length
 
-  // 체결률: finalized / (전체 - open)
-  const decidedCount = totalRequests - openCount
-  const conversionRate = decidedCount > 0 ? Math.round((finalizedCount / decidedCount) * 100) : 0
+  // 체결률: finalized / 전체
+  const conversionRate = totalRequests > 0 ? Math.round((finalizedCount / totalRequests) * 100) : 0
 
   // finalized_at 조회
   const { data: selections } = await admin.from('quote_selections').select('request_id, finalized_at').not('finalized_at', 'is', null)
@@ -96,16 +95,23 @@ export async function GET() {
       // 현재월이면 현재 시각 기준
       const cutoff = j === 0 ? now.toISOString() : oEnd
 
-      const finalized = monthReqs.filter(r => {
-        const fAt = finalizedAtMap[r.id]
-        return fAt && fAt <= cutoff
-      }).length
-
       const closed = monthReqs.filter(r => {
         if (r.status !== 'closed') return false
         const cAt = r.closed_at
         if (cAt) return cAt <= cutoff
-        // closed_at 없으면 현재 상태 기준 (레거시)
+        return true
+      }).length
+
+      // 체결: finalized된 건 중 closed가 아닌 건 (취소된 건 제외)
+      const finalized = monthReqs.filter(r => {
+        const fAt = finalizedAtMap[r.id]
+        if (!fAt || fAt > cutoff) return false
+        // 이 시점에 이미 closed인지 확인
+        if (r.status === 'closed') {
+          const cAt = r.closed_at
+          if (cAt && cAt <= cutoff) return false
+          if (!cAt) return false
+        }
         return true
       }).length
 

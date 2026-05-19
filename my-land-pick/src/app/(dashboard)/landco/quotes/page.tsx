@@ -216,7 +216,7 @@ export default function LandcoQuotesPage() {
       )}
 
       <div className="p-8 max-w-4xl mx-auto space-y-10">
-        <BackButton href="/landco" />
+        <BackButton href="/landco/requests" />
         {/* 상단 액션 */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">내 견적서</h1>

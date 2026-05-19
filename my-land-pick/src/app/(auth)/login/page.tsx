@@ -31,7 +31,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 pb-40">
       <Logo />
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h1 className="text-2xl font-bold text-center mb-2">마이랜드픽</h1>
@@ -66,14 +66,38 @@ export default function LoginPage() {
             {loading ? '로그인 중...' : '로그인'}
           </button>
         </form>
-        <div className="mt-4 flex justify-between text-sm text-gray-600">
-          <Link href="/forgot-password" className="text-blue-600 hover:underline">비밀번호 찾기</Link>
-          <span>
-            계정이 없으신가요?{' '}
-            <Link href="/signup" className="text-blue-600 hover:underline">회원가입</Link>
-          </span>
+        <p className="mt-4 text-center text-sm text-gray-500">
+          비밀번호를 잊으셨나요?{' '}
+          <Link href="/forgot-password" className="text-gray-700 font-medium underline hover:text-gray-900">비밀번호 찾기</Link>
+        </p>
+
+        <div className="mt-6 border-t border-gray-100 pt-5">
+          <Link
+            href="/signup"
+            className="block w-full text-center border-2 border-blue-100 bg-blue-50 text-blue-600 font-semibold py-2.5 rounded-md hover:bg-blue-100 transition-colors text-sm"
+          >
+            파트너 신청하기
+          </Link>
         </div>
       </div>
+      <footer className="absolute bottom-0 left-0 right-0 border-t border-gray-200 bg-white px-8 py-6">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex gap-4 mb-3">
+            <Link href="/terms/agency" target="_blank" className="text-xs font-semibold text-gray-700 hover:text-gray-900">
+              이용약관
+            </Link>
+            <Link href="/terms/privacy" target="_blank" className="text-xs font-semibold text-gray-700 hover:text-gray-900">
+              개인정보 처리방침
+            </Link>
+          </div>
+          <div className="text-[11px] text-gray-400 leading-relaxed space-y-0.5">
+            <p>상호명 (주)마이리얼트립 | 대표 이동건 | 사업자등록번호 209-81-55339 | 통신판매업신고번호 2019-서울서초-0260</p>
+            <p>주소 서울특별시 서초구 강남대로 311, 드림플러스 강남 18층 (서초동, 한화생명보험빌딩)</p>
+            <p>입점 문의 sales@myrealtrip.com</p>
+
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

@@ -33,7 +33,8 @@ function getDday(req: QuoteRequest, phase: InternalPhase, today: string): number
   return null
 }
 
-export default async function AgencyDashboard() {
+export default async function AgencyDashboard({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
+  const params = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -155,5 +156,5 @@ export default async function AgencyDashboard() {
     cancelled: requests.filter(r => r.phase === 'cancelled').length,
   }
 
-  return <AgencyDashboardClient requests={requests} counts={counts} isRejected={isRejected} />
+  return <AgencyDashboardClient requests={requests} counts={counts} isRejected={isRejected} initialRequestFrom={params.from} initialRequestTo={params.to} />
 }

@@ -11,6 +11,6 @@ export default async function DashboardPage() {
 
   if (!profile || profile.status === 'pending') redirect('/pending')
   if (profile.role === 'admin') redirect('/admin')
-  if (profile.role === 'agency') redirect('/agency')
-  redirect('/landco')
+  if (profile.role === 'agency') redirect('/agency/dashboard')
+  redirect('/landco/dashboard')
 }

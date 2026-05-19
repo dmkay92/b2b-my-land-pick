@@ -89,10 +89,14 @@ function getBorderColor(req: PhasedRequest): string {
 export function AgencyDashboardClient({
   requests,
   isRejected = false,
+  initialRequestFrom,
+  initialRequestTo,
 }: {
   requests: PhasedRequest[]
   counts?: Record<TravelPhase, number>
   isRejected?: boolean
+  initialRequestFrom?: string
+  initialRequestTo?: string
 }) {
   type FilterPhase = 'ing' | 'payment_pending' | 'confirmed' | 'end' | 'cancelled'
   const ALL_FILTER_PHASES: FilterPhase[] = ['ing', 'payment_pending', 'confirmed', 'end', 'cancelled']
@@ -105,9 +109,9 @@ export function AgencyDashboardClient({
   const [periodStart, setPeriodStart] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
   const [activePreset, setActivePreset] = useState('all')
-  const [requestStart, setRequestStart] = useState('')
-  const [requestEnd, setRequestEnd] = useState('')
-  const [activeRequestPreset, setActiveRequestPreset] = useState('all')
+  const [requestStart, setRequestStart] = useState(initialRequestFrom ?? '')
+  const [requestEnd, setRequestEnd] = useState(initialRequestTo ?? '')
+  const [activeRequestPreset, setActiveRequestPreset] = useState(initialRequestFrom ? 'custom' : 'all')
 
   const PERIOD_PRESETS = [
     { key: 'all', label: '전체' },
