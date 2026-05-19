@@ -627,9 +627,9 @@ export default function AgencyRequestDetail() {
                   <a href={`/partners/${landcoId}`} target="_blank" className="shrink-0">
                     {profile_image ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={profile_image} alt="" className="w-12 h-12 rounded-xl object-cover" />
+                      <img src={profile_image} alt="" className="w-14 h-14 rounded-xl object-cover" />
                     ) : (
-                      <div className="w-12 h-12 rounded-xl bg-gray-200 flex items-center justify-center text-lg text-gray-500 font-bold">
+                      <div className="w-14 h-14 rounded-xl bg-gray-200 flex items-center justify-center text-lg text-gray-500 font-bold">
                         {company_name.charAt(0)}
                       </div>
                     )}
