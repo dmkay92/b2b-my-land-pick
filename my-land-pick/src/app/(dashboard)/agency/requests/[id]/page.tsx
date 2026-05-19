@@ -15,7 +15,7 @@ import PaymentScheduleCard from '@/components/PaymentScheduleCard'
 import type { AgencyCommission, PaymentSchedule, PaymentInstallment } from '@/lib/supabase/types'
 
 interface QuoteWithLandco extends Quote {
-  profiles: { company_name: string }
+  profiles: { company_name: string; description?: string; profile_image?: string }
   pricing?: { total: number | null; per_person: number | null }
 }
 
