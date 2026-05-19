@@ -65,7 +65,7 @@ export async function GET(
 
   const landcoIds = [...new Set((quotes ?? []).map(q => q.landco_id))]
   const profilesResult = landcoIds.length > 0
-    ? await adminClient.from('profiles').select('id, company_name').in('id', landcoIds)
+    ? await adminClient.from('profiles').select('id, company_name, description, profile_image').in('id', landcoIds)
     : { data: [], error: null }
   const landcoProfiles = profilesResult.data
 

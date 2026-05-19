@@ -29,7 +29,8 @@ function getDday(req: QuoteRequest, phase: 'ing' | 'pre' | 'mid' | 'end' | 'lost
   return null
 }
 
-export default async function LandcoDashboard() {
+export default async function LandcoDashboard({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
+  const params = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -200,5 +201,5 @@ export default async function LandcoDashboard() {
   const requests: PhasedLandcoRequest[] = [...openRequests, ...nonOpenRequests, ...missedPhasedRequests]
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
 
-  return <LandcoDashboardClient requests={requests} isRejected={isRejected} today={today} />
+  return <LandcoDashboardClient requests={requests} isRejected={isRejected} today={today} initialRequestFrom={params.from} initialRequestTo={params.to} />
 }

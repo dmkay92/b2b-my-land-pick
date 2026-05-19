@@ -24,9 +24,15 @@ const STATUS_OPTIONS = [
   { value: 'open', label: '모집중' },
   { value: 'in_progress', label: '견적접수' },
   { value: 'payment_pending', label: '결제대기' },
-  { value: 'finalized', label: '확정' },
+  { value: 'finalized', label: '여행확정' },
+  { value: 'completed', label: '여행완료' },
   { value: 'closed', label: '취소' },
 ]
+
+function getDisplayStatus(r: { status: string; return_date: string }) {
+  if (r.status === 'finalized' && r.return_date < new Date().toISOString().slice(0, 10)) return 'completed'
+  return r.status
+}
 
 function statusLabel(s: string) {
   return STATUS_OPTIONS.find(o => o.value === s)?.label ?? s
@@ -34,10 +40,11 @@ function statusLabel(s: string) {
 
 function statusColor(s: string) {
   switch (s) {
-    case 'open': return 'bg-green-100 text-green-700'
+    case 'open': return 'bg-blue-100 text-blue-700'
     case 'in_progress': return 'bg-blue-100 text-blue-700'
     case 'payment_pending': return 'bg-amber-100 text-amber-700'
-    case 'finalized': return 'bg-gray-100 text-gray-500'
+    case 'finalized': return 'bg-purple-100 text-purple-700'
+    case 'completed': return 'bg-green-100 text-green-700'
     case 'closed': return 'bg-red-100 text-red-600'
     default: return 'bg-gray-100 text-gray-500'
   }
@@ -53,7 +60,7 @@ export default function AdminQuotesPage() {
 
   // 검색 필터 — URL 파라미터에서 초기값 읽기
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string[]>([])
   const [createdFrom, setCreatedFrom] = useState(searchParams.get('from') ?? '')
   const [createdTo, setCreatedTo] = useState(searchParams.get('to') ?? '')
   const [departFrom, setDepartFrom] = useState('')
@@ -75,7 +82,8 @@ export default function AdminQuotesPage() {
 
   // 필터링
   const filtered = rows.filter(r => {
-    if (statusFilter && r.status !== statusFilter) return false
+    const ds = getDisplayStatus(r)
+    if (statusFilter.length > 0 && !statusFilter.includes(ds)) return false
     // 요청일(생성일) 범위
     if (createdFrom && r.created_at?.slice(0, 10) < createdFrom) return false
     if (createdTo && r.created_at?.slice(0, 10) > createdTo) return false
@@ -138,19 +146,48 @@ export default function AdminQuotesPage() {
           </div>
         </div>
         <div className="flex gap-1">
-          {STATUS_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => setStatusFilter(opt.value)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
-                statusFilter === opt.value
-                  ? 'bg-gray-900 text-white border-gray-900'
-                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+          {(() => {
+            const filterStyle: Record<string, { active: string; hover: string }> = {
+              '': { active: 'bg-gray-900 text-white border-gray-900', hover: 'hover:bg-gray-50' },
+              open: { active: 'bg-blue-600 text-white border-blue-600', hover: 'hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200' },
+              in_progress: { active: 'bg-blue-600 text-white border-blue-600', hover: 'hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200' },
+              payment_pending: { active: 'bg-amber-500 text-white border-amber-500', hover: 'hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200' },
+              finalized: { active: 'bg-purple-600 text-white border-purple-600', hover: 'hover:bg-purple-50 hover:text-purple-600 hover:border-purple-200' },
+              completed: { active: 'bg-green-600 text-white border-green-600', hover: 'hover:bg-green-50 hover:text-green-600 hover:border-green-200' },
+              closed: { active: 'bg-red-500 text-white border-red-500', hover: 'hover:bg-red-50 hover:text-red-500 hover:border-red-200' },
+            }
+            return (
+              <>
+                <button
+                  onClick={() => setStatusFilter([])}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                    statusFilter.length === 0
+                      ? filterStyle[''].active
+                      : `bg-white text-gray-600 border-gray-200 ${filterStyle[''].hover}`
+                  }`}
+                >
+                  전체
+                </button>
+                {STATUS_OPTIONS.filter(o => o.value).map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setStatusFilter(prev =>
+                      prev.includes(opt.value)
+                        ? prev.filter(v => v !== opt.value)
+                        : [...prev, opt.value]
+                    )}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+                      statusFilter.includes(opt.value)
+                        ? filterStyle[opt.value]?.active
+                        : `bg-white text-gray-600 border-gray-200 ${filterStyle[opt.value]?.hover}`
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </>
+            )
+          })()}
         </div>
       </div>
 
@@ -162,7 +199,7 @@ export default function AdminQuotesPage() {
         <div className="overflow-x-auto">
           {filtered.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-12">
-              {search || statusFilter ? '검색 결과가 없습니다.' : '견적 요청이 없습니다.'}
+              {search || statusFilter.length > 0 ? '검색 결과가 없습니다.' : '견적 요청이 없습니다.'}
             </p>
           ) : (
             <table className="w-full text-xs">
@@ -204,8 +241,8 @@ export default function AdminQuotesPage() {
                         : <span className="text-gray-300">0</span>}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${statusColor(qr.status)}`}>
-                        {statusLabel(qr.status)}
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${statusColor(getDisplayStatus(qr))}`}>
+                        {statusLabel(getDisplayStatus(qr))}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-400">{qr.created_at?.slice(0, 10)}</td>

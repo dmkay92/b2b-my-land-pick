@@ -24,6 +24,8 @@ type QuoteWithPricing = Quote & { pricing?: { total: number | null; per_person: 
 interface GroupedQuotes {
   [landcoId: string]: {
     company_name: string
+    description: string
+    profile_image: string
     quotes: QuoteWithPricing[]
   }
 }
@@ -76,7 +78,7 @@ export default function AgencyRequestDetail() {
     await fetch(`/api/requests/${id}/cancel`, { method: 'POST' })
     setCanceling(false)
     setShowCancelModal(false)
-    router.push('/agency')
+    router.push('/agency/requests')
   }
 
   useEffect(() => {
@@ -91,6 +93,8 @@ export default function AgencyRequestDetail() {
         if (!groups[q.landco_id]) {
           groups[q.landco_id] = {
             company_name: q.profiles?.company_name ?? '알 수 없음',
+            description: q.profiles?.description ?? '',
+            profile_image: q.profiles?.profile_image ?? '',
             quotes: [],
           }
         }
@@ -369,7 +373,7 @@ export default function AgencyRequestDetail() {
         />
       )}
       <div className="p-8 max-w-4xl mx-auto">
-      <BackButton href="/agency" />
+      <BackButton href="/agency/requests" />
       {request.display_id && (
         <p className="text-xs text-gray-400 mb-1 font-mono">{request.display_id}</p>
       )}
@@ -613,19 +617,42 @@ export default function AgencyRequestDetail() {
         </div>
       ) : (
         <div className="bg-white divide-y divide-gray-100">
-          {Object.entries(grouped).map(([landcoId, { company_name, quotes }]) => {
+          {Object.entries(grouped).map(([landcoId, { company_name, description, profile_image, quotes }]) => {
             const sortedQuotes = [...quotes].sort((a, b) => b.version - a.version)
             const latestQuote = sortedQuotes[0]
             return (
               <div key={landcoId} className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold">{company_name}</h3>
-                  <div className="flex items-center gap-2">
+                {/* 랜드사 프로필 카드 */}
+                <div className="flex items-start gap-3 mb-4">
+                  <a href={`/partners/${landcoId}`} target="_blank" className="shrink-0">
+                    {profile_image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={profile_image} alt="" className="w-14 h-14 rounded-xl object-cover" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl bg-gray-200 flex items-center justify-center text-lg text-gray-500 font-bold">
+                        {company_name.charAt(0)}
+                      </div>
+                    )}
+                  </a>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <a href={`/partners/${landcoId}`} target="_blank" className="text-sm font-bold text-gray-900 hover:text-blue-600">{company_name}</a>
+                    </div>
+                    {description ? (
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{description}</p>
+                    ) : (
+                      <p className="text-xs text-gray-300 mt-0.5">소개가 없습니다.</p>
+                    )}
+                    <a href={`/partners/${landcoId}`} target="_blank" className="text-[11px] text-blue-500 hover:text-blue-700 mt-1 inline-block">
+                      랜드사 소개 &rsaquo;
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
                     <button
                       onClick={() => openOrCreateRoom(id, landcoId)}
                       className="text-xs text-blue-600 border border-blue-300 px-2.5 py-1 rounded-full hover:bg-blue-50"
                     >
-                      💬 랜드사와 채팅하기
+                      💬 채팅하기
                     </button>
                     <span className="text-xs text-gray-400">{quotes.length}개 버전</span>
                   </div>

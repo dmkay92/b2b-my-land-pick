@@ -200,7 +200,7 @@ export default function AdminPage() {
             <div className="p-4">
               <p className="text-[10px] text-gray-400 mb-1">전체 체결률</p>
               <p className="text-2xl font-bold text-emerald-600">{dashboard.quotes.conversionRate}%</p>
-              <p className="text-[10px] text-gray-400 mt-0.5">확정 {dashboard.quotes.byStatus.finalized ?? 0} / 전체 {dashboard.quotes.totalRequests}건</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">체결 {dashboard.quotes.byStatus.finalized ?? 0} / 전체 {dashboard.quotes.totalRequests}건</p>
             </div>
             <div className="p-4">
               <p className="text-[10px] text-gray-400 mb-1">견적 응답률</p>
@@ -268,6 +268,7 @@ export default function AdminPage() {
                                 <div className="flex items-center gap-1">
                                   <span className="text-sm font-bold" style={{ color: colors[ri % colors.length] }}>{snap.rate}%</span>
                                   {diff > 0 && <span className="text-[9px] text-emerald-500 font-medium">+{diff}%</span>}
+                                  {diff < 0 && <span className="text-[9px] text-red-500 font-medium">{diff}%</span>}
                                 </div>
                                 <div className="w-full max-w-[80px] h-1.5 bg-gray-100 rounded-full overflow-hidden">
                                   <div className="h-full rounded-full transition-all" style={{ width: `${snap.rate}%`, backgroundColor: colors[ri % colors.length] }} />

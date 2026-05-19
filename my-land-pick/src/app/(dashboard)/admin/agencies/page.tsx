@@ -118,6 +118,7 @@ export default function AgenciesPage() {
   const [pendingStatus, setPendingStatus] = useState<Status | null>(null)
   const [logs, setLogs] = useState<AdminActionLog[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
+  const [consents, setConsents] = useState<{ terms_type: string; terms_version: string; agreed_at: string; ip_address: string | null }[]>([])
   const [unmasked, setUnmasked] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const modalRef = useRef<HTMLDivElement>(null)
@@ -187,9 +188,14 @@ export default function AgenciesPage() {
     setEditingPartner(false)
     setEditingBank(false)
     setLogs([])
+    setConsents([])
     setLogsLoading(true)
-    const res = await fetch(`/api/admin/action-logs?userId=${agency.id}`)
-    if (res.ok) setLogs(await res.json())
+    const [logsRes, consentsRes] = await Promise.all([
+      fetch(`/api/admin/action-logs?userId=${agency.id}`),
+      fetch(`/api/admin/terms-consents?userId=${agency.id}`),
+    ])
+    if (logsRes.ok) setLogs(await logsRes.json())
+    if (consentsRes.ok) setConsents(await consentsRes.json())
     setLogsLoading(false)
   }
 
@@ -489,6 +495,28 @@ export default function AgenciesPage() {
                     </button>
                   ))}
                 </div>
+              </section>
+
+              {/* 약관 동의 내역 */}
+              <section>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">약관 동의 내역</p>
+                {consents.length === 0 ? (
+                  <p className="text-xs text-gray-400">동의 기록 없음</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {consents.map((c, i) => (
+                      <div key={i} className="flex items-center gap-3 text-xs bg-gray-50 rounded-lg px-3 py-2">
+                        <span className={`shrink-0 px-2 py-0.5 rounded-full font-medium ${
+                          c.terms_type === 'agency_terms' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {c.terms_type === 'agency_terms' ? '이용약관' : '개인정보'}
+                        </span>
+                        <span className="text-gray-500">{c.terms_version}</span>
+                        <span className="text-gray-400 ml-auto">{new Date(c.agreed_at).toLocaleString('ko-KR')}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
 
               {/* 액션 로그 */}

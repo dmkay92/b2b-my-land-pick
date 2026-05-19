@@ -13,23 +13,32 @@ interface Props {
 
 const NAV_ITEMS: Record<'agency' | 'landco' | 'admin', { label: string; href: string; icon: string }[]> = {
   agency: [
-    { label: '대시보드', href: '/agency', icon: '🏠' },
+    { label: '대시보드', href: '/agency/dashboard', icon: '🏠' },
+    { label: '견적 요청', href: '/agency/requests', icon: '📋' },
+    { label: '여행 캘린더', href: '/agency/calendar', icon: '📅' },
     { label: '새 견적 요청', href: '/agency/requests/new', icon: '✏️' },
+    { label: '공지사항', href: '/agency/notices', icon: '📢' },
   ],
   landco: [
-    { label: '대시보드', href: '/landco', icon: '🏠' },
+    { label: '대시보드', href: '/landco/dashboard', icon: '🏠' },
+    { label: '견적 요청', href: '/landco/requests', icon: '📋' },
+    { label: '여행 캘린더', href: '/landco/calendar', icon: '📅' },
     { label: '내 견적서', href: '/landco/quotes', icon: '✏️' },
-    { label: '담당 국가', href: '/landco/countries', icon: '🌏' },
+    { label: '담당 지역', href: '/landco/countries', icon: '🌏' },
+    { label: '프로필 편집', href: '/landco/profile', icon: '👤' },
+    { label: '공지사항', href: '/landco/notices', icon: '📢' },
   ],
   admin: [
-    { label: '관리자 대시보드', href: '/admin', icon: '🛠️' },
+    { label: '대시보드', href: '/admin', icon: '🏠' },
     { label: '견적 현황', href: '/admin/quotes', icon: '📋' },
+    { label: '여행 캘린더', href: '/admin/calendar', icon: '📅' },
     { label: '여행사 리스트', href: '/admin/agencies', icon: '🏢' },
     { label: '랜드사 리스트', href: '/admin/landcos', icon: '🌏' },
     { label: '도시 관리', href: '/admin/cities', icon: '🏙️' },
     { label: '정산 관리', href: '/admin/settlements', icon: '📊' },
     { label: '결제 관리', href: '/admin/payments', icon: '💰' },
     { label: '분석', href: '/admin/analytics', icon: '📈' },
+    { label: '공지사항', href: '/admin/notices', icon: '📢' },
   ],
 }
 
@@ -55,7 +64,7 @@ export function AgencySidebar({ companyName, role, rightSlot, children }: Props)
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <Link href={role === 'agency' ? '/agency' : role === 'landco' ? '/landco' : '/admin'} className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+          <Link href={role === 'agency' ? '/agency/dashboard' : role === 'landco' ? '/landco/dashboard' : '/admin'} className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
             <span className="text-lg font-bold text-gray-900">마이랜드픽</span>
             <span className="text-gray-400 text-xs">by</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -83,7 +92,7 @@ export function AgencySidebar({ companyName, role, rightSlot, children }: Props)
         {/* 네비게이션 */}
         <nav className="flex-1 py-4 overflow-y-auto space-y-1">
           {NAV_ITEMS[role].map(item => {
-            const isActive = item.href === '/landco' || item.href === '/agency' || item.href === '/admin'
+            const isActive = item.href === '/admin'
             ? pathname === item.href
             : pathname.startsWith(item.href)
             return (
@@ -106,10 +115,25 @@ export function AgencySidebar({ companyName, role, rightSlot, children }: Props)
 
       {/* 메인 콘텐츠 */}
       <div
-        className="transition-all duration-200"
-        style={{ paddingTop: '56px', paddingLeft: sidebarWidth }}
+        className="transition-all duration-200 flex flex-col"
+        style={{ paddingTop: '56px', paddingLeft: sidebarWidth, minHeight: '100vh' }}
       >
-        {children}
+        <div className="flex-1 pb-20">
+          {children}
+        </div>
+        <footer className="border-t border-gray-200 bg-white px-8 py-6">
+          <div className="max-w-5xl mx-auto">
+            <div className="flex gap-4 mb-2">
+              <Link href="/terms/agency" target="_blank" className="text-xs font-semibold text-gray-700 hover:text-gray-900">이용약관</Link>
+              <Link href="/terms/privacy" target="_blank" className="text-xs font-semibold text-gray-700 hover:text-gray-900">개인정보 처리방침</Link>
+            </div>
+            <div className="text-[11px] text-gray-400 leading-relaxed space-y-0.5">
+              <p>상호명 (주)마이리얼트립 | 대표 이동건 | 사업자등록번호 209-81-55339 | 통신판매업신고번호 2019-서울서초-0260</p>
+              <p>주소 서울특별시 서초구 강남대로 311, 드림플러스 강남 18층 (서초동, 한화생명보험빌딩)</p>
+              <p>입점 문의 sales@myrealtrip.com</p>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   )

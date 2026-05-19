@@ -26,6 +26,6 @@ export async function POST(
     )
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  revalidatePath('/landco')
+  revalidatePath('/landco/requests')
   return NextResponse.json({ success: true })
 }

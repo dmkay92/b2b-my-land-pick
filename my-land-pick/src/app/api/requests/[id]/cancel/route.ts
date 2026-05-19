@@ -30,6 +30,6 @@ export async function POST(
     .eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  revalidatePath('/agency')
+  revalidatePath('/agency/requests')
   return NextResponse.json({ success: true })
 }

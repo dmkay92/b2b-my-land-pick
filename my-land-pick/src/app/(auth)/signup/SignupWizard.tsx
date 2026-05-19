@@ -150,6 +150,10 @@ export function SignupWizard() {
           service_areas: countries,
           country_codes: [...new Set((countries as { country: string; city: string }[]).map((a) => a.country))],
         } : {}),
+        agreed_terms: [
+          ...(draft.role === 'agency' ? ['agency_terms'] : []),
+          'privacy',
+        ],
       }),
     })
     if (!profileRes.ok) {
@@ -195,6 +199,7 @@ export function SignupWizard() {
       <div>
         <ProgressBar step={3} role={role} />
         <Step3BasicInfo
+          role={role}
           ocr={draft.ocr.biz}
           initial={draft.basicInfo}
           onNext={basicInfo => updateDraft({ basicInfo, step: 4 })}

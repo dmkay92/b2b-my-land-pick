@@ -62,7 +62,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url)
     }
     const dest = profile.role === 'admin' ? '/admin'
-      : profile.role === 'agency' ? '/agency' : '/landco'
+      : profile.role === 'agency' ? '/agency/dashboard' : '/landco/dashboard'
     url.pathname = dest
     return NextResponse.redirect(url)
   }

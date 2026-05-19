@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     document_bank_url,
     country_codes,
     service_areas,
+    agreed_terms,
   } = await req.json()
 
   if (!userId || !email || !role || !company_name) {
@@ -64,6 +65,21 @@ export async function POST(req: NextRequest) {
   if (error) {
     console.error('Profile insert error:', error.message)
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  // 약관 동의 기록 저장
+  if (Array.isArray(agreed_terms) && agreed_terms.length > 0) {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+    const consents = agreed_terms.map((terms_type: string) => ({
+      user_id: userId,
+      terms_type,
+      terms_version: 'v1.0',
+      ip_address: ip,
+    }))
+    const { error: consentError } = await admin.from('terms_consents').insert(consents)
+    if (consentError) {
+      console.error('Terms consent insert error:', consentError.message)
+    }
   }
 
   return NextResponse.json({ ok: true })

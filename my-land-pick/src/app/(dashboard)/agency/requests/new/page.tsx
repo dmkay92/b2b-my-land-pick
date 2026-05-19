@@ -211,19 +211,19 @@ export default function NewRequestPage() {
       return
     }
 
-    router.push('/agency')
+    router.push('/agency/requests')
   }
 
   if (loadingCopy) return <div className="p-8 text-gray-400">견적 정보를 불러오는 중...</div>
 
   if (isRejected) return (
     <div className="p-8 max-w-2xl mx-auto">
-      <BackButton href="/agency" />
+      <BackButton href="/agency/requests" />
       <div className="bg-red-50 border border-red-200 rounded-xl px-6 py-8 text-center mt-4">
         <div className="text-4xl mb-3">⊘</div>
         <h2 className="text-base font-bold text-red-700 mb-1">새 견적 요청을 생성할 수 없습니다</h2>
         <p className="text-sm text-red-500 mb-5">계정이 정지된 상태입니다. 관리자에게 문의해주세요.</p>
-        <Link href="/agency" className="inline-block bg-gray-700 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-800">
+        <Link href="/agency/requests" className="inline-block bg-gray-700 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-800">
           대시보드로 돌아가기
         </Link>
       </div>
@@ -255,7 +255,7 @@ export default function NewRequestPage() {
           </div>
         </div>
       )}
-      <BackButton href="/agency" />
+      <BackButton href="/agency/requests" />
       <h1 className="text-2xl font-bold mb-2">새 견적 요청</h1>
       <p className="text-sm text-gray-400 mb-6 flex items-center gap-1.5">
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
