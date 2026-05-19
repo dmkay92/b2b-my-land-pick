@@ -647,14 +647,13 @@ export default function AgencyRequestDetail() {
                       랜드사 소개 &rsaquo;
                     </a>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="shrink-0">
                     <button
                       onClick={() => openOrCreateRoom(id, landcoId)}
-                      className="text-xs text-blue-600 border border-blue-300 px-2.5 py-1 rounded-full hover:bg-blue-50"
+                      className="text-xs text-blue-600 border border-blue-300 px-3.5 py-1.5 rounded-full hover:bg-blue-50 font-medium"
                     >
                       💬 채팅하기
                     </button>
-                    <span className="text-xs text-gray-400">{quotes.length}개 버전</span>
                   </div>
                 </div>
                 <div className="space-y-2">

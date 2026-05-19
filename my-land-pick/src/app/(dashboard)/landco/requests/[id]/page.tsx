@@ -677,7 +677,7 @@ export default function LandcoRequestDetail() {
             {request && (
               <button
                 onClick={() => currentUserId && openOrCreateRoom(id, currentUserId)}
-                className="text-[10px] font-medium text-blue-300 bg-blue-500/20 border border-blue-400/30 px-2.5 py-0.5 rounded-full hover:bg-blue-500/30 transition-colors"
+                className="text-[10px] font-medium text-blue-600 bg-white border border-blue-300 px-2.5 py-0.5 rounded-full hover:bg-blue-50 transition-colors"
               >
                 💬 여행사와 채팅하기
               </button>
