@@ -8,7 +8,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 interface Notification {
   id: string
   type: string
-  payload: { request_id?: string; event_name?: string; schedule_id?: string; display_id?: string; settlement_id?: string }
+  payload: { request_id?: string; event_name?: string; schedule_id?: string; display_id?: string; settlement_id?: string; agency_name?: string; label?: string; amount?: number }
   read_at: string | null
   created_at: string
   action_status?: string | null
@@ -31,6 +31,7 @@ const TYPE_LABEL: Record<string, string> = {
   deduction_claim_request: '공제 신청이 접수되었습니다',
   deduction_claim_approved: '공제 신청이 승인되었습니다',
   deduction_claim_rejected: '공제 신청이 거부되었습니다',
+  transfer_notify: '계좌이체 입금 확인이 필요합니다',
 }
 
 export function NotificationBell({ userId, role }: { userId: string; role: 'agency' | 'landco' | 'admin' }) {
@@ -149,7 +150,7 @@ export function NotificationBell({ userId, role }: { userId: string; role: 'agen
                 }`}
                 onClick={() => {
                   if (n.payload.request_id) {
-                    const base = role === 'admin' ? '/admin/payments' : `/${role}/requests/${n.payload.request_id}`
+                    const base = role === 'admin' ? `/admin/requests/${n.payload.request_id}` : `/${role}/requests/${n.payload.request_id}`
                     router.push(base)
                     setOpen(false)
                   }
@@ -164,6 +165,11 @@ export function NotificationBell({ userId, role }: { userId: string; role: 'agen
                     )}
                     {n.payload.event_name && (
                       <p className="text-xs text-gray-400 mt-0.5">{n.payload.event_name}</p>
+                    )}
+                    {n.type === 'transfer_notify' && n.payload.agency_name && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {n.payload.agency_name} · {n.payload.label} · {n.payload.amount?.toLocaleString('ko-KR')}원
+                      </p>
                     )}
                     {n.type === 'post_travel_approval_request' && n.payload.schedule_id && (
                       (n.action_status && n.action_status !== 'pending') ? (

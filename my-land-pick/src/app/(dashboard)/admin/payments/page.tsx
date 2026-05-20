@@ -132,6 +132,7 @@ export default function AdminPaymentsPage() {
       case 'overdue': return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">기한초과</span>
       case 'cancelled': return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">취소됨</span>
       case 'partial': return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">부분결제</span>
+      case 'verifying': return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">입금 확인 중</span>
       default: return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">결제대기</span>
     }
   }
@@ -197,8 +198,8 @@ export default function AdminPaymentsPage() {
                   title="전체 선택"
                 />
               </th>
-              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">결제 ID</th>
-              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">견적 요청</th>
+              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">견적번호</th>
+              <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">행사명</th>
               <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">여행사</th>
               <th className="text-left text-xs font-semibold text-gray-500 px-4 py-3">항목</th>
               <th className="text-right text-xs font-semibold text-gray-500 px-4 py-3">금액</th>
@@ -209,9 +210,9 @@ export default function AdminPaymentsPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="text-center py-8 text-gray-400 text-sm">로딩 중...</td></tr>
+              <tr><td colSpan={8} className="text-center py-8 text-gray-400 text-sm">로딩 중...</td></tr>
             ) : installments.length === 0 ? (
-              <tr><td colSpan={9} className="text-center py-8 text-gray-400 text-sm">데이터가 없습니다.</td></tr>
+              <tr><td colSpan={8} className="text-center py-8 text-gray-400 text-sm">데이터가 없습니다.</td></tr>
             ) : (
               installments.map(inst => {
                 const qr = inst.payment_schedules?.quote_requests
@@ -230,11 +231,10 @@ export default function AdminPaymentsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs font-mono text-gray-500">{inst.display_id ?? inst.id.slice(0, 8)}</span>
+                      <span className="text-xs font-mono text-gray-400">{qr?.display_id ?? '-'}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-gray-900">{qr?.event_name ?? '-'}</div>
-                      <div className="text-[10px] text-gray-400 font-mono">{qr?.display_id ?? ''}</div>
+                      <span className="text-sm font-medium text-gray-900">{qr?.event_name ?? '-'}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-gray-700">{qr?.profiles?.company_name ?? '-'}</span>
@@ -263,7 +263,7 @@ export default function AdminPaymentsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      {(inst.status === 'pending' || inst.status === 'overdue') && (
+                      {(inst.status === 'pending' || inst.status === 'overdue' || inst.status === 'verifying') && (
                         <button
                           onClick={() => handleAction(inst.id, 'paid')}
                           disabled={actingId === inst.id}

@@ -275,7 +275,7 @@ export interface PlatformSetting {
 export type PaymentTemplateType = 'two_time' | 'large_event' | 'one_time' | 'post_travel'
 export type ApprovalStatus = 'approved' | 'pending' | 'rejected'
 export type ChatMessageType = 'text' | 'file' | 'system' | 'approval_request' | 'approval_result'
-export type PaymentInstallmentStatus = 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled'
+export type PaymentInstallmentStatus = 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled' | 'verifying'
 export type PaymentTransactionStatus = 'pending' | 'success' | 'failed' | 'cancelled'
 export type PaymentMethod = 'virtual_account' | 'card_link' | 'card_keyin'
 
