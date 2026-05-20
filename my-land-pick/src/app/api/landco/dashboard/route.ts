@@ -134,7 +134,7 @@ export async function GET() {
     .in('schedule_id', scheduleIds.length > 0 ? scheduleIds : ['__none__'])
   const allInst = installments ?? []
 
-  const pendingInst = allInst.filter(i => i.status === 'pending' || i.status === 'overdue')
+  const pendingInst = allInst.filter(i => i.status === 'pending' || i.status === 'overdue' || i.status === 'verifying')
   const overdueInst = allInst.filter(i => i.status === 'overdue' || (i.status === 'pending' && i.due_date < today))
   const paidInst = allInst.filter(i => i.status === 'paid')
   const thisMonthPaid = paidInst.filter(i => i.paid_at && i.paid_at.slice(0, 10) >= monthStart)
@@ -180,6 +180,7 @@ export async function GET() {
         amount: toLandcoAmount(i, 'amount'),
         due_date: i.due_date,
         overdue: i.status === 'overdue' || (i.status === 'pending' && i.due_date < today),
+        status: i.status,
         event_name: req?.event_name ?? '',
         display_id: req?.display_id ?? '',
         request_id: reqId,

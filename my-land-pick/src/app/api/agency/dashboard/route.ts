@@ -114,7 +114,7 @@ export async function GET() {
   let paidTotal = 0
   let thisMonthPaidCount = 0
   let thisMonthPaidTotal = 0
-  let pendingList: { id: string; label: string; amount: number; due_date: string; overdue: boolean; event_name: string; display_id: string; request_id: string }[] = []
+  let pendingList: { id: string; label: string; amount: number; due_date: string; overdue: boolean; status: string; event_name: string; display_id: string; request_id: string }[] = []
 
   if (requestIds.length > 0) {
     const { data: schedules } = await admin.from('payment_schedules').select('id, request_id').in('request_id', requestIds)
@@ -126,7 +126,7 @@ export async function GET() {
       const { data: installments } = await admin.from('payment_installments').select('id, schedule_id, label, status, amount, paid_amount, paid_at, due_date').in('schedule_id', scheduleIds)
       const allInst = installments ?? []
 
-      const pendingInst = allInst.filter(i => i.status === 'pending' || i.status === 'overdue')
+      const pendingInst = allInst.filter(i => i.status === 'pending' || i.status === 'overdue' || i.status === 'verifying')
       const overdueInst = allInst.filter(i => i.status === 'overdue' || (i.status === 'pending' && i.due_date < today))
       const paidInst = allInst.filter(i => i.status === 'paid')
       const thisMonthPaid = paidInst.filter(i => i.paid_at && i.paid_at.slice(0, 10) >= monthStart)
@@ -162,6 +162,7 @@ export async function GET() {
             amount: i.amount,
             due_date: i.due_date,
             overdue: i.status === 'overdue' || (i.status === 'pending' && i.due_date < today),
+            status: i.status,
             event_name: req?.event_name ?? '',
             display_id: req?.display_id ?? '',
             request_id: reqId,

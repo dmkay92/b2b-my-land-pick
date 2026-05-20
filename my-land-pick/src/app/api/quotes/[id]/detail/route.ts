@@ -12,18 +12,22 @@ export async function GET(
 
   const { id: quoteId } = await params
 
-  const { data: quote } = await supabase
-    .from('quotes').select('*').eq('id', quoteId).single()
-  if (!quote) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const { data: req } = await supabase
-    .from('quote_requests').select('*').eq('id', quote.request_id).single()
-  if (!req) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
-
   const adminClient = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  // admin은 RLS 우회
+  const { data: userProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const queryClient = userProfile?.role === 'admin' ? adminClient : supabase
+
+  const { data: quote } = await queryClient
+    .from('quotes').select('*').eq('id', quoteId).single()
+  if (!quote) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const { data: req } = await queryClient
+    .from('quote_requests').select('*').eq('id', quote.request_id).single()
+  if (!req) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
 
   // Read itinerary/pricing from quote record (persisted at submit time)
   if (!quote.itinerary || !quote.pricing) {
@@ -33,25 +37,26 @@ export async function GET(
 
   // Get agency markup — try this quote first, then fallback to any quote in the same request
   let markup = null
-  const { data: directMarkup } = await supabase
+  const agencyId = userProfile?.role === 'admin' ? req.agency_id : user.id
+  const { data: directMarkup } = await queryClient
     .from('agency_commissions').select('commission_per_person, commission_total')
-    .eq('quote_id', quoteId).eq('agency_id', user.id).maybeSingle()
+    .eq('quote_id', quoteId).eq('agency_id', agencyId).maybeSingle()
   if (directMarkup) {
     markup = directMarkup
   } else {
-    const { data: requestQuotes } = await supabase
+    const { data: requestQuotes } = await queryClient
       .from('quotes').select('id').eq('request_id', quote.request_id)
     const qIds = (requestQuotes ?? []).map(q => q.id)
     if (qIds.length > 0) {
-      const { data: fallbackMarkup } = await supabase
+      const { data: fallbackMarkup } = await queryClient
         .from('agency_commissions').select('commission_per_person, commission_total')
-        .eq('agency_id', user.id).in('quote_id', qIds).limit(1).maybeSingle()
+        .eq('agency_id', agencyId).in('quote_id', qIds).limit(1).maybeSingle()
       markup = fallbackMarkup
     }
   }
 
   // Check selection
-  const { data: selection } = await supabase
+  const { data: selection } = await queryClient
     .from('quote_selections').select('selected_quote_id')
     .eq('request_id', quote.request_id).maybeSingle()
   const isSelected = selection?.selected_quote_id === quoteId

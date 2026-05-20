@@ -24,7 +24,7 @@ export default function LandcoDashboardPage() {
       paidTotal: number
       thisMonthPaidCount: number
       thisMonthPaidTotal: number
-      pendingList: { id: string; label: string; amount: number; due_date: string; overdue: boolean; event_name: string; display_id: string; request_id: string }[]
+      pendingList: { id: string; label: string; amount: number; due_date: string; overdue: boolean; status: string; event_name: string; display_id: string; request_id: string }[]
     }
     revenue: {
       totalLandcoQuote: number
@@ -202,8 +202,9 @@ export default function LandcoDashboardPage() {
 
       {/* 결제 대기 목록 */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
           <h3 className="text-sm font-bold text-gray-900">결제 대기 <span className="text-gray-400 font-normal">(납부기한순, 최대 10건)</span></h3>
+          <button onClick={() => window.location.href = '/landco/payments'} className="text-xs text-blue-600 hover:text-blue-700 font-medium">전체보기</button>
         </div>
         {(payments.pendingList ?? []).length > 0 ? (
           <table className="w-full text-xs">
@@ -213,7 +214,8 @@ export default function LandcoDashboardPage() {
                 <th className="text-left px-5 py-2.5 font-medium">행사명</th>
                 <th className="text-left px-5 py-2.5 font-medium">회차</th>
                 <th className="text-right px-5 py-2.5 font-medium">금액</th>
-                <th className="text-right px-5 py-2.5 font-medium">납부기한</th>
+                <th className="text-center px-5 py-2.5 font-medium">납부기한</th>
+                <th className="text-center px-5 py-2.5 font-medium">상태</th>
               </tr>
             </thead>
             <tbody>
@@ -227,11 +229,19 @@ export default function LandcoDashboardPage() {
                   <td className="px-5 py-3 text-gray-800 font-medium">{item.event_name}</td>
                   <td className="px-5 py-3 text-gray-600">{item.label}</td>
                   <td className="px-5 py-3 text-right text-gray-800 font-medium">{fmt(item.amount)}원</td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="px-5 py-3 text-center">
                     <span className={item.overdue ? 'text-red-500 font-semibold' : 'text-gray-600'}>
                       {item.due_date}
                       {item.overdue && ' (초과)'}
                     </span>
+                  </td>
+                  <td className="px-5 py-3 text-center">
+                    {item.status === 'verifying'
+                      ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">입금 확인 중</span>
+                      : item.overdue
+                      ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">기한초과</span>
+                      : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">결제대기</span>
+                    }
                   </td>
                 </tr>
               ))}

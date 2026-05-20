@@ -27,6 +27,8 @@ function statusBadge(status: string) {
       return <span className="text-[11px] font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">부분결제</span>
     case 'overdue':
       return <span className="text-[11px] font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">기한초과</span>
+    case 'verifying':
+      return <span className="text-[11px] font-medium text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">입금 확인 중</span>
     case 'cancelled':
       return <span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">취소됨</span>
     default:
@@ -60,6 +62,8 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
     bank: string; account_number: string; holder: string; expires_at: string;
     transactionId: string; amount: number;
   } | null>(null)
+  const [notifyingTransfer, setNotifyingTransfer] = useState(false)
+  const [showTransferSuccess, setShowTransferSuccess] = useState(false)
 
   const noPaid = installments.every(i => i.status === 'pending')
   const isImmediate = schedule.template_type === 'one_time'
@@ -90,6 +94,28 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
     setSelectedMethod(null)
     setIsSplitModal(split)
     setPayAmount(split ? '' : String(inst.amount - inst.paid_amount))
+  }
+
+  const handleTransferNotify = async () => {
+    if (!payingInstallment || notifyingTransfer) return
+    setNotifyingTransfer(true)
+    try {
+      const res = await fetch('/api/payment-schedule/transfer-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ installmentId: payingInstallment.id }),
+      })
+      if (!res.ok) {
+        const { error } = await res.json()
+        alert(error || '처리 중 오류가 발생했습니다.')
+        return
+      }
+      setPayingInstallment(null)
+      setShowTransferSuccess(true)
+      onRefresh?.()
+    } finally {
+      setNotifyingTransfer(false)
+    }
   }
 
   const handlePay = async () => {
@@ -174,10 +200,45 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
               </div>
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-100 flex justify-end">
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
               <button
                 onClick={() => setPayingInstallment(null)}
                 className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                닫기
+              </button>
+              <button
+                onClick={handleTransferNotify}
+                disabled={notifyingTransfer}
+                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {notifyingTransfer ? '처리 중...' : '입금을 완료했습니다'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 입금 완료 알림 성공 모달 */}
+      {showTransferSuccess && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
+            <div className="px-5 py-5 text-center space-y-3">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-base font-bold text-gray-900">입금 알림이 전송되었습니다</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">
+                마이랜드픽 담당자가 입금 내역을 확인할 예정입니다.<br />
+                확인 완료 시 결제 상태가 업데이트됩니다.
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-center">
+              <button
+                onClick={() => setShowTransferSuccess(false)}
+                className="px-6 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700"
               >
                 확인
               </button>
@@ -354,6 +415,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                       inst.status === 'paid' ? 'bg-emerald-500 text-white' :
                       inst.status === 'partial' ? 'bg-blue-500 text-white' :
                       inst.status === 'overdue' ? 'bg-red-500 text-white' :
+                      inst.status === 'verifying' ? 'bg-indigo-500 text-white' :
                       'bg-gray-100 text-gray-500 border border-gray-200'
                     }`}>
                       {inst.status === 'paid' ? '✓' : idx + 1}
@@ -381,7 +443,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                         <div className="text-[10px] text-blue-500">{fmt(inst.paid_amount)}원 결제됨</div>
                       )}
                     </div>
-                    {canPay && !isCancelled && (
+                    {canPay && !isCancelled && inst.status !== 'verifying' && (
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => openPayModal(inst, false)}
@@ -393,14 +455,6 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                         >
                           {remaining < inst.amount ? `${fmt(remaining)}원 결제` : '결제하기'}
                         </button>
-                        {inst.allow_split && (
-                          <button
-                            onClick={() => openPayModal(inst, true)}
-                            className="px-2.5 py-1.5 text-xs font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all active:scale-95 whitespace-nowrap"
-                          >
-                            카드+현금
-                          </button>
-                        )}
                       </div>
                     )}
                   </div>
@@ -482,7 +536,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-base font-bold text-gray-900">{fmt(inst.amount)}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></span>
-                        {!isCancelled && canPay && remaining > 0 && (
+                        {!isCancelled && canPay && remaining > 0 && inst.status !== 'verifying' && (
                           <button onClick={() => openPayModal(inst, false)} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700">결제하기</button>
                         )}
                       </div>
@@ -558,7 +612,7 @@ export default function PaymentScheduleCard({ schedule, installments, departDate
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-base font-bold text-red-600">{fmt(inst.amount)}<span className="text-xs font-normal text-gray-400 ml-0.5">원</span></span>
-                        {!isCancelled && canPay && remaining > 0 && (
+                        {!isCancelled && canPay && remaining > 0 && inst.status !== 'verifying' && (
                           <button onClick={() => openPayModal(inst, false)} className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700">결제하기</button>
                         )}
                       </div>

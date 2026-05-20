@@ -5,6 +5,7 @@ import { AccountMenu } from '@/components/AccountMenu'
 import { AgencySidebar } from '@/components/layout/AgencySidebar'
 import { ChatProvider } from '@/lib/chat/ChatContext'
 import { FloatingChat } from '@/components/chat/FloatingChat'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -21,6 +22,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       role="admin"
       rightSlot={
         <>
+          <NotificationBell userId={user.id} role="admin" />
           <AccountMenu email={user.email!} role="admin" companyName="관리자" />
           <LogoutButton />
         </>

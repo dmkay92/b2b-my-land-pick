@@ -11,7 +11,7 @@ import DeductionClaimSection from '@/components/DeductionClaimSection'
 import { useChat } from '@/lib/chat/ChatContext'
 import type { DeductionClaim } from '@/lib/supabase/types'
 
-type QuoteWithLandco = Quote & { profiles: { company_name: string }; pricing_mode?: 'detailed' | 'summary' }
+type QuoteWithLandco = Quote & { profiles: { company_name: string; description?: string; profile_image?: string }; pricing_mode?: 'detailed' | 'summary' }
 
 function fmt(n: number) { return n.toLocaleString('ko-KR') }
 
@@ -160,9 +160,9 @@ export default function AdminRequestDetail() {
   const deadlineDays = Math.ceil((new Date(request.deadline).getTime() - new Date().getTime()) / 86400000)
 
   // 랜드사별 그룹핑
-  const grouped: Record<string, { company_name: string; quotes: QuoteWithLandco[] }> = {}
+  const grouped: Record<string, { company_name: string; description: string; profile_image: string; quotes: QuoteWithLandco[] }> = {}
   quotes.forEach(q => {
-    if (!grouped[q.landco_id]) grouped[q.landco_id] = { company_name: q.profiles?.company_name ?? '알 수 없음', quotes: [] }
+    if (!grouped[q.landco_id]) grouped[q.landco_id] = { company_name: q.profiles?.company_name ?? '알 수 없음', description: q.profiles?.description ?? '', profile_image: q.profiles?.profile_image ?? '', quotes: [] }
     grouped[q.landco_id].quotes.push(q)
   })
   const landcoCount = Object.keys(grouped).length
@@ -342,7 +342,7 @@ export default function AdminRequestDetail() {
         <div className="bg-white divide-y divide-gray-100">
           {landcoCount === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">아직 제출된 견적이 없습니다.</p>
-          ) : Object.entries(grouped).map(([landcoId, { company_name, quotes: lQuotes }]) => {
+          ) : Object.entries(grouped).map(([landcoId, { company_name, description, profile_image, quotes: lQuotes }]) => {
             const sorted = [...lQuotes].sort((a, b) => b.version - a.version)
             const isSelected = selection?.landco_id === landcoId
             const latest = sorted[0]
@@ -350,18 +350,40 @@ export default function AdminRequestDetail() {
             const pricingPerPerson = latest?.summary_per_person ?? 0
             return (
               <div key={landcoId} className="p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">{company_name}</h3>
+                {/* 랜드사 프로필 카드 */}
+                <div className="flex items-start gap-3 mb-4">
+                  <a href={`/partners/${landcoId}`} target="_blank" className="shrink-0">
+                    {profile_image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={profile_image} alt="" className="w-14 h-14 rounded-xl object-cover" />
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl bg-gray-200 flex items-center justify-center text-lg text-gray-500 font-bold">
+                        {company_name.charAt(0)}
+                      </div>
+                    )}
+                  </a>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <a href={`/partners/${landcoId}`} target="_blank" className="text-sm font-bold text-gray-900 hover:text-blue-600">{company_name}</a>
+                      <span className="text-xs text-gray-400">{lQuotes.length}개 버전</span>
+                    </div>
+                    {description ? (
+                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{description}</p>
+                    ) : (
+                      <p className="text-xs text-gray-300 mt-0.5">소개가 없습니다.</p>
+                    )}
+                    <a href={`/partners/${landcoId}`} target="_blank" className="text-[11px] text-blue-500 hover:text-blue-700 mt-1 inline-block">
+                      랜드사 소개 &rsaquo;
+                    </a>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="shrink-0">
                     {(() => {
                       const room = chatRooms.find(r => r.landco_id === landcoId)
                       if (room) {
                         return (
                           <button
                             onClick={() => { loadRooms(); openRoom(room.id) }}
-                            className="text-xs text-blue-600 border border-blue-300 px-2.5 py-1 rounded-full hover:bg-blue-50"
+                            className="text-xs text-blue-600 border border-blue-300 px-3.5 py-1.5 rounded-full hover:bg-blue-50 font-medium"
                           >
                             💬 채팅 보기
                           </button>
@@ -369,7 +391,6 @@ export default function AdminRequestDetail() {
                       }
                       return null
                     })()}
-                    <span className="text-xs text-gray-400">{lQuotes.length}개 버전</span>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -388,19 +409,26 @@ export default function AdminRequestDetail() {
                           <span className="text-sm text-gray-600 truncate min-w-0 flex-1">{q.file_name}</span>
                           <div className="flex items-center gap-2 shrink-0 ml-auto">
                             <span className="text-xs text-gray-400 whitespace-nowrap">{formatDate(q.submitted_at)}</span>
-                            <a
-                              href={`/api/quotes/${q.id}/preview`}
-                              target="_blank"
+                            <button
+                              onClick={() => window.open(`/admin/quotes/${q.id}`, '_blank')}
                               className="text-xs text-[#009CF0] border border-[#009CF0] px-2.5 py-1 rounded-md hover:bg-blue-50 transition-colors whitespace-nowrap shrink-0"
                             >
                               미리보기
-                            </a>
-                            <a
-                              href={`/api/quotes/${q.id}/download`}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const res = await fetch(`/api/quotes/${q.id}/download`)
+                                if (!res.ok) return
+                                const blob = await res.blob()
+                                const url = URL.createObjectURL(blob)
+                                const a = document.createElement('a')
+                                a.href = url; a.download = q.file_name || 'quote.xlsx'; a.click()
+                                URL.revokeObjectURL(url)
+                              }}
                               className="text-xs text-gray-600 border border-gray-300 px-2.5 py-1 rounded-md hover:bg-gray-100 transition-colors whitespace-nowrap shrink-0"
                             >
                               다운로드
-                            </a>
+                            </button>
                           </div>
                         </div>
                         <div className="flex items-center justify-between mt-1.5">

@@ -15,20 +15,24 @@ export async function GET(
 
   const { id: quoteId } = await params
 
-  // Get quote and its request
-  const { data: quote } = await supabase
-    .from('quotes').select('*').eq('id', quoteId).single()
-  if (!quote) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const { data: req } = await supabase
-    .from('quote_requests').select('*').eq('id', quote.request_id).single()
-  if (!req) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
-
-  // Admin client for cross-user profile lookup (bypasses RLS)
+  // Admin client for cross-user lookups (bypasses RLS)
   const adminClient = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+
+  // admin은 RLS 우회
+  const { data: userProfile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const queryClient = userProfile?.role === 'admin' ? adminClient : supabase
+
+  // Get quote and its request
+  const { data: quote } = await queryClient
+    .from('quotes').select('*').eq('id', quoteId).single()
+  if (!quote) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  const { data: req } = await queryClient
+    .from('quote_requests').select('*').eq('id', quote.request_id).single()
+  if (!req) return NextResponse.json({ error: 'Request not found' }, { status: 404 })
 
   // Read itinerary/pricing from quote record (persisted at submit time)
   if (!quote.itinerary || !quote.pricing) {
@@ -37,13 +41,12 @@ export async function GET(
   const draft = { itinerary: quote.itinerary, pricing: quote.pricing }
 
   // Get platform margin rate
-  const { data: marginSetting } = await supabase
+  const { data: marginSetting } = await queryClient
     .from('platform_settings').select('value').eq('key', 'margin_rate').single()
   const marginRate = marginSetting ? Number(marginSetting.value) : 0.05
 
-  // Check user role
-  const { data: profile } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
+  // Check user role (reuse userProfile from above)
+  const profile = userProfile
   const isAgency = profile?.role === 'agency'
 
   // Get agency markup — query param takes priority, then DB lookup
@@ -54,17 +57,17 @@ export async function GET(
     markupTotal = Number(markupParam) || 0
   } else {
     const agencyId = isAgency ? user.id : req.agency_id
-    const { data: directMarkup } = await supabase
+    const { data: directMarkup } = await queryClient
       .from('agency_commissions').select('commission_total')
       .eq('quote_id', quoteId).eq('agency_id', agencyId).maybeSingle()
     if (directMarkup) {
       markupTotal = directMarkup.commission_total ?? 0
     } else {
-      const { data: requestQuotes } = await supabase
+      const { data: requestQuotes } = await queryClient
         .from('quotes').select('id').eq('request_id', quote.request_id)
       const qIds = (requestQuotes ?? []).map(q => q.id)
       if (qIds.length > 0) {
-        const { data: fallbackMarkup } = await supabase
+        const { data: fallbackMarkup } = await queryClient
           .from('agency_commissions').select('commission_total')
           .eq('agency_id', agencyId).in('quote_id', qIds).limit(1).maybeSingle()
         markupTotal = fallbackMarkup?.commission_total ?? 0
@@ -108,7 +111,7 @@ export async function GET(
   }
 
   // Check if quote is selected (determines whether to include pricing sheet)
-  const { data: selection } = await supabase
+  const { data: selection } = await queryClient
     .from('quote_selections').select('selected_quote_id')
     .eq('request_id', quote.request_id).maybeSingle()
 

@@ -38,11 +38,11 @@ export async function GET(request: NextRequest) {
         )
       )
     `)
-    .order('due_date', { ascending: true })
+    .order('display_id', { ascending: true })
 
   if (statusFilter && statusFilter !== 'all') {
     if (statusFilter === 'pending') {
-      query = query.in('status', ['pending', 'overdue'])
+      query = query.in('status', ['pending', 'overdue', 'verifying'])
     } else {
       query = query.eq('status', statusFilter)
     }

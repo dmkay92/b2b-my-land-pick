@@ -17,6 +17,7 @@ const NAV_ITEMS: Record<'agency' | 'landco' | 'admin', { label: string; href: st
     { label: '견적 요청', href: '/agency/requests', icon: '📋' },
     { label: '여행 캘린더', href: '/agency/calendar', icon: '📅' },
     { label: '새 견적 요청', href: '/agency/requests/new', icon: '✏️' },
+    { label: '결제 관리', href: '/agency/payments', icon: '💰' },
     { label: '공지사항', href: '/agency/notices', icon: '📢' },
   ],
   landco: [
@@ -24,6 +25,7 @@ const NAV_ITEMS: Record<'agency' | 'landco' | 'admin', { label: string; href: st
     { label: '견적 요청', href: '/landco/requests', icon: '📋' },
     { label: '여행 캘린더', href: '/landco/calendar', icon: '📅' },
     { label: '내 견적서', href: '/landco/quotes', icon: '✏️' },
+    { label: '결제 현황', href: '/landco/payments', icon: '💰' },
     { label: '담당 지역', href: '/landco/countries', icon: '🌏' },
     { label: '프로필 편집', href: '/landco/profile', icon: '👤' },
     { label: '공지사항', href: '/landco/notices', icon: '📢' },

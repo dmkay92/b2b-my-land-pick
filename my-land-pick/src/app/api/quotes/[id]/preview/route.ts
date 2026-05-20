@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import ExcelJS from 'exceljs'
 import { workbookToHtml } from '@/lib/excel/workbookToHtml'
 
@@ -13,7 +14,13 @@ export async function GET(
 
   const { id } = await params
 
-  const { data: quote, error } = await supabase
+  // admin은 RLS 우회
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const queryClient = profile?.role === 'admin'
+    ? createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    : supabase
+
+  const { data: quote, error } = await queryClient
     .from('quotes')
     .select('file_url, file_name')
     .eq('id', id)

@@ -13,7 +13,9 @@ export default function AdminPage() {
   const [agencyCount, setAgencyCount] = useState(0)
   const [landcoCount, setLandcoCount] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [pendingInstallments, setPendingInstallments] = useState<{ label: string; event_name: string; amount: number; due_date: string; id: string }[]>([])
+  const [pendingInstallments, setPendingInstallments] = useState<{ label: string; event_name: string; amount: number; due_date: string; id: string; status: string; agency_name: string; request_id: string; display_id: string | null; request_display_id: string | null }[]>([])
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [actingPayment, setActingPayment] = useState(false)
   // 대시보드 KPI
   type DashboardData = {
     quotes: {
@@ -103,10 +105,19 @@ export default function AdminPage() {
         setPendingInstallments(
           (installments ?? [])
             .sort((a: { due_date: string }, b: { due_date: string }) => a.due_date.localeCompare(b.due_date))
-            .slice(0, 5)
-            .map((i: { id: string; label: string; amount: number; due_date: string; payment_schedules?: { quote_requests?: { event_name?: string } } }) => ({
-              id: i.id, label: i.label, event_name: i.payment_schedules?.quote_requests?.event_name ?? '-', amount: i.amount, due_date: i.due_date,
-            }))
+            .slice(0, 10)
+            .map((i: Record<string, unknown>) => {
+              const ps = i.payment_schedules as Record<string, unknown> | undefined
+              const qr = ps?.quote_requests as Record<string, unknown> | undefined
+              const prof = qr?.profiles as Record<string, unknown> | undefined
+              return {
+                id: i.id as string, label: i.label as string, amount: i.amount as number, due_date: i.due_date as string, status: i.status as string, display_id: i.display_id as string | null,
+                event_name: (qr?.event_name as string) ?? '-',
+                agency_name: (prof?.company_name as string) ?? '-',
+                request_id: (ps?.request_id as string) ?? '',
+                request_display_id: (qr?.display_id as string | null) ?? null,
+              }
+            })
         )
       }
       setLoading(false)
@@ -355,38 +366,111 @@ export default function AdminPage() {
       )}
 
       {/* 결제 대기 */}
-      <section className="mb-6">
-        <h2 className="text-lg font-semibold mb-3">
-          결제 대기 <span className="text-gray-400 font-normal text-sm">(납부기한순, 최대 5건)</span>
-        </h2>
-        {pendingInstallments.length === 0 ? (
-          <p className="text-gray-400 text-sm">결제 대기 건이 없습니다.</p>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-gray-900">결제 대기 <span className="text-gray-400 font-normal">(납부기한순, 최대 10건)</span></h3>
+          <button onClick={() => router.push('/admin/payments')} className="text-xs text-blue-600 hover:text-blue-700 font-medium">전체보기</button>
+        </div>
+        {pendingInstallments.length > 0 ? (
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100 text-gray-500">
+                <th className="text-left px-5 py-2.5 font-medium">견적번호</th>
+                <th className="text-left px-5 py-2.5 font-medium">행사명</th>
+                <th className="text-left px-5 py-2.5 font-medium">여행사</th>
+                <th className="text-left px-5 py-2.5 font-medium">회차</th>
+                <th className="text-right px-5 py-2.5 font-medium">금액</th>
+                <th className="text-center px-5 py-2.5 font-medium">납부기한</th>
+                <th className="text-center px-5 py-2.5 font-medium">상태</th>
+                <th className="text-center px-5 py-2.5 font-medium">액션</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingInstallments.map(inst => {
+                const today = new Date().toISOString().slice(0, 10)
+                const daysLeft = Math.ceil((new Date(inst.due_date).getTime() - new Date(today).getTime()) / 86400000)
+                const isOverdue = daysLeft < 0
+                return (
+                  <tr
+                    key={inst.id}
+                    className="border-b border-gray-50 hover:bg-blue-50/50 cursor-pointer transition-colors"
+                    onClick={() => router.push(`/admin/requests/${inst.request_id}`)}
+                  >
+                    <td className="px-5 py-3 text-gray-400 font-mono">{inst.request_display_id || '-'}</td>
+                    <td className="px-5 py-3 text-gray-800 font-medium max-w-[200px] truncate">{inst.event_name}</td>
+                    <td className="px-5 py-3 text-gray-600">{inst.agency_name}</td>
+                    <td className="px-5 py-3 text-gray-600">{inst.label}</td>
+                    <td className="px-5 py-3 text-right text-gray-800 font-medium">{inst.amount.toLocaleString('ko-KR')}원</td>
+                    <td className="px-5 py-3 text-center">
+                      <span className={isOverdue ? 'text-red-500 font-semibold' : daysLeft <= 3 ? 'text-amber-500 font-medium' : 'text-gray-500'}>
+                        {inst.due_date} ({isOverdue ? `D+${Math.abs(daysLeft)}` : `D-${daysLeft}`})
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-center">
+                      {inst.status === 'verifying'
+                        ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">입금 확인 중</span>
+                        : inst.status === 'overdue'
+                        ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">기한초과</span>
+                        : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">결제대기</span>
+                      }
+                    </td>
+                    <td className="px-5 py-3 text-center">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmingId(inst.id) }}
+                        disabled={actingPayment}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        결제완료
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         ) : (
-          <div className="space-y-2">
-            {pendingInstallments.slice(0, 5).map(inst => {
-              const today = new Date().toISOString().slice(0, 10)
-              const daysLeft = Math.ceil((new Date(inst.due_date).getTime() - new Date(today).getTime()) / 86400000)
-              const isOverdue = daysLeft < 0
-              return (
-                <div key={inst.id} className="bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push('/admin/payments')}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{inst.label}</p>
-                      <p className="text-xs text-gray-400">{inst.event_name}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-gray-900">{inst.amount.toLocaleString('ko-KR')}원</p>
-                      <p className={`text-xs font-medium ${isOverdue ? 'text-red-500' : daysLeft <= 3 ? 'text-amber-500' : 'text-gray-400'}`}>
-                        {isOverdue ? `D+${Math.abs(daysLeft)}` : `D-${daysLeft}`}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          <p className="text-sm text-gray-400 text-center py-8">결제 대기 건이 없습니다.</p>
         )}
-      </section>
+      </div>
+
+      {/* 결제완료 확인 모달 */}
+      {confirmingId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-bold text-gray-900">결제완료 처리</h3>
+            </div>
+            <div className="px-5 py-5">
+              <p className="text-sm text-gray-700">해당 건을 결제완료 처리하시겠습니까?</p>
+            </div>
+            <div className="flex gap-2 px-5 py-4 border-t border-gray-100">
+              <button
+                onClick={() => setConfirmingId(null)}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                취소
+              </button>
+              <button
+                onClick={async () => {
+                  setActingPayment(true)
+                  await fetch('/api/admin/payments', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ installmentId: confirmingId, action: 'paid' }),
+                  })
+                  setConfirmingId(null)
+                  setActingPayment(false)
+                  setPendingInstallments(prev => prev.filter(i => i.id !== confirmingId))
+                }}
+                disabled={actingPayment}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-600 disabled:opacity-50"
+              >
+                {actingPayment ? '처리 중...' : '확인'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 회원 현황 + 승인 대기 */}
       <div className="grid grid-cols-2 gap-4 mb-6">

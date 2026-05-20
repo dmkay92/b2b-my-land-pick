@@ -28,7 +28,7 @@ export default function AgencyDashboardPage() {
       paidTotal: number
       thisMonthPaidCount: number
       thisMonthPaidTotal: number
-      pendingList: { id: string; label: string; amount: number; due_date: string; overdue: boolean; event_name: string; display_id: string; request_id: string }[]
+      pendingList: { id: string; label: string; amount: number; due_date: string; overdue: boolean; status: string; event_name: string; display_id: string; request_id: string }[]
     }
     revenue: {
       totalGmv: number
@@ -37,13 +37,40 @@ export default function AgencyDashboardPage() {
     }
   } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [payingItem, setPayingItem] = useState<{ id: string; label: string; amount: number; paid_amount?: number } | null>(null)
+  const [notifyingTransfer, setNotifyingTransfer] = useState(false)
+  const [showTransferSuccess, setShowTransferSuccess] = useState(false)
 
-  useEffect(() => {
+  function loadDashboard() {
     fetch('/api/agency/dashboard')
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadDashboard() }, [])
+
+  async function handleTransferNotify() {
+    if (!payingItem || notifyingTransfer) return
+    setNotifyingTransfer(true)
+    try {
+      const res = await fetch('/api/payment-schedule/transfer-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ installmentId: payingItem.id }),
+      })
+      if (!res.ok) {
+        const { error } = await res.json()
+        alert(error || '처리 중 오류가 발생했습니다.')
+        return
+      }
+      setPayingItem(null)
+      setShowTransferSuccess(true)
+      loadDashboard()
+    } finally {
+      setNotifyingTransfer(false)
+    }
+  }
 
   if (loading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" /></div>
   if (!data) return <p className="p-8 text-gray-400">데이터를 불러올 수 없습니다.</p>
@@ -211,8 +238,9 @@ export default function AgencyDashboardPage() {
 
       {/* 결제 대기 목록 */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-3 border-b border-gray-100">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
           <h3 className="text-sm font-bold text-gray-900">결제 대기 <span className="text-gray-400 font-normal">(납부기한순, 최대 10건)</span></h3>
+          <button onClick={() => router.push('/agency/payments')} className="text-xs text-blue-600 hover:text-blue-700 font-medium">전체보기</button>
         </div>
         {(payments.pendingList ?? []).length > 0 ? (
           <table className="w-full text-xs">
@@ -222,7 +250,9 @@ export default function AgencyDashboardPage() {
                 <th className="text-left px-5 py-2.5 font-medium">행사명</th>
                 <th className="text-left px-5 py-2.5 font-medium">회차</th>
                 <th className="text-right px-5 py-2.5 font-medium">금액</th>
-                <th className="text-right px-5 py-2.5 font-medium">납부기한</th>
+                <th className="text-center px-5 py-2.5 font-medium">납부기한</th>
+                <th className="text-center px-5 py-2.5 font-medium">상태</th>
+                <th className="text-center px-5 py-2.5 font-medium">액션</th>
               </tr>
             </thead>
             <tbody>
@@ -236,11 +266,31 @@ export default function AgencyDashboardPage() {
                   <td className="px-5 py-3 text-gray-800 font-medium">{item.event_name}</td>
                   <td className="px-5 py-3 text-gray-600">{item.label}</td>
                   <td className="px-5 py-3 text-right text-gray-800 font-medium">{fmt(item.amount)}원</td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="px-5 py-3 text-center">
                     <span className={item.overdue ? 'text-red-500 font-semibold' : 'text-gray-600'}>
                       {item.due_date}
                       {item.overdue && ' (초과)'}
                     </span>
+                  </td>
+                  <td className="px-5 py-3 text-center">
+                    {item.status === 'verifying'
+                      ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">입금 확인 중</span>
+                      : item.overdue
+                      ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">기한초과</span>
+                      : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">결제대기</span>
+                    }
+                  </td>
+                  <td className="px-5 py-3 text-center">
+                    {(item.status === 'pending' || item.status === 'overdue') && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setPayingItem({ id: item.id, label: item.label, amount: item.amount }) }}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg text-white active:scale-95 ${
+                          item.overdue ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'
+                        }`}
+                      >
+                        결제하기
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -250,6 +300,79 @@ export default function AgencyDashboardPage() {
           <p className="text-sm text-gray-400 text-center py-8">결제 대기 건이 없습니다.</p>
         )}
       </div>
+
+      {/* 계좌이체 안내 모달 */}
+      {payingItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-base font-bold text-gray-900">계좌이체 안내</h3>
+              <p className="text-sm text-gray-500 mt-0.5">{payingItem.label} — {fmt(payingItem.amount)}원</p>
+            </div>
+            <div className="px-5 py-5 space-y-3">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">은행</span>
+                  <span className="text-sm font-semibold text-gray-900">우리은행</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">계좌번호</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-blue-700 tracking-wide">1005-604-520904</span>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText('1005604520904'); alert('계좌번호가 복사되었습니다.') }}
+                      className="text-[10px] text-blue-600 bg-blue-100 px-2 py-0.5 rounded hover:bg-blue-200"
+                    >
+                      복사
+                    </button>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-gray-500">예금주</span>
+                  <span className="text-sm font-semibold text-gray-900">(주)마이리얼트립</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-blue-200 pt-2.5">
+                  <span className="text-xs font-medium text-gray-600">입금 금액</span>
+                  <span className="text-base font-bold text-blue-700">{fmt(payingItem.amount)}원</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-400 text-center leading-relaxed">
+                입금 후 확인까지 영업일 기준 1~2일 소요됩니다.<br />
+                입금자명은 회사명으로 기재해주세요.
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setPayingItem(null)} className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">닫기</button>
+              <button onClick={handleTransferNotify} disabled={notifyingTransfer} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {notifyingTransfer ? '처리 중...' : '입금을 완료했습니다'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 입금 완료 알림 성공 모달 */}
+      {showTransferSuccess && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4">
+            <div className="px-5 py-5 text-center space-y-3">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+                <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-base font-bold text-gray-900">입금 알림이 전송되었습니다</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">
+                마이랜드픽 담당자가 입금 내역을 확인할 예정입니다.<br />
+                확인 완료 시 결제 상태가 업데이트됩니다.
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-center">
+              <button onClick={() => setShowTransferSuccess(false)} className="px-6 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700">확인</button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

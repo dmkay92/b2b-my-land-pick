@@ -198,7 +198,34 @@ export async function sendFinalizedEmail(params: {
   } catch { /* 이메일 실패는 무시 */ }
 }
 
-// 10. 행사 취소/환불 요청 (랜드사)
+// 10. 계좌이체 입금 알림 (관리자)
+export async function sendTransferNotifyEmail(params: {
+  to: string
+  event_name: string
+  agency_name: string
+  label: string
+  amount: number
+  request_id: string
+}) {
+  try {
+    await resend.emails.send({
+      from: EMAIL_FROM,
+      to: params.to,
+      subject: `[입금알림] ${params.event_name} — ${params.agency_name} ${params.label} 입금 확인 요청`,
+      html: emailLayout(
+        heading('입금 확인이 필요합니다') +
+        field('행사명', params.event_name) +
+        field('여행사', params.agency_name) +
+        field('항목', params.label) +
+        field('금액', `${params.amount.toLocaleString('ko-KR')}원`) +
+        `<p style="color:#374151;line-height:1.6;">여행사에서 계좌이체 입금 완료를 알렸습니다. 입금 내역을 확인해주세요.</p>` +
+        ctaButton(`${APP_URL}/admin`, '관리자 페이지에서 확인하기')
+      ),
+    })
+  } catch { /* 이메일 실패는 무시 */ }
+}
+
+// 11. 행사 취소/환불 요청 (랜드사)
 export async function sendCancellationEmail(params: {
   to: string
   event_name: string
